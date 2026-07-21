@@ -857,21 +857,59 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
         if d:
             scan_paths.append(Path(d))
             
-    norm_to_filename = {}
+    disk_files = []
     for download_path in scan_paths:
         if download_path.exists() and download_path.is_dir():
             for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac']:
                 for file in download_path.rglob(ext):
-                    norm = normalize_name(file.stem)
-                    if norm:
-                        norm_to_filename[norm] = file.name
+                    stem = file.stem
+                    n_stem = normalize_name(stem)
+                    if not n_stem or len(n_stem) < 3:
+                        continue
+                    n_parts = [normalize_name(p) for p in stem.split(' - ')] if ' - ' in stem else []
+                    disk_files.append({
+                        "name": file.name,
+                        "path": file,
+                        "n_stem": n_stem,
+                        "n_parts": [p for p in n_parts if p and len(p) >= 3]
+                    })
                         
+    has_custom_disabled_ids = "disabled_track_ids" in source and len(source.get("disabled_track_ids", [])) > 0
     disabled_ids = set(source.get("disabled_track_ids", []))
     
     formatted_tracks = []
     for t in tracks:
-        norm = normalize_name(t["display_name"])
-        local_filename = norm_to_filename.get(norm)
+        n_display = normalize_name(t.get("display_name", ""))
+        n_title = normalize_name(t.get("title", ""))
+        n_artist = normalize_name(t.get("artist", ""))
+        n_artist_title = normalize_name(f"{t.get('artist', '')} {t.get('title', '')}")
+        
+        matched_file = None
+        for df in disk_files:
+            fn = df["n_stem"]
+            if not fn:
+                continue
+                
+            # 1. Exact match with n_display, n_title, or n_artist_title
+            if (n_display and fn == n_display) or (n_title and fn == n_title) or (n_artist_title and fn == n_artist_title):
+                matched_file = df
+                break
+                
+            # 2. Check parts match (e.g., "Artist - Title")
+            if df["n_parts"]:
+                if any(p and len(p) >= 3 and (p == n_title or p == n_display) for p in df["n_parts"]):
+                    matched_file = df
+                    break
+                    
+            # 3. Substring containment match (if length >= 5)
+            if n_title and len(n_title) >= 5 and (n_title in fn or fn in n_title):
+                matched_file = df
+                break
+            if len(fn) >= 5 and n_display and fn in n_display:
+                matched_file = df
+                break
+                
+        local_filename = matched_file["name"] if matched_file else None
         
         # Fallback to cache local_filename if it exists in any of the configured paths
         if not local_filename and t.get("local_filename"):
@@ -879,18 +917,21 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
                 cand = download_path / t["local_filename"]
                 if cand.exists():
                     local_filename = t["local_filename"]
+                    matched_file = {"path": cand}
                     break
                     
         downloaded = local_filename is not None
         
         # Determine thumbnail_url if downloaded
         thumbnail_url = None
-        if local_filename:
-            for download_path in scan_paths:
-                cand = download_path / local_filename
-                if cand.exists():
-                    thumbnail_url = f"/api/thumbnail?path={urllib.parse.quote(str(cand))}"
-                    break
+        if matched_file and matched_file.get("path"):
+            thumbnail_url = f"/api/thumbnail?path={urllib.parse.quote(str(matched_file['path']))}"
+        
+        # Uncheck downloaded tracks by default (enabled = False if downloaded)
+        if has_custom_disabled_ids:
+            enabled = t["id"] not in disabled_ids
+        else:
+            enabled = not downloaded
         
         formatted_tracks.append({
             "id": t["id"],
@@ -900,7 +941,7 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
             "video_id": t.get("video_id"),
             "url": t["url"],
             "duration": t.get("duration"),
-            "enabled": t["id"] not in disabled_ids,
+            "enabled": enabled,
             "downloaded": downloaded,
             "local_filename": local_filename or t.get("local_filename"),
             "thumbnail_url": thumbnail_url
