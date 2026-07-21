@@ -8,6 +8,10 @@ let currentTracks = [];
 let eventSource = null;
 let currentBrowserPath = "/";
 let parentBrowserPath = null;
+let playerQueue = [];
+let currentQueueIndex = -1;
+let currentPlayingTrack = null;
+let discoverData = null;
 
 // DOM Elements
 const profileSelect = document.getElementById("profile-select");
@@ -64,6 +68,34 @@ const settingCookiesFile = document.getElementById("setting-cookies-file");
 const triggerCookiesUploadBtn = document.getElementById("trigger-cookies-upload-btn");
 const selectedCookiesFilename = document.getElementById("selected-cookies-filename");
 const uploadCookiesBtn = document.getElementById("upload-cookies-btn");
+
+// Discover Page & Bottom Audio Player Elements
+const tabDiscover = document.getElementById("tab-discover");
+const discoverArtistsGrid = document.getElementById("discover-artists-grid");
+const discoverAlbumsGrid = document.getElementById("discover-albums-grid");
+const discoverGenresGrid = document.getElementById("discover-genres-grid");
+const discoverSongsTableBody = document.getElementById("discover-songs-table-body");
+const discoverDetailsModal = document.getElementById("discover-details-modal");
+const discoverDetailsTitle = document.getElementById("discover-details-title");
+const discoverDetailsList = document.getElementById("discover-details-list");
+const discoverDetailsClose = document.getElementById("discover-details-close");
+
+// Spotify Bottom Player Elements
+const musicPlayerBar = document.getElementById("music-player-bar");
+const playerTrackTitle = document.getElementById("player-track-title");
+const playerTrackArtist = document.getElementById("player-track-artist");
+const playerPrevBtn = document.getElementById("player-prev-btn");
+const playerPlayBtn = document.getElementById("player-play-btn");
+const playerNextBtn = document.getElementById("player-next-btn");
+const playSvg = document.getElementById("play-svg");
+const pauseSvg = document.getElementById("pause-svg");
+const playerCurrentTime = document.getElementById("player-current-time");
+const playerProgressSlider = document.getElementById("player-progress-slider");
+const playerTotalTime = document.getElementById("player-total-time");
+const playerPipBtn = document.getElementById("player-pip-btn");
+const playerVolumeSlider = document.getElementById("player-volume-slider");
+const playerCloseBtn = document.getElementById("player-close-btn");
+const localAudioElement = document.getElementById("local-audio-element");
 
 // Modals
 const profileModal = document.getElementById("profile-modal");
@@ -420,11 +452,22 @@ async function loadPlaylistTracks(sourceId, refresh = false) {
     
     // Toggle pane view
     noPlaylistSelectedView.style.display = "none";
-    playlistActiveView.style.display = "block";
+    playlistActiveView.style.display = "flex";
     
     activeSourceName.textContent = source.name;
+    const isUrl = source.url && source.url.startsWith("http");
     activeSourceUrl.textContent = source.url || source.path || "";
-    activeSourceUrl.href = source.url && source.url.startsWith("http") ? source.url : "#";
+    if (isUrl) {
+        activeSourceUrl.href = source.url;
+        activeSourceUrl.style.cursor = "pointer";
+        activeSourceUrl.style.pointerEvents = "auto";
+        activeSourceUrl.style.textDecoration = "underline";
+    } else {
+        activeSourceUrl.removeAttribute("href");
+        activeSourceUrl.style.cursor = "default";
+        activeSourceUrl.style.pointerEvents = "none";
+        activeSourceUrl.style.textDecoration = "none";
+    }
     
     // Show spinner, clear table
     tracksLoadingSpinner.style.display = "flex";
@@ -470,10 +513,56 @@ function renderTracksList(tracks) {
                 <div class="track-title">${escapeHtml(t.title)}</div>
                 <div class="track-artist">${escapeHtml(t.artist || 'Unknown Artist')} ${t.duration ? '• ' + formatDuration(t.duration) : ''}</div>
             </div>
-            <div class="track-status-cell">
+            <div class="track-status-cell" style="display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
                 ${statusBadge}
+                <div class="track-action-buttons">
+                    ${t.downloaded 
+                        ? `<button class="btn btn-primary btn-sm play-track-btn" style="padding: 0; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; min-width: 0;" title="Play Song">
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                           </button>` 
+                        : `<button class="btn btn-secondary btn-sm download-track-btn" style="padding: 0; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; min-width: 0;" title="Download Immediately">
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                           </button>`
+                    }
+                </div>
             </div>
         `;
+
+        // Action button listeners
+        if (t.downloaded) {
+            row.querySelector(".play-track-btn").addEventListener("click", () => {
+                const downloadedTracks = tracks.filter(tr => tr.downloaded);
+                playTrack(t, downloadedTracks);
+            });
+        } else {
+            const dlBtn = row.querySelector(".download-track-btn");
+            dlBtn.addEventListener("click", async () => {
+                dlBtn.disabled = true;
+                dlBtn.innerHTML = `<span class="spinner" style="width: 12px; height: 12px; border-width: 2px; border-top-color: var(--primary);"></span>`;
+                try {
+                    const res = await fetch("/api/playlist/tracks/download-single", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            username: activeProfile,
+                            source_id: activePlaylistSourceId,
+                            track_id: t.id
+                        })
+                    });
+                    if (res.ok) {
+                        alert("Download started in background! Check terminal logs inside 'Sync & Files'.");
+                    } else {
+                        alert("Failed to start download.");
+                        dlBtn.disabled = false;
+                        dlBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>`;
+                    }
+                } catch (e) {
+                    alert("Error: " + e.message);
+                    dlBtn.disabled = false;
+                    dlBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>`;
+                }
+            });
+        }
         
         // Listen to checkbox toggling
         const checkbox = row.querySelector(".track-check");
@@ -746,7 +835,11 @@ navItems.forEach(item => {
             alert("Please select or create a profile first.");
             return;
         }
-        switchTab(item.getAttribute("data-tab"));
+        const tabId = item.getAttribute("data-tab");
+        switchTab(tabId);
+        if (tabId === "tab-discover") {
+            loadDiscoverData();
+        }
     });
 });
 
@@ -1031,6 +1124,323 @@ dirBrowserUpBtn.addEventListener("click", () => {
         fetchDirectory(parentBrowserPath);
     }
 });
+
+// ==================== Spotify-style Player Logic ====================
+
+function playTrack(track, queue = []) {
+    if (!track) return;
+    
+    playerQueue = queue;
+    currentQueueIndex = queue.findIndex(t => t.id === track.id || t.filename === track.filename);
+    currentPlayingTrack = track;
+    
+    const filename = track.local_filename || track.filename;
+    if (!filename) {
+        alert("Cannot play song: local filename not found.");
+        return;
+    }
+    
+    localAudioElement.src = `/api/stream?username=${activeProfile}&filename=${encodeURIComponent(filename)}`;
+    localAudioElement.load();
+    
+    localAudioElement.play().then(() => {
+        musicPlayerBar.style.display = "flex";
+        updatePlaybackUI();
+    }).catch(e => {
+        console.error("Audio playback error:", e);
+        alert("Playback failed. Make sure the container finished downloading the file.");
+    });
+}
+
+function updatePlaybackUI() {
+    if (!currentPlayingTrack) return;
+    
+    const title = currentPlayingTrack.title || currentPlayingTrack.display_name || "Unknown Song";
+    const artist = currentPlayingTrack.artist || "Unknown Artist";
+    
+    playerTrackTitle.textContent = title;
+    playerTrackArtist.textContent = artist;
+    
+    if (localAudioElement.paused) {
+        playSvg.style.display = "block";
+        pauseSvg.style.display = "none";
+    } else {
+        playSvg.style.display = "none";
+        pauseSvg.style.display = "block";
+    }
+    
+    updatePipCanvas(title, artist);
+}
+
+const pipVideo = document.createElement("video");
+pipVideo.muted = true;
+pipVideo.playsInline = true;
+
+const pipCanvas = document.createElement("canvas");
+pipCanvas.width = 300;
+pipCanvas.height = 300;
+const pipCtx = pipCanvas.getContext("2d");
+
+function updatePipCanvas(title, artist) {
+    const grad = pipCtx.createLinearGradient(0, 0, 300, 300);
+    grad.addColorStop(0, "#6366f1");
+    grad.addColorStop(1, "#06b6d4");
+    pipCtx.fillStyle = grad;
+    pipCtx.fillRect(0, 0, 300, 300);
+    
+    pipCtx.fillStyle = "#ffffff";
+    pipCtx.font = "bold 20px 'Outfit', sans-serif";
+    pipCtx.textAlign = "center";
+    pipCtx.fillText(title, 150, 120, 260);
+    
+    pipCtx.fillStyle = "rgba(255, 255, 255, 0.7)";
+    pipCtx.font = "16px 'Inter', sans-serif";
+    pipCtx.fillText(artist, 150, 160, 260);
+    
+    pipCtx.fillStyle = "rgba(255, 255, 255, 0.3)";
+    pipCtx.font = "80px sans-serif";
+    pipCtx.fillText("🎵", 150, 250);
+}
+
+async function togglePip() {
+    try {
+        if (document.pictureInPictureElement) {
+            await document.exitPictureInPicture();
+        } else {
+            const title = currentPlayingTrack?.title || currentPlayingTrack?.display_name || "Music Grabber";
+            const artist = currentPlayingTrack?.artist || "Self-Hosted";
+            updatePipCanvas(title, artist);
+            
+            const stream = pipCanvas.captureStream(1);
+            pipVideo.srcObject = stream;
+            
+            await new Promise(resolve => {
+                pipVideo.onloadedmetadata = () => {
+                    pipVideo.play().then(resolve);
+                };
+            });
+            await pipVideo.requestPictureInPicture();
+        }
+    } catch (e) {
+        console.error("PIP failed", e);
+        alert("Picture-in-Picture mode not supported or requires user gesture.");
+    }
+}
+
+localAudioElement.addEventListener("timeupdate", () => {
+    if (localAudioElement.duration) {
+        const cur = localAudioElement.currentTime;
+        const dur = localAudioElement.duration;
+        playerProgressSlider.value = (cur / dur) * 100;
+        playerCurrentTime.textContent = formatDuration(cur);
+    }
+});
+
+localAudioElement.addEventListener("loadedmetadata", () => {
+    playerTotalTime.textContent = formatDuration(localAudioElement.duration);
+    playerProgressSlider.value = 0;
+});
+
+localAudioElement.addEventListener("ended", () => {
+    if (playerQueue.length > 0 && currentQueueIndex < playerQueue.length - 1) {
+        currentQueueIndex++;
+        playTrack(playerQueue[currentQueueIndex], playerQueue);
+    } else {
+        updatePlaybackUI();
+    }
+});
+
+localAudioElement.addEventListener("play", updatePlaybackUI);
+localAudioElement.addEventListener("pause", updatePlaybackUI);
+
+playerPlayBtn.addEventListener("click", () => {
+    if (localAudioElement.paused) {
+        localAudioElement.play();
+    } else {
+        localAudioElement.pause();
+    }
+});
+
+playerNextBtn.addEventListener("click", () => {
+    if (playerQueue.length > 0 && currentQueueIndex < playerQueue.length - 1) {
+        currentQueueIndex++;
+        playTrack(playerQueue[currentQueueIndex], playerQueue);
+    }
+});
+
+playerPrevBtn.addEventListener("click", () => {
+    if (playerQueue.length > 0 && currentQueueIndex > 0) {
+        currentQueueIndex--;
+        playTrack(playerQueue[currentQueueIndex], playerQueue);
+    }
+});
+
+playerProgressSlider.addEventListener("input", () => {
+    if (localAudioElement.duration) {
+        const pct = playerProgressSlider.value / 100;
+        localAudioElement.currentTime = pct * localAudioElement.duration;
+    }
+});
+
+playerVolumeSlider.addEventListener("input", () => {
+    localAudioElement.volume = playerVolumeSlider.value / 100;
+});
+
+playerCloseBtn.addEventListener("click", () => {
+    localAudioElement.pause();
+    musicPlayerBar.style.display = "none";
+});
+
+playerPipBtn.addEventListener("click", togglePip);
+
+
+// ==================== Discover Page Logic ====================
+
+// Toggle Subtabs
+document.querySelectorAll(".discover-tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        document.querySelectorAll(".discover-tab-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        
+        const subtabId = btn.getAttribute("data-subtab");
+        document.querySelectorAll(".discover-subtab-pane").forEach(p => p.style.display = "none");
+        document.getElementById(subtabId).style.display = "block";
+    });
+});
+
+async function loadDiscoverData() {
+    if (!activeProfile) return;
+    
+    discoverArtistsGrid.innerHTML = '<div class="spinner-container"><div class="spinner"></div><p>Scanning library metadata...</p></div>';
+    discoverAlbumsGrid.innerHTML = "";
+    discoverGenresGrid.innerHTML = "";
+    discoverSongsTableBody.innerHTML = "";
+    
+    try {
+        const res = await fetch(`/api/discover?username=${activeProfile}`);
+        if (!res.ok) throw new Error("API scan failed");
+        
+        discoverData = await res.json();
+        renderDiscoverPage();
+    } catch (e) {
+        discoverArtistsGrid.innerHTML = `<div class="empty-sources" style="color: var(--danger)">Failed to load discover page: ${e.message}</div>`;
+    }
+}
+
+function renderDiscoverPage() {
+    if (!discoverData) return;
+    
+    discoverArtistsGrid.innerHTML = "";
+    const artists = Object.keys(discoverData.artists).sort();
+    if (artists.length === 0) {
+        discoverArtistsGrid.innerHTML = '<div class="empty-sources">No downloaded songs found yet. Download songs first!</div>';
+    } else {
+        artists.forEach(art => {
+            const count = discoverData.artists[art].length;
+            const card = document.createElement("div");
+            card.className = "discover-card";
+            card.innerHTML = `
+                <div class="discover-card-icon">👤</div>
+                <div class="discover-card-title">${escapeHtml(art)}</div>
+                <div class="discover-card-subtitle">${count} song${count > 1 ? 's' : ''}</div>
+            `;
+            card.addEventListener("click", () => openDiscoverDetails("Artist: " + art, discoverData.artists[art]));
+            discoverArtistsGrid.appendChild(card);
+        });
+    }
+    
+    discoverAlbumsGrid.innerHTML = "";
+    const albums = Object.keys(discoverData.albums).sort();
+    if (albums.length === 0) {
+        discoverAlbumsGrid.innerHTML = '<div class="empty-sources">No downloaded songs found yet.</div>';
+    } else {
+        albums.forEach(alb => {
+            const count = discoverData.albums[alb].length;
+            const card = document.createElement("div");
+            card.className = "discover-card";
+            card.innerHTML = `
+                <div class="discover-card-icon">💿</div>
+                <div class="discover-card-title">${escapeHtml(alb)}</div>
+                <div class="discover-card-subtitle">${count} song${count > 1 ? 's' : ''}</div>
+            `;
+            card.addEventListener("click", () => openDiscoverDetails("Album: " + alb, discoverData.albums[alb]));
+            discoverAlbumsGrid.appendChild(card);
+        });
+    }
+    
+    discoverGenresGrid.innerHTML = "";
+    const genres = Object.keys(discoverData.genres).sort();
+    if (genres.length === 0) {
+        discoverGenresGrid.innerHTML = '<div class="empty-sources">No downloaded songs found yet.</div>';
+    } else {
+        genres.forEach(gen => {
+            const count = discoverData.genres[gen].length;
+            const card = document.createElement("div");
+            card.className = "discover-card";
+            card.innerHTML = `
+                <div class="discover-card-icon">🎸</div>
+                <div class="discover-card-title">${escapeHtml(gen)}</div>
+                <div class="discover-card-subtitle">${count} song${count > 1 ? 's' : ''}</div>
+            `;
+            card.addEventListener("click", () => openDiscoverDetails("Genre: " + gen, discoverData.genres[gen]));
+            discoverGenresGrid.appendChild(card);
+        });
+    }
+    
+    discoverSongsTableBody.innerHTML = "";
+    const songs = discoverData.all_songs;
+    if (songs.length === 0) {
+        discoverSongsTableBody.innerHTML = '<tr><td colspan="5" class="empty-table">No downloaded songs found yet.</td></tr>';
+    } else {
+        songs.forEach(s => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td><strong>${escapeHtml(s.title)}</strong></td>
+                <td>${escapeHtml(s.artist)}</td>
+                <td>${escapeHtml(s.album)}</td>
+                <td>${escapeHtml(s.genre)}</td>
+                <td style="text-align: right;">
+                    <button class="btn btn-primary btn-sm play-btn-row" style="padding: 4px 8px; border-radius: var(--radius-sm);">
+                        Play
+                    </button>
+                </td>
+            `;
+            tr.querySelector(".play-btn-row").addEventListener("click", () => {
+                playTrack(s, songs);
+            });
+            discoverSongsTableBody.appendChild(tr);
+        });
+    }
+}
+
+function openDiscoverDetails(title, tracks) {
+    discoverDetailsTitle.textContent = title;
+    discoverDetailsList.innerHTML = "";
+    
+    tracks.forEach(t => {
+        const item = document.createElement("div");
+        item.className = "dir-item";
+        item.style.justifyContent = "space-between";
+        item.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                <span>🎵</span>
+                <span style="font-weight: 500; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(t.title)}</span>
+            </div>
+            <button class="btn btn-primary btn-sm play-modal-btn" style="padding: 4px 10px;">Play</button>
+        `;
+        item.querySelector(".play-modal-btn").addEventListener("click", () => {
+            playTrack(t, tracks);
+        });
+        discoverDetailsList.appendChild(item);
+    });
+    
+    discoverDetailsModal.style.display = "flex";
+}
+
+discoverDetailsClose.addEventListener("click", () => {
+    discoverDetailsModal.style.display = "none";
+});
+
 
 // Window Load Handler
 window.addEventListener("load", () => {

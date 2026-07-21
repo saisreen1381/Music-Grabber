@@ -265,9 +265,7 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp"):
                 # Check for checkboxes/exclusions
                 disabled_ids = set(source.get("disabled_track_ids", []))
                 
-                requires_cookies = False
-                if src_type == "youtube_music_playlist" and "list=LM" in url:
-                    requires_cookies = True
+                requires_cookies = (cookie_file is not None)
                     
                 emit(f"Processing Source: {src_name} ({src_type})...")
                 tracks = []

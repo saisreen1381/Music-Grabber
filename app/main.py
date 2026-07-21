@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, UploadFile, File
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -16,7 +16,8 @@ from app.sync_engine import (
     fetch_ytdlp_playlist,
     fetch_text_file,
     get_source_id,
-    normalize_name
+    normalize_name,
+    download_track_ytdlp
 )
 from app.scheduler import BackgroundScheduler
 
@@ -96,6 +97,11 @@ class ToggleAllTracksModel(BaseModel):
     username: str
     source_id: str
     enabled: bool
+
+class DownloadSingleTrackModel(BaseModel):
+    username: str
+    source_id: str
+    track_id: str
 
 # API Endpoints
 
@@ -245,6 +251,103 @@ def scan_directory(username: str):
     files = scan_existing_files_detailed(download_dir)
     return {"files": files}
 
+import subprocess
+
+def get_file_metadata(file_path: Path):
+    try:
+        cmd = [
+            "ffprobe", 
+            "-v", "quiet", 
+            "-print_format", "json", 
+            "-show_format", 
+            str(file_path)
+        ]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        data = json.loads(result.stdout)
+        fmt = data.get("format", {})
+        tags = fmt.get("tags", {})
+        
+        title = tags.get("title") or tags.get("TITLE") or file_path.name
+        artist = tags.get("artist") or tags.get("ARTIST") or "Unknown Artist"
+        genre = tags.get("genre") or tags.get("GENRE") or "Unknown Genre"
+        album = tags.get("album") or tags.get("ALBUM") or "Unknown Album"
+        
+        return {
+            "filename": file_path.name,
+            "title": title,
+            "artist": artist,
+            "genre": genre,
+            "album": album,
+            "duration": float(fmt.get("duration", 0))
+        }
+    except Exception:
+        return {
+            "filename": file_path.name,
+            "title": file_path.name,
+            "artist": "Unknown Artist",
+            "genre": "Unknown Genre",
+            "album": "Unknown Album",
+            "duration": 0
+        }
+
+@app.get("/api/discover")
+def discover_local_songs(username: str):
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    config_file = profile_dir / "sync_config.json"
+    if not config_file.exists():
+        return {"artists": {}, "genres": {}, "albums": {}, "all_songs": []}
+        
+    with open(config_file, "r") as f:
+        config = json.load(f)
+        
+    download_dir = config.get("download_dir")
+    if not download_dir:
+        return {"artists": {}, "genres": {}, "albums": {}, "all_songs": []}
+        
+    download_path = Path(download_dir)
+    if not download_path.exists():
+        return {"artists": {}, "genres": {}, "albums": {}, "all_songs": []}
+        
+    songs = []
+    # Scan for common audio formats
+    for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac']:
+        for file in download_path.glob(ext):
+            songs.append(get_file_metadata(file))
+            
+    # Group by Artist, Genre, Album
+    artists = {}
+    genres = {}
+    albums = {}
+    
+    for s in songs:
+        # Group by artist
+        art = s["artist"]
+        if art not in artists:
+            artists[art] = []
+        artists[art].append(s)
+        
+        # Group by genre
+        gen = s["genre"]
+        if gen not in genres:
+            genres[gen] = []
+        genres[gen].append(s)
+        
+        # Group by album
+        alb = s["album"]
+        if alb not in albums:
+            albums[alb] = []
+        albums[alb].append(s)
+        
+    return {
+        "artists": artists,
+        "genres": genres,
+        "albums": albums,
+        "all_songs": songs
+    }
+
 @app.get("/api/browse")
 def browse_directory(path: str = "/"):
     if not path:
@@ -277,6 +380,37 @@ def browse_directory(path: str = "/"):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list directory: {e}")
+
+@app.get("/api/stream")
+def stream_audio(username: str, filename: str):
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    config_file = profile_dir / "sync_config.json"
+    if not config_file.exists():
+        raise HTTPException(status_code=404, detail="Config not found")
+        
+    with open(config_file, "r") as f:
+        config = json.load(f)
+        
+    download_dir = Path(config.get("download_dir", ""))
+    if not download_dir:
+        raise HTTPException(status_code=404, detail="Download directory not configured")
+         
+    file_path = download_dir / filename
+    try:
+        resolved_path = file_path.resolve()
+        resolved_download_dir = download_dir.resolve()
+        if not str(resolved_path).startswith(str(resolved_download_dir)):
+            raise HTTPException(status_code=403, detail="Access denied")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid path")
+        
+    if not resolved_path.exists() or not resolved_path.is_file():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+        
+    return FileResponse(resolved_path)
 
 @app.get("/api/cookies/status")
 def get_cookies_status(username: str):
@@ -377,13 +511,9 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
                 cookie_file = str(potential_cookie)
                 break
                 
-        requires_cookies = False
-        if src_type == "youtube_music_playlist" and "list=LM" in url:
-            requires_cookies = True
-            
         if src_type in ("youtube_music_playlist", "youtube_playlist"):
             if url:
-                tracks = fetch_ytdlp_playlist(url, cookie_file if requires_cookies else None, YTDLP_PATH)
+                tracks = fetch_ytdlp_playlist(url, cookie_file, YTDLP_PATH)
         elif src_type == "text_file":
             rel_path = source.get("path")
             full_path = user_dir / os.path.basename(rel_path) if rel_path else None
@@ -400,13 +530,22 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
                 
     # Also attach whether the file already exists on disk
     download_dir = config.get("download_dir")
-    existing_normalized = scan_existing_files(download_dir) if download_dir else set()
-    
+    norm_to_filename = {}
+    if download_dir:
+        download_path = Path(download_dir)
+        if download_path.exists():
+            for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac']:
+                for file in download_path.glob(ext):
+                    norm = normalize_name(file.stem)
+                    if norm:
+                        norm_to_filename[norm] = file.name
+                        
     disabled_ids = set(source.get("disabled_track_ids", []))
     
     formatted_tracks = []
     for t in tracks:
         norm = normalize_name(t["display_name"])
+        local_filename = norm_to_filename.get(norm)
         formatted_tracks.append({
             "id": t["id"],
             "display_name": t["display_name"],
@@ -416,7 +555,8 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
             "url": t["url"],
             "duration": t.get("duration"),
             "enabled": t["id"] not in disabled_ids,
-            "downloaded": norm in existing_normalized
+            "downloaded": local_filename is not None,
+            "local_filename": local_filename
         })
         
     return {"tracks": formatted_tracks}
@@ -500,6 +640,71 @@ def toggle_all_tracks(payload: ToggleAllTracksModel):
         json.dump(config, f, indent=2)
         
     return {"status": "success"}
+
+def bg_download_task(username: str, source_id: str, track_id: str):
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists():
+        return
+        
+    config_file = profile_dir / "sync_config.json"
+    if not config_file.exists():
+        return
+        
+    with open(config_file, "r") as f:
+        config = json.load(f)
+        
+    source = None
+    for src in config.get("sources", []):
+        if src.get("id") == source_id:
+            source = src
+            break
+            
+    if not source:
+        return
+        
+    cached_file = profile_dir / "playlists" / f"{source_id}_tracks.json"
+    if not cached_file.exists():
+        return
+        
+    with open(cached_file, "r", encoding="utf-8") as cf:
+        tracks = json.load(cf)
+        
+    target_track = None
+    for t in tracks:
+        if t["id"] == track_id:
+            target_track = t
+            break
+            
+    if not target_track:
+        return
+        
+    download_dir = config.get("download_dir")
+    if not download_dir:
+        return
+        
+    cookie_file = None
+    for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
+        potential_cookie = profile_dir / name
+        if potential_cookie.exists():
+            cookie_file = str(potential_cookie)
+            break
+            
+    try:
+        download_track_ytdlp(
+            YTDLP_PATH, 
+            target_track, 
+            download_dir, 
+            cookie_file,
+            config.get("filename_template", "%(title)s.%(ext)s"),
+            config.get("embed_metadata", True)
+        )
+    except Exception:
+        pass
+
+@app.post("/api/playlist/tracks/download-single")
+def download_single_track(payload: DownloadSingleTrackModel, background_tasks: BackgroundTasks):
+    background_tasks.add_task(bg_download_task, payload.username, payload.source_id, payload.track_id)
+    return {"status": "success", "message": "Download started in background."}
 
 @app.get("/api/sync/status")
 def get_sync_status(username: str):
