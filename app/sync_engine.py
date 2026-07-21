@@ -159,7 +159,7 @@ def download_track_ytdlp(ytdlp_path, track, download_dir, cookie_file=None, file
         "--output", os.path.join(download_dir, filename_template),
         "--match-filter", "!is_live",
         "--remote-components", "ejs:github",
-        "--js-runtimes", "node"
+        "--js-runtimes", "deno,node"
     ]
     
     if embed_metadata:

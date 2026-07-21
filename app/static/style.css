@@ -1342,3 +1342,51 @@ input[type="checkbox"]:checked::before {
 .track-item-row {
     grid-template-columns: 48px 1fr 160px;
 }
+
+/* Toast Notifications */
+.toast-msg {
+    min-width: 280px;
+    max-width: 400px;
+    padding: 14px 20px;
+    background: rgba(18, 22, 33, 0.95);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    color: var(--text-main);
+    font-size: 0.85rem;
+    font-weight: 500;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    pointer-events: auto;
+    animation: toastSlideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+}
+
+.toast-msg.toast-success {
+    border-left: 4px solid var(--success);
+}
+
+.toast-msg.toast-error {
+    border-left: 4px solid var(--danger);
+}
+
+.toast-msg.toast-warning {
+    border-left: 4px solid var(--warning);
+}
+
+.toast-msg.toast-info {
+    border-left: 4px solid var(--primary);
+}
+
+@keyframes toastSlideIn {
+    from { transform: translateX(120%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.toast-msg.toast-fade-out {
+    transform: translateX(120%);
+    opacity: 0;
+}

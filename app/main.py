@@ -546,6 +546,20 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
     for t in tracks:
         norm = normalize_name(t["display_name"])
         local_filename = norm_to_filename.get(norm)
+        
+        # Fallback to cache local_filename if it exists on disk or if cache says it is downloaded
+        if not local_filename and t.get("local_filename"):
+            if download_dir:
+                cand = Path(download_dir) / t["local_filename"]
+                if cand.exists():
+                    local_filename = t["local_filename"]
+                    
+        # Trust JSON cache downloaded flag as final fallback (avoids issues with unmounted paths or naming mismatches)
+        if not local_filename and t.get("downloaded") and t.get("local_filename"):
+            local_filename = t["local_filename"]
+            
+        downloaded = local_filename is not None or t.get("downloaded", False)
+        
         formatted_tracks.append({
             "id": t["id"],
             "display_name": t["display_name"],
@@ -555,8 +569,8 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
             "url": t["url"],
             "duration": t.get("duration"),
             "enabled": t["id"] not in disabled_ids,
-            "downloaded": local_filename is not None,
-            "local_filename": local_filename
+            "downloaded": downloaded,
+            "local_filename": local_filename or t.get("local_filename")
         })
         
     return {"tracks": formatted_tracks}
@@ -702,9 +716,129 @@ def bg_download_task(username: str, source_id: str, track_id: str):
         pass
 
 @app.post("/api/playlist/tracks/download-single")
-def download_single_track(payload: DownloadSingleTrackModel, background_tasks: BackgroundTasks):
-    background_tasks.add_task(bg_download_task, payload.username, payload.source_id, payload.track_id)
-    return {"status": "success", "message": "Download started in background."}
+def download_single_track(payload: DownloadSingleTrackModel):
+    profile_dir = USERS_DIR / payload.username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    config_file = profile_dir / "sync_config.json"
+    if not config_file.exists():
+        raise HTTPException(status_code=404, detail="Config not found")
+        
+    with open(config_file, "r") as f:
+        config = json.load(f)
+        
+    source = None
+    for src in config.get("sources", []):
+        if src.get("id") == payload.source_id:
+            source = src
+            break
+            
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+        
+    cached_file = profile_dir / "playlists" / f"{payload.source_id}_tracks.json"
+    if not cached_file.exists():
+        raise HTTPException(status_code=404, detail="Playlist tracks not cached")
+        
+    with open(cached_file, "r", encoding="utf-8") as cf:
+        tracks = json.load(cf)
+        
+    target_track = None
+    for t in tracks:
+        if t["id"] == payload.track_id:
+            target_track = t
+            break
+            
+    if not target_track:
+        raise HTTPException(status_code=404, detail="Track not found")
+        
+    download_dir = config.get("download_dir")
+    if not download_dir:
+        raise HTTPException(status_code=400, detail="download_dir not configured")
+        
+    cookie_file = None
+    for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
+        potential_cookie = profile_dir / name
+        if potential_cookie.exists():
+            cookie_file = str(potential_cookie)
+            break
+            
+    try:
+        success, output_lines = download_track_ytdlp(
+            YTDLP_PATH, 
+            target_track, 
+            download_dir, 
+            cookie_file,
+            config.get("filename_template", "%(title)s.%(ext)s"),
+            config.get("embed_metadata", True)
+        )
+        
+        # Retry download without cookies if failed and cookies were used
+        if not success and cookie_file:
+            success_retry, output_lines_retry = download_track_ytdlp(
+                YTDLP_PATH, 
+                target_track, 
+                download_dir, 
+                None,
+                config.get("filename_template", "%(title)s.%(ext)s"),
+                config.get("embed_metadata", True)
+            )
+            output_lines.append("--- Retrying download without cookies due to failure ---")
+            output_lines.extend(output_lines_retry)
+            success = success_retry
+            
+        # Write to last_sync_log.txt so it displays on log screen
+        log_file = profile_dir / "last_sync_log.txt"
+        with open(log_file, "w", encoding="utf-8") as lf:
+            lf.write(f"=== Single Track Download: {target_track.get('title')} ===\n")
+            lf.write("\n".join(output_lines))
+            lf.write(f"\nResult: {'SUCCESS' if success else 'FAILED'}\n")
+            
+        if not success:
+            raise HTTPException(status_code=500, detail="yt-dlp download failed")
+            
+        # Parse the downloaded filename
+        downloaded_file_path = None
+        for line in output_lines:
+            if "[ExtractAudio] Destination:" in line:
+                downloaded_file_path = line.split("[ExtractAudio] Destination:")[1].strip()
+                break
+            elif "[download] Destination:" in line:
+                downloaded_file_path = line.split("[download] Destination:")[1].strip()
+                if downloaded_file_path.endswith((".webm", ".m4a", ".opus", ".webm")):
+                    downloaded_file_path = os.path.splitext(downloaded_file_path)[0] + ".mp3"
+                break
+            elif "has already been downloaded" in line:
+                parts = line.split("has already been downloaded")
+                downloaded_file_path = parts[0].replace("[download]", "").strip()
+                if downloaded_file_path.endswith((".webm", ".m4a", ".opus", ".webm")):
+                    downloaded_file_path = os.path.splitext(downloaded_file_path)[0] + ".mp3"
+                break
+                
+        filename = None
+        if downloaded_file_path:
+            filename = os.path.basename(downloaded_file_path)
+        else:
+            title_clean = target_track.get("title", "")
+            for f_name in os.listdir(download_dir):
+                if title_clean in f_name and f_name.endswith(".mp3"):
+                    filename = f_name
+                    break
+            if not filename:
+                filename = f"{target_track.get('title')}.mp3"
+                
+        # Update cache JSON
+        target_track["downloaded"] = True
+        target_track["local_filename"] = filename
+        
+        with open(cached_file, "w", encoding="utf-8") as cf:
+            json.dump(tracks, cf, indent=2)
+            
+        return {"status": "success", "filename": filename}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/sync/status")
 def get_sync_status(username: str):

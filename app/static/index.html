@@ -97,9 +97,17 @@
                             <div class="glass-card terminal-card">
                                 <div class="terminal-header">
                                     <span class="terminal-title">Sync Logs Output</span>
-                                    <button id="clear-logs-btn" class="btn btn-icon" title="Clear Logs">
-                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                    </button>
+                                    <div style="display: flex; gap: 8px;">
+                                        <button id="copy-logs-btn" class="btn btn-icon" title="Copy Logs">
+                                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                        </button>
+                                        <button id="maximize-logs-btn" class="btn btn-icon" title="Maximize Logs">
+                                            <svg id="maximize-logs-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                                        </button>
+                                        <button id="clear-logs-btn" class="btn btn-icon" title="Clear Logs">
+                                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div id="terminal-body" class="terminal-body">
                                     <span class="system-line">[System] Ready. Select profile to load previous logs.</span>
@@ -559,6 +567,9 @@
     
     <!-- Hidden audio element -->
     <audio id="local-audio-element" style="display: none;"></audio>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" style="position: fixed; top: 24px; right: 24px; z-index: 10000; display: flex; flex-direction: column; gap: 8px; pointer-events: none;"></div>
 
     <script src="/static/index.js"></script>
 </body>

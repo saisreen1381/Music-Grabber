@@ -27,6 +27,7 @@ const autoSyncStatus = document.getElementById("auto-sync-status");
 const lastSyncTimeText = document.getElementById("last-sync-time");
 const nextSyncTimeText = document.getElementById("next-sync-time");
 const clearLogsBtn = document.getElementById("clear-logs-btn");
+const copyLogsBtn = document.getElementById("copy-logs-btn");
 const terminalBody = document.getElementById("terminal-body");
 const filesTableBody = document.getElementById("files-table-body");
 const filesCountText = document.getElementById("files-count");
@@ -142,7 +143,7 @@ function formatDuration(secs) {
 // Fetch available profiles
 async function loadProfiles() {
     try {
-        const res = await fetch("/api/profiles");
+        const res = await fetch("/api/profiles?t=" + Date.now());
         const data = await res.json();
         profiles = data.profiles || [];
         
@@ -192,7 +193,7 @@ async function handleProfileChange(username) {
 // Load Configuration from server
 async function loadConfig(username) {
     try {
-        const res = await fetch(`/api/config?username=${username}`);
+        const res = await fetch(`/api/config?username=${username}&t=${Date.now()}`);
         activeConfig = await res.json();
         populateSettingsForm();
         await refreshCookiesStatus(username);
@@ -211,7 +212,7 @@ async function refreshCookiesStatus(username) {
     uploadCookiesBtn.style.display = "none";
     
     try {
-        const res = await fetch(`/api/cookies/status?username=${username}`);
+        const res = await fetch(`/api/cookies/status?username=${username}&t=${Date.now()}`);
         const data = await res.json();
         
         if (data.status === "loaded") {
@@ -236,7 +237,7 @@ async function fetchDirectory(path) {
     dirBrowserList.innerHTML = '<div class="spinner-container" style="padding: 20px;"><div class="spinner"></div></div>';
     
     try {
-        const res = await fetch(`/api/browse?path=${encodeURIComponent(path)}`);
+        const res = await fetch(`/api/browse?path=${encodeURIComponent(path)}&t=${Date.now()}`);
         if (!res.ok) throw new Error("Failed to list directory");
         const data = await res.json();
         
@@ -311,7 +312,7 @@ function populateSettingsForm() {
 async function refreshStatus() {
     if (!activeProfile) return;
     try {
-        const res = await fetch(`/api/sync/status?username=${activeProfile}`);
+        const res = await fetch(`/api/sync/status?username=${activeProfile}&t=${Date.now()}`);
         const status = await res.json();
         
         // Sync badge
@@ -364,7 +365,7 @@ let allDownloadedFiles = [];
 async function loadFiles() {
     if (!activeProfile) return;
     try {
-        const res = await fetch(`/api/scan?username=${activeProfile}`);
+        const res = await fetch(`/api/scan?username=${activeProfile}&t=${Date.now()}`);
         const data = await res.json();
         allDownloadedFiles = data.files || [];
         renderFilesList(allDownloadedFiles);
@@ -474,7 +475,7 @@ async function loadPlaylistTracks(sourceId, refresh = false) {
     tracksItemsContainer.innerHTML = "";
     
     try {
-        const res = await fetch(`/api/playlist/tracks?username=${activeProfile}&source_id=${sourceId}&refresh=${refresh}`);
+        const res = await fetch(`/api/playlist/tracks?username=${activeProfile}&source_id=${sourceId}&refresh=${refresh}&t=${Date.now()}`);
         if (!res.ok) throw new Error("API failed");
         
         const data = await res.json();
@@ -550,14 +551,17 @@ function renderTracksList(tracks) {
                         })
                     });
                     if (res.ok) {
-                        alert("Download started in background! Check terminal logs inside 'Sync & Files'.");
+                        await loadPlaylistTracks(activePlaylistSourceId);
+                        loadFiles();
+                        refreshStatus();
                     } else {
-                        alert("Failed to start download.");
+                        const err = await res.json().catch(() => ({}));
+                        alert("Failed to download: " + (err.detail || "Unknown backend error."));
                         dlBtn.disabled = false;
                         dlBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>`;
                     }
                 } catch (e) {
-                    alert("Error: " + e.message);
+                    alert("Error downloading: " + e.message);
                     dlBtn.disabled = false;
                     dlBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>`;
                 }
@@ -801,6 +805,15 @@ function appendTerminalLine(text) {
 
 clearLogsBtn.addEventListener("click", () => {
     terminalBody.innerHTML = '<span class="system-line">[System] Logs cleared.</span>';
+});
+
+copyLogsBtn.addEventListener("click", () => {
+    const text = terminalBody.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        alert("Logs copied to clipboard successfully.");
+    }).catch(e => {
+        alert("Failed to copy logs: " + e.message);
+    });
 });
 
 // Profile Dropdown change
@@ -1317,7 +1330,7 @@ async function loadDiscoverData() {
     discoverSongsTableBody.innerHTML = "";
     
     try {
-        const res = await fetch(`/api/discover?username=${activeProfile}`);
+        const res = await fetch(`/api/discover?username=${activeProfile}&t=${Date.now()}`);
         if (!res.ok) throw new Error("API scan failed");
         
         discoverData = await res.json();
@@ -1441,6 +1454,59 @@ discoverDetailsClose.addEventListener("click", () => {
     discoverDetailsModal.style.display = "none";
 });
 
+
+// Toast notifications
+function showToast(message, type = "info") {
+    const container = document.getElementById("toast-container");
+    if (!container) return;
+    
+    const toast = document.createElement("div");
+    toast.className = `toast-msg toast-${type}`;
+    
+    let icon = "ℹ️";
+    if (type === "success") icon = "✅";
+    if (type === "error") icon = "❌";
+    if (type === "warning") icon = "⚠️";
+    
+    toast.innerHTML = `
+        <span style="font-size: 1.1rem; flex-shrink: 0;">${icon}</span>
+        <div style="flex: 1; word-break: break-word; padding-right: 8px;">${escapeHtml(message)}</div>
+        <button class="toast-close-btn" style="background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 4px; flex-shrink: 0;" title="Close">×</button>
+    `;
+    
+    const closeBtn = toast.querySelector(".toast-close-btn");
+    closeBtn.addEventListener("mouseover", () => { closeBtn.style.color = "var(--text-main)"; });
+    closeBtn.addEventListener("mouseout", () => { closeBtn.style.color = "var(--text-dim)"; });
+    closeBtn.addEventListener("click", () => {
+        toast.classList.add("toast-fade-out");
+        setTimeout(() => toast.remove(), 300);
+    });
+    
+    container.appendChild(toast);
+    
+    const duration = (type === "error" || type === "warning") ? 300000 : 5000;
+    
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.classList.add("toast-fade-out");
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, duration);
+}
+
+// Override window.alert to automatically use toasts instead of browser dialogs
+window.alert = function(message) {
+    let type = "info";
+    const msg = message.toLowerCase();
+    if (msg.includes("error") || msg.includes("failed") || msg.includes("invalid") || msg.includes("not found")) {
+        type = "error";
+    } else if (msg.includes("success") || msg.includes("complete") || msg.includes("saved") || msg.includes("uploaded") || msg.includes("deleted")) {
+        type = "success";
+    } else if (msg.includes("warning") || msg.includes("please")) {
+        type = "warning";
+    }
+    showToast(message, type);
+};
 
 // Window Load Handler
 window.addEventListener("load", () => {

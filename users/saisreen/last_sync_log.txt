@@ -1,0 +1,34 @@
+=== Single Track Download: Aasa Kooda (From "Think Indie") ===
+Deprecated Feature: Support for Python version 3.10 has been deprecated. Please update to Python 3.11 or above
+WARNING: Ignoring unsupported JavaScript runtime(s): deno,node. Supported runtimes: deno, node, bun, quickjs.
+[youtube] Extracting URL: https://www.youtube.com/watch?v=rVqcPUQ2YXI
+[youtube] rVqcPUQ2YXI: Downloading webpage
+[youtube] rVqcPUQ2YXI: Downloading tv downgraded player API JSON
+[youtube] rVqcPUQ2YXI: Downloading player dfc3d2b2-main
+[youtube] [jsc:deno] Solving JS challenges using deno
+[youtube] [jsc:deno] Downloading challenge solver lib script from  https://github.com/yt-dlp/ejs/releases/download/0.8.0/yt.solver.lib.min.js
+[youtube] rVqcPUQ2YXI: Downloading m3u8 information
+[info] rVqcPUQ2YXI: Downloading 1 format(s): 251
+[info] Downloading video thumbnail 44 ...
+[info] Writing video thumbnail 44 to: /mnt/mypassport/data/media/music/Aasa Kooda (From ＂Think Indie＂).webp
+[download] Destination: /mnt/mypassport/data/media/music/Aasa Kooda (From ＂Think Indie＂).webm
+
+[download]   0.0% of    3.62MiB at  281.35KiB/s ETA 00:13
+[download]   0.1% of    3.62MiB at  747.56KiB/s ETA 00:04
+[download]   0.2% of    3.62MiB at    1.59MiB/s ETA 00:02
+[download]   0.4% of    3.62MiB at    3.18MiB/s ETA 00:01
+[download]   0.8% of    3.62MiB at  671.42KiB/s ETA 00:05
+[download]   1.7% of    3.62MiB at  904.06KiB/s ETA 00:04
+[download]   3.4% of    3.62MiB at    1.23MiB/s ETA 00:02
+[download]   6.9% of    3.62MiB at    1.76MiB/s ETA 00:01
+[download]  13.8% of    3.62MiB at    2.43MiB/s ETA 00:01
+[download]  27.6% of    3.62MiB at    2.88MiB/s ETA 00:00
+[download]  55.2% of    3.62MiB at    3.36MiB/s ETA 00:00
+[download] 100.0% of    3.62MiB at    3.77MiB/s ETA 00:00
+[download] 100% of    3.62MiB in 00:00:01 at 3.42MiB/s
+[ExtractAudio] Destination: /mnt/mypassport/data/media/music/Aasa Kooda (From ＂Think Indie＂).mp3
+Deleting original file /mnt/mypassport/data/media/music/Aasa Kooda (From ＂Think Indie＂).webm (pass -k to keep)
+[Metadata] Adding metadata to "/mnt/mypassport/data/media/music/Aasa Kooda (From ＂Think Indie＂).mp3"
+[ThumbnailsConvertor] Converting thumbnail "/mnt/mypassport/data/media/music/Aasa Kooda (From ＂Think Indie＂).webp" to png
+[EmbedThumbnail] ffmpeg: Adding thumbnail to "/mnt/mypassport/data/media/music/Aasa Kooda (From ＂Think Indie＂).mp3"
+Result: SUCCESS
