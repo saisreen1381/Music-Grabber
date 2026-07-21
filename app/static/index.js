@@ -224,6 +224,9 @@ async function loadConfig(username) {
         const res = await fetch(`/api/config?username=${username}&t=${Date.now()}`);
         activeConfig = await res.json();
         if (!activeConfig.sources) activeConfig.sources = [];
+        activeConfig.sources.forEach(src => {
+            if (!src.id) src.id = getSourceId(src);
+        });
         populateSettingsForm();
         renderSourcesList();
         await refreshCookiesStatus(username);
@@ -710,14 +713,36 @@ async function loadPlaylistTracks(sourceId, refresh = false) {
     
     try {
         const res = await fetch(`/api/playlist/tracks?username=${activeProfile}&source_id=${sourceId}&refresh=${refresh}&t=${Date.now()}`);
-        if (!res.ok) throw new Error("API failed");
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({ detail: "API request failed" }));
+            throw new Error(errData.detail || "API failed");
+        }
         
         const data = await res.json();
         currentTracks = data.tracks || [];
         
         renderTracksList(currentTracks);
     } catch (e) {
-        tracksItemsContainer.innerHTML = `<div class="empty-tracks-view"><p style="color: var(--danger)">Error fetching playlist tracks: ${e.message}</p></div>`;
+        const errorMsg = e.message || "Failed to load playlist tracks.";
+        const isCookieError = errorMsg.toLowerCase().includes("cookie") || errorMsg.toLowerCase().includes("liked") || errorMsg.toLowerCase().includes("private");
+        
+        tracksItemsContainer.innerHTML = `
+            <div class="empty-tracks-view" style="padding: 40px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;">
+                <div style="font-size: 2.2rem; line-height: 1;">${isCookieError ? '🍪' : '⚠️'}</div>
+                <h4 style="font-size: 1.1rem; font-weight: 600; color: var(--text-main); margin: 0;">${isCookieError ? 'Private Playlist Cookies Required' : 'Unable to Fetch Playlist Tracks'}</h4>
+                <p style="color: var(--text-muted); max-width: 480px; margin: 0; font-size: 0.88rem; line-height: 1.5;">${escapeHtml(errorMsg)}</p>
+                ${isCookieError ? `
+                    <button id="go-to-cookies-btn" class="btn btn-primary btn-sm" style="margin-top: 6px;">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                        Go to Settings & Upload Cookies
+                    </button>
+                ` : ''}
+            </div>
+        `;
+        
+        document.getElementById("go-to-cookies-btn")?.addEventListener("click", () => {
+            switchTab("tab-settings");
+        });
     } finally {
         tracksLoadingSpinner.style.display = "none";
     }
@@ -1357,13 +1382,37 @@ newSourceBtn.addEventListener("click", () => {
     newSourceName.focus();
 });
 
+// Helper: Get deterministic source ID for source matching
+function getSourceId(src) {
+    if (src && src.id) return src.id;
+    const key = (src ? (src.url || src.path || src.name) : "") || "";
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) {
+        hash = (hash << 5) - hash + key.charCodeAt(i);
+        hash |= 0;
+    }
+    return "src_" + Math.abs(hash);
+}
+
 // Edit playlist source
 editSourceBtn.addEventListener("click", () => {
-    if (!activePlaylistSourceId) return;
-    const src = activeConfig.sources.find(s => s.id === activePlaylistSourceId);
-    if (!src) return;
+    let src = null;
+    if (activePlaylistSourceId && activeConfig && activeConfig.sources) {
+        src = activeConfig.sources.find(s => (s.id && s.id === activePlaylistSourceId) || getSourceId(s) === activePlaylistSourceId);
+    }
+    if (!src && activeConfig && activeConfig.sources) {
+        const headerName = activeSourceName.textContent.trim();
+        src = activeConfig.sources.find(s => s.name === headerName);
+    }
+    if (!src && activeConfig && activeConfig.sources && activeConfig.sources.length > 0) {
+        src = activeConfig.sources[0];
+    }
+    if (!src) {
+        showToast("No playlist source selected to edit.", "warning");
+        return;
+    }
     
-    editingSourceId = activePlaylistSourceId;
+    editingSourceId = src.id || getSourceId(src);
     sourceModalTitle.textContent = "Edit Playlist Source";
     sourceModalSave.textContent = "Save Changes";
     
@@ -1414,17 +1463,22 @@ sourceModalSave.addEventListener("click", async () => {
     }
     
     if (editingSourceId) {
-        // Edit existing source
-        const src = activeConfig.sources.find(s => s.id === editingSourceId);
+        // Edit existing source - strictly find by ID or current reference
+        let src = activeConfig.sources.find(s => s.id === editingSourceId);
+        if (!src) {
+            src = activeConfig.sources.find(s => getSourceId(s) === editingSourceId);
+        }
         if (src) {
             src.name = name;
             src.type = type;
             src.url = type !== "text_file" ? url : "";
             src.path = type === "text_file" ? path : "";
+            if (!src.id) src.id = editingSourceId;
         }
     } else {
-        // Add new source
+        // Add new source with unique ID
         const newSource = {
+            id: "src_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
             type: type,
             name: name,
             url: type !== "text_file" ? url : "",

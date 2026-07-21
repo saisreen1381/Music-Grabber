@@ -206,7 +206,7 @@ def get_config(username: str):
         
     sources_list = data.get("sources", [])
     for src in sources_list:
-        if "id" not in src:
+        if not src.get("id"):
             src["id"] = get_source_id(src)
             modified = True
         if "disabled_track_ids" not in src:
@@ -750,17 +750,42 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
     with open(config_file, "r") as f:
         config = json.load(f)
         
+    sources_list = config.get("sources", [])
+    modified_config = False
+    for src in sources_list:
+        if not src.get("id"):
+            src["id"] = get_source_id(src)
+            modified_config = True
+    if modified_config:
+        try:
+            with open(config_file, "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=2)
+        except Exception:
+            pass
+            
     source = None
-    for src in config.get("sources", []):
-        if src.get("id") == source_id:
+    for src in sources_list:
+        calculated_id = src.get("id") or get_source_id(src)
+        if calculated_id == source_id or src.get("id") == source_id:
             source = src
             break
+            
+    if not source:
+        # Fallback search by name or first source if source_id is null/undefined
+        for src in sources_list:
+            if src.get("name") == source_id:
+                source = src
+                break
+                
+    if not source and sources_list and (not source_id or source_id in ["null", "undefined"]):
+        source = sources_list[0]
             
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
         
     user_dir = profile_dir
-    cached_file = user_dir / "playlists" / f"{source_id}_tracks.json"
+    target_source_id = source.get("id") or get_source_id(source)
+    cached_file = user_dir / "playlists" / f"{target_source_id}_tracks.json"
     
     tracks = []
     if not refresh and cached_file.exists():
@@ -779,12 +804,34 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
         for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
             potential_cookie = user_dir / name
             if potential_cookie.exists():
-                cookie_file = str(potential_cookie)
+                cookie_file = str(potential_cookie.resolve())
                 break
                 
         if src_type in ("youtube_music_playlist", "youtube_playlist"):
-            if url:
+            if not url:
+                raise HTTPException(status_code=400, detail="Playlist URL is missing.")
+            if not cookie_file and ("list=LM" in url or "list=LL" in url or "liked" in url.lower() or "liked" in source.get("name", "").lower()):
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Your 'Liked Songs' is a private YouTube Music playlist. Please upload a cookies.txt file in Settings -> Upload Cookies File to load private playlists."
+                )
+            
+            try:
                 tracks = fetch_ytdlp_playlist(url, cookie_file, YTDLP_PATH)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to fetch playlist: {e}")
+                
+            if not tracks:
+                if not cookie_file:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Could not fetch playlist tracks. If this playlist is private (like Liked Songs), please upload your browser cookies.txt file in Settings."
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Could not fetch playlist tracks from YouTube. Ensure the playlist URL is valid, or export and re-upload a fresh cookies.txt file in Settings."
+                    )
         elif src_type == "text_file":
             rel_path = source.get("path")
             full_path = user_dir / os.path.basename(rel_path) if rel_path else None
