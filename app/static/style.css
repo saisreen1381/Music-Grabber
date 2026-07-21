@@ -1390,3 +1390,29 @@ input[type="checkbox"]:checked::before {
     transform: translateX(120%);
     opacity: 0;
 }
+
+/* Maximized terminal log card container overlay */
+.terminal-card.terminal-maximized {
+    position: fixed;
+    top: 24px;
+    left: 24px;
+    right: 24px;
+    bottom: 24px;
+    width: calc(100vw - 48px);
+    height: calc(100vh - 48px);
+    max-height: none !important;
+    z-index: 9999;
+    margin: 0;
+    border: 1px solid var(--border-glass);
+    background: rgba(10, 12, 18, 0.98);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+}
+
+.terminal-card.terminal-maximized .terminal-body {
+    flex: 1;
+    height: calc(100% - 50px) !important;
+    max-height: none !important;
+}
