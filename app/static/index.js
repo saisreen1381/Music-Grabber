@@ -22,6 +22,7 @@ const navItems = document.querySelectorAll(".nav-item");
 
 // Sync Tab Elements
 const syncNowBtn = document.getElementById("sync-now-btn");
+const viewSyncModalBtn = document.getElementById("view-sync-modal-btn");
 const syncBadge = document.getElementById("sync-badge");
 const autoSyncStatus = document.getElementById("auto-sync-status");
 const lastSyncTimeText = document.getElementById("last-sync-time");
@@ -382,14 +383,32 @@ async function refreshStatus() {
         const status = await res.json();
         
         // Sync badge
+        const syncQuoteBox = document.getElementById("sync-quote-box");
+        const syncCurrentSongWrapper = document.getElementById("sync-current-song-wrapper");
+        const syncProgressBarWrapper = document.getElementById("sync-progress-bar-wrapper");
+        const syncStatsWrapper = document.getElementById("sync-stats-wrapper");
+        const syncTimersWrapper = document.getElementById("sync-timers-wrapper");
+
         if (status.syncing) {
             syncBadge.className = "badge badge-syncing";
             syncBadge.textContent = "Syncing";
             syncNowBtn.disabled = true;
+            syncModalTitle.innerHTML = `<span class="spinner" style="width: 14px; height: 14px; border-width: 2px; border-top-color: var(--primary); margin: 0;"></span> Syncing Library...`;
+            if (syncQuoteBox) syncQuoteBox.style.display = "flex";
+            if (syncCurrentSongWrapper) syncCurrentSongWrapper.style.display = "block";
+            if (syncProgressBarWrapper) syncProgressBarWrapper.style.display = "block";
+            if (syncStatsWrapper) syncStatsWrapper.style.display = "flex";
+            if (syncTimersWrapper) syncTimersWrapper.style.display = "grid";
         } else {
             syncBadge.className = "badge badge-idle";
             syncBadge.textContent = "Idle";
             syncNowBtn.disabled = false;
+            syncModalTitle.innerHTML = `Library Sync: Idle`;
+            if (syncQuoteBox) syncQuoteBox.style.display = "none";
+            if (syncCurrentSongWrapper) syncCurrentSongWrapper.style.display = "none";
+            if (syncProgressBarWrapper) syncProgressBarWrapper.style.display = "none";
+            if (syncStatsWrapper) syncStatsWrapper.style.display = "none";
+            if (syncTimersWrapper) syncTimersWrapper.style.display = "none";
         }
         
         // Auto-sync status badge
@@ -838,6 +857,12 @@ syncModalClose.addEventListener("click", () => {
     syncProgressModal.style.display = "none";
 });
 
+if (viewSyncModalBtn) {
+    viewSyncModalBtn.addEventListener("click", () => {
+        syncProgressModal.style.display = "flex";
+    });
+}
+
 // Manual Sync Triggers (SSE Logs)
 syncNowBtn.addEventListener("click", () => {
     if (!activeProfile || eventSource) return;
@@ -998,16 +1023,18 @@ copyLogsBtn.addEventListener("click", () => {
     });
 });
 
-maximizeLogsBtn.addEventListener("click", () => {
-    const isMax = terminalCard.classList.toggle("terminal-maximized");
-    if (isMax) {
-        maximizeLogsBtn.title = "Restore Logs";
-        maximizeLogsIcon.innerHTML = `<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>`;
-    } else {
-        maximizeLogsBtn.title = "Maximize Logs";
-        maximizeLogsIcon.innerHTML = `<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>`;
-    }
-});
+if (maximizeLogsBtn) {
+    maximizeLogsBtn.addEventListener("click", () => {
+        const isMax = terminalCard.classList.toggle("terminal-maximized");
+        if (isMax) {
+            maximizeLogsBtn.title = "Restore Logs";
+            maximizeLogsIcon.innerHTML = `<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>`;
+        } else {
+            maximizeLogsBtn.title = "Maximize Logs";
+            maximizeLogsIcon.innerHTML = `<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>`;
+        }
+    });
+}
 
 // Profile Dropdown change
 profileSelect.addEventListener("change", () => {
@@ -1668,9 +1695,9 @@ function renderDiscoverPage() {
                 <td>${escapeHtml(s.artist)}</td>
                 <td>${escapeHtml(s.album)}</td>
                 <td>${escapeHtml(s.genre)}</td>
-                <td style="text-align: right;">
-                    <button class="btn btn-primary btn-sm play-btn-row" style="padding: 4px 8px; border-radius: var(--radius-sm);">
-                        Play
+                 <td style="text-align: right; width: 60px;">
+                    <button class="btn btn-primary btn-icon play-btn-row" title="Play Song" style="width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--primary); border: none; color: #fff; padding: 0;">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                     </button>
                 </td>
             `;
@@ -1691,23 +1718,76 @@ function renderDiscoverPage() {
 }
 
 function openDiscoverDetails(title, tracks) {
-    discoverDetailsTitle.textContent = title;
+    let cleanName = title;
+    let icon = "🎵";
+    if (title.startsWith("Artist: ")) {
+        cleanName = title.substring(8);
+        icon = "👤";
+    } else if (title.startsWith("Album: ")) {
+        cleanName = title.substring(7);
+        icon = "💿";
+    } else if (title.startsWith("Genre: ")) {
+        cleanName = title.substring(7);
+        icon = "🎸";
+    }
+    
+    const avatarEl = document.getElementById("discover-details-avatar");
+    const nameEl = document.getElementById("discover-details-name");
+    const countEl = document.getElementById("discover-details-count");
+    
+    if (avatarEl) avatarEl.textContent = icon;
+    if (nameEl) nameEl.textContent = cleanName;
+    if (countEl) {
+        const count = tracks.length;
+        countEl.textContent = `${count} song${count !== 1 ? 's' : ''}`;
+    }
+    
     discoverDetailsList.innerHTML = "";
     
     tracks.forEach(t => {
         const item = document.createElement("div");
-        item.className = "dir-item";
+        item.className = "dir-item discover-modal-song-row";
+        item.style.display = "flex";
+        item.style.alignItems = "center";
         item.style.justifyContent = "space-between";
+        item.style.padding = "10px 14px";
+        item.style.background = "rgba(255, 255, 255, 0.02)";
+        item.style.border = "1px solid rgba(255, 255, 255, 0.05)";
+        item.style.borderRadius = "var(--radius-md)";
+        item.style.cursor = "pointer";
+        item.style.transition = "background 0.2s, transform 0.2s";
+        
         item.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
-                <span>🎵</span>
-                <span style="font-weight: 500; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(t.title)}</span>
+            <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;">
+                <span class="row-play-indicator" style="font-size: 0.85rem; color: var(--text-dim);">🎵</span>
+                <span class="row-play-indicator-hover" style="display: none; font-size: 0.85rem; color: var(--primary);">▶</span>
+                <span style="font-weight: 500; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-main);">${escapeHtml(t.title)}</span>
             </div>
-            <button class="btn btn-primary btn-sm play-modal-btn" style="padding: 4px 10px;">Play</button>
+            <button class="btn btn-primary play-modal-btn" style="width: 32px; height: 32px; border-radius: 50%; min-width: 0; padding: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(99,102,241,0.3); border: none; margin-left: 12px; flex-shrink: 0;">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="currentColor" style="transform: translateX(1px);"><path d="M8 5v14l11-7z"/></svg>
+            </button>
         `;
+        
+        item.addEventListener("mouseenter", () => {
+            item.style.background = "rgba(255, 255, 255, 0.06)";
+            item.querySelector(".row-play-indicator").style.display = "none";
+            item.querySelector(".row-play-indicator-hover").style.display = "inline";
+        });
+        item.addEventListener("mouseleave", () => {
+            item.style.background = "rgba(255, 255, 255, 0.02)";
+            item.querySelector(".row-play-indicator").style.display = "inline";
+            item.querySelector(".row-play-indicator-hover").style.display = "none";
+        });
+        
+        item.addEventListener("click", (e) => {
+            if (e.target.closest(".play-modal-btn")) return;
+            playTrack(t, tracks);
+        });
+        
         item.querySelector(".play-modal-btn").addEventListener("click", () => {
             playTrack(t, tracks);
         });
+        
         discoverDetailsList.appendChild(item);
     });
     
@@ -1771,6 +1851,22 @@ window.alert = function(message) {
     }
     showToast(message, type);
 };
+
+// Toggle Logs Header collapse/expand
+const toggleLogsHeader = document.getElementById("toggle-logs-header");
+const logsToggleArrow = document.getElementById("logs-toggle-arrow");
+
+if (toggleLogsHeader && terminalBody) {
+    toggleLogsHeader.addEventListener("click", (e) => {
+        if (e.target.closest("#copy-logs-btn") || e.target.closest("#clear-logs-btn")) return;
+        
+        const isHidden = terminalBody.style.display === "none";
+        terminalBody.style.display = isHidden ? "block" : "none";
+        if (logsToggleArrow) {
+            logsToggleArrow.style.transform = isHidden ? "rotate(180deg)" : "rotate(0deg)";
+        }
+    });
+}
 
 // Window Load Handler
 window.addEventListener("load", () => {

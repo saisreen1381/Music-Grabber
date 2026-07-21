@@ -243,7 +243,7 @@ def save_config(username: str, config: ConfigModel):
             os.makedirs(new_path, exist_ok=True)
             import shutil
             for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac', '*.webp']:
-                for file in old_path.glob(ext):
+                for file in old_path.rglob(ext):
                     try:
                         dest = new_path / file.name
                         if not dest.exists():
@@ -402,7 +402,7 @@ def discover_local_songs(username: str):
     for download_path in scan_paths:
         if download_path.exists() and download_path.is_dir():
             for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac']:
-                for file in download_path.glob(ext):
+                for file in download_path.rglob(ext):
                     abs_path = str(file.resolve())
                     if abs_path not in seen_file_paths:
                         seen_file_paths.add(abs_path)
@@ -420,6 +420,7 @@ def discover_local_songs(username: str):
         clean_artists = re.sub(r'\s+&\s+', ',', clean_artists)
         clean_artists = re.sub(r'\s+and\s+', ',', clean_artists)
         artists_list = [a.strip() for a in clean_artists.split(",") if a.strip()]
+        artists_list = list(dict.fromkeys(artists_list))
         if not artists_list:
             artists_list = ["Unknown Artist"]
             
@@ -432,6 +433,7 @@ def discover_local_songs(username: str):
         gen_string = s.get("genre", "Unknown Genre")
         clean_genres = gen_string.replace(";", ",").replace("/", ",").replace("\\", ",")
         genres_list = [g.strip() for g in clean_genres.split(",") if g.strip()]
+        genres_list = list(dict.fromkeys(genres_list))
         if not genres_list:
             genres_list = ["Unknown Genre"]
             
@@ -648,7 +650,7 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
     for download_path in scan_paths:
         if download_path.exists() and download_path.is_dir():
             for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac']:
-                for file in download_path.glob(ext):
+                for file in download_path.rglob(ext):
                     norm = normalize_name(file.stem)
                     if norm:
                         norm_to_filename[norm] = file.name

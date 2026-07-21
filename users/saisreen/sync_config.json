@@ -1,5 +1,10 @@
 {
   "download_dir": "/musichdd",
+  "additional_library_dirs": [
+    "/media",
+    "/music",
+    "/musichdd"
+  ],
   "filename_template": "%(title)s.%(ext)s",
   "embed_metadata": true,
   "max_concurrent_downloads": 3,
