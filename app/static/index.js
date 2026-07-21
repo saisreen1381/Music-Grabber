@@ -28,6 +28,9 @@ const lastSyncTimeText = document.getElementById("last-sync-time");
 const nextSyncTimeText = document.getElementById("next-sync-time");
 const clearLogsBtn = document.getElementById("clear-logs-btn");
 const copyLogsBtn = document.getElementById("copy-logs-btn");
+const maximizeLogsBtn = document.getElementById("maximize-logs-btn");
+const maximizeLogsIcon = document.getElementById("maximize-logs-icon");
+const terminalCard = document.querySelector(".terminal-card");
 const terminalBody = document.getElementById("terminal-body");
 const filesTableBody = document.getElementById("files-table-body");
 const filesCountText = document.getElementById("files-count");
@@ -814,6 +817,17 @@ copyLogsBtn.addEventListener("click", () => {
     }).catch(e => {
         alert("Failed to copy logs: " + e.message);
     });
+});
+
+maximizeLogsBtn.addEventListener("click", () => {
+    const isMax = terminalCard.classList.toggle("terminal-maximized");
+    if (isMax) {
+        maximizeLogsBtn.title = "Restore Logs";
+        maximizeLogsIcon.innerHTML = `<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>`;
+    } else {
+        maximizeLogsBtn.title = "Maximize Logs";
+        maximizeLogsIcon.innerHTML = `<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>`;
+    }
 });
 
 // Profile Dropdown change

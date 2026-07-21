@@ -1,11 +1,11 @@
 {
-  "download_dir": "/mnt/mypassport/data/media/music",
+  "download_dir": "/musichdd",
   "filename_template": "%(title)s.%(ext)s",
   "embed_metadata": true,
   "max_concurrent_downloads": 3,
   "auto_sync": false,
-  "sync_interval_hours": 24,
-  "sync_time": "02:00",
+  "sync_interval_hours": 0,
+  "sync_time": "",
   "sources": [
     {
       "id": "70c2e2ba249b0ed617e2b1c455d09644",
