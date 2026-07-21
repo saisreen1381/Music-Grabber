@@ -4,7 +4,7 @@ import datetime
 from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, UploadFile, File
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.sync_engine import (
     run_sync_engine_generator, 
     scan_existing_files_detailed,
+    scan_existing_files,
     fetch_ytdlp_playlist,
     fetch_text_file,
     get_source_id,
@@ -243,6 +244,60 @@ def scan_directory(username: str):
         
     files = scan_existing_files_detailed(download_dir)
     return {"files": files}
+
+@app.get("/api/cookies/status")
+def get_cookies_status(username: str):
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
+        cookie_path = profile_dir / name
+        if cookie_path.exists():
+            return {"status": "loaded", "filename": name}
+            
+    return {"status": "missing", "filename": None}
+
+@app.post("/api/cookies/upload")
+def upload_cookies(username: str, file: UploadFile = File(...)):
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    # Save the file as youtube_cookies.txt
+    cookie_path = profile_dir / "youtube_cookies.txt"
+    try:
+        content = file.file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty")
+        with open(cookie_path, "wb") as f:
+            f.write(content)
+        return {"status": "success", "message": "Cookies uploaded successfully", "filename": "youtube_cookies.txt"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save cookies file: {e}")
+
+@app.delete("/api/cookies")
+def delete_cookies(username: str):
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    deleted_any = False
+    for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
+        cookie_path = profile_dir / name
+        if cookie_path.exists():
+            try:
+                os.remove(cookie_path)
+                deleted_any = True
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to delete cookie file: {e}")
+                
+    if deleted_any:
+        return {"status": "success", "message": "Cookies deleted successfully"}
+    else:
+        return {"status": "success", "message": "No cookie file found to delete"}
 
 @app.get("/api/playlist/tracks")
 def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):

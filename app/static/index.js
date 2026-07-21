@@ -1,6 +1,7 @@
 // Application State
 let activeProfile = "";
 let activePlaylistSourceId = "";
+let editingSourceId = "";
 let profiles = [];
 let activeConfig = null;
 let currentTracks = [];
@@ -33,6 +34,7 @@ const playlistActiveView = document.getElementById("playlist-active-view");
 const activeSourceName = document.getElementById("active-source-name");
 const activeSourceUrl = document.getElementById("active-source-url");
 const refreshPlaylistBtn = document.getElementById("refresh-playlist-btn");
+const editSourceBtn = document.getElementById("edit-source-btn");
 const deleteSourceBtn = document.getElementById("delete-source-btn");
 const selectAllTracksBtn = document.getElementById("select-all-tracks");
 const deselectAllTracksBtn = document.getElementById("deselect-all-tracks");
@@ -54,6 +56,12 @@ const scheduleIntervalField = document.getElementById("schedule-interval-field")
 const settingSyncTime = document.getElementById("setting-sync-time");
 const settingSyncInterval = document.getElementById("setting-sync-interval");
 const saveSettingsBtn = document.getElementById("save-settings-btn");
+const cookiesStatusBadge = document.getElementById("cookies-status-badge");
+const deleteCookiesBtn = document.getElementById("delete-cookies-btn");
+const settingCookiesFile = document.getElementById("setting-cookies-file");
+const triggerCookiesUploadBtn = document.getElementById("trigger-cookies-upload-btn");
+const selectedCookiesFilename = document.getElementById("selected-cookies-filename");
+const uploadCookiesBtn = document.getElementById("upload-cookies-btn");
 
 // Modals
 const profileModal = document.getElementById("profile-modal");
@@ -62,6 +70,7 @@ const profileModalCancel = document.getElementById("profile-modal-cancel");
 const profileModalSave = document.getElementById("profile-modal-save");
 
 const sourceModal = document.getElementById("source-modal");
+const sourceModalTitle = document.getElementById("source-modal-title");
 const newSourceType = document.getElementById("new-source-type");
 const newSourceName = document.getElementById("new-source-name");
 const sourceUrlGroup = document.getElementById("source-url-group");
@@ -145,8 +154,39 @@ async function loadConfig(username) {
         const res = await fetch(`/api/config?username=${username}`);
         activeConfig = await res.json();
         populateSettingsForm();
+        await refreshCookiesStatus(username);
     } catch (e) {
         console.error("Failed to load config", e);
+    }
+}
+
+// Fetch and display cookies status
+async function refreshCookiesStatus(username) {
+    if (!username) return;
+    
+    // Reset file input and display
+    settingCookiesFile.value = "";
+    selectedCookiesFilename.textContent = "No file selected";
+    uploadCookiesBtn.style.display = "none";
+    
+    try {
+        const res = await fetch(`/api/cookies/status?username=${username}`);
+        const data = await res.json();
+        
+        if (data.status === "loaded") {
+            cookiesStatusBadge.className = "badge badge-success";
+            cookiesStatusBadge.textContent = `Cookies Active (${data.filename})`;
+            deleteCookiesBtn.style.display = "inline-block";
+        } else {
+            cookiesStatusBadge.className = "badge badge-danger";
+            cookiesStatusBadge.textContent = "Cookies Missing";
+            deleteCookiesBtn.style.display = "none";
+        }
+    } catch (e) {
+        console.error("Failed to load cookies status", e);
+        cookiesStatusBadge.className = "badge badge-warning";
+        cookiesStatusBadge.textContent = "Status Unknown";
+        deleteCookiesBtn.style.display = "none";
     }
 }
 
@@ -714,10 +754,35 @@ profileModalSave.addEventListener("click", async () => {
 
 // Add playlist source
 newSourceBtn.addEventListener("click", () => {
+    editingSourceId = "";
+    sourceModalTitle.textContent = "Add Playlist Source";
+    sourceModalSave.textContent = "Add Playlist";
     sourceModal.style.display = "flex";
     newSourceName.value = "";
     newSourceUrl.value = "";
     newSourcePath.value = "";
+    newSourceName.focus();
+});
+
+// Edit playlist source
+editSourceBtn.addEventListener("click", () => {
+    if (!activePlaylistSourceId) return;
+    const src = activeConfig.sources.find(s => s.id === activePlaylistSourceId);
+    if (!src) return;
+    
+    editingSourceId = activePlaylistSourceId;
+    sourceModalTitle.textContent = "Edit Playlist Source";
+    sourceModalSave.textContent = "Save Changes";
+    
+    newSourceName.value = src.name || "";
+    newSourceType.value = src.type || "youtube_music_playlist";
+    newSourceUrl.value = src.url || "";
+    newSourcePath.value = src.path || "";
+    
+    // Trigger type change display toggle
+    newSourceType.dispatchEvent(new Event("change"));
+    
+    sourceModal.style.display = "flex";
     newSourceName.focus();
 });
 
@@ -755,16 +820,26 @@ sourceModalSave.addEventListener("click", async () => {
         return;
     }
     
-    // Add source
-    const newSource = {
-        type: type,
-        name: name,
-        url: type !== "text_file" ? url : "",
-        path: type === "text_file" ? path : "",
-        disabled_track_ids: []
-    };
-    
-    activeConfig.sources.push(newSource);
+    if (editingSourceId) {
+        // Edit existing source
+        const src = activeConfig.sources.find(s => s.id === editingSourceId);
+        if (src) {
+            src.name = name;
+            src.type = type;
+            src.url = type !== "text_file" ? url : "";
+            src.path = type === "text_file" ? path : "";
+        }
+    } else {
+        // Add new source
+        const newSource = {
+            type: type,
+            name: name,
+            url: type !== "text_file" ? url : "",
+            path: type === "text_file" ? path : "",
+            disabled_track_ids: []
+        };
+        activeConfig.sources.push(newSource);
+    }
     
     try {
         const res = await fetch(`/api/config?username=${activeProfile}`, {
@@ -778,6 +853,9 @@ sourceModalSave.addEventListener("click", async () => {
             // Reload config & sources menu
             await loadConfig(activeProfile);
             renderSourcesList();
+            if (editingSourceId && editingSourceId === activePlaylistSourceId) {
+                loadPlaylistTracks(activePlaylistSourceId, true);
+            }
         } else {
             const err = await res.json();
             alert(`Error: ${err.detail}`);
@@ -797,6 +875,82 @@ function escapeHtml(str) {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
 }
+
+// Trigger hidden file input click
+triggerCookiesUploadBtn.addEventListener("click", () => {
+    settingCookiesFile.click();
+});
+
+// File input selection change
+settingCookiesFile.addEventListener("change", () => {
+    const file = settingCookiesFile.files[0];
+    if (file) {
+        selectedCookiesFilename.textContent = file.name;
+        uploadCookiesBtn.style.display = "inline-block";
+    } else {
+        selectedCookiesFilename.textContent = "No file selected";
+        uploadCookiesBtn.style.display = "none";
+    }
+});
+
+// Upload Cookies button click
+uploadCookiesBtn.addEventListener("click", async () => {
+    if (!activeProfile) return;
+    const file = settingCookiesFile.files[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append("file", file);
+    
+    uploadCookiesBtn.disabled = true;
+    uploadCookiesBtn.textContent = "Uploading...";
+    
+    try {
+        const res = await fetch(`/api/cookies/upload?username=${activeProfile}`, {
+            method: "POST",
+            body: formData
+        });
+        
+        if (res.ok) {
+            alert("Cookies uploaded successfully.");
+            await refreshCookiesStatus(activeProfile);
+        } else {
+            const err = await res.json();
+            alert(`Upload failed: ${err.detail || "Unknown error"}`);
+        }
+    } catch (e) {
+        alert(`Upload error: ${e.message}`);
+    } finally {
+        uploadCookiesBtn.disabled = false;
+        uploadCookiesBtn.textContent = "Upload File";
+    }
+});
+
+// Delete Cookies button click
+deleteCookiesBtn.addEventListener("click", async () => {
+    if (!activeProfile) return;
+    if (!confirm("Are you sure you want to delete the uploaded cookies? Private playlists will no longer sync.")) return;
+    
+    deleteCookiesBtn.disabled = true;
+    
+    try {
+        const res = await fetch(`/api/cookies?username=${activeProfile}`, {
+            method: "DELETE"
+        });
+        
+        if (res.ok) {
+            alert("Cookies deleted successfully.");
+            await refreshCookiesStatus(activeProfile);
+        } else {
+            const err = await res.json();
+            alert(`Deletion failed: ${err.detail || "Unknown error"}`);
+        }
+    } catch (e) {
+        alert(`Deletion error: ${e.message}`);
+    } finally {
+        deleteCookiesBtn.disabled = false;
+    }
+});
 
 // Window Load Handler
 window.addEventListener("load", () => {

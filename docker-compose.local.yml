@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  music-grabber:
+    build: .
+    container_name: music_grabber_local
+    restart: unless-stopped
+    ports:
+      - "8010:8010"
+    volumes:
+      - ./users:/app/users
+      # For local run: mount a local directory for music storage.
+      # You can change './music' on the left side to any folder on your machine where you want music saved.
+      - ./music:/music
+      # Fallback downloads volume if relative paths are used
+      - ./downloads:/app/downloads
+    environment:
+      - TZ=Asia/Kolkata
