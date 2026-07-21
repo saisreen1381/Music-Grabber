@@ -1,0 +1,16 @@
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# User configs & private session files
+*cookies.txt
+.spotipy
+spotify_cache/
+users/*/spotify_credentials.txt
+
+# Local sync files & temporary files
+.sync/
+*.log
+*.tmp

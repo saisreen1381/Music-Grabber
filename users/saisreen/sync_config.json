@@ -1,0 +1,20 @@
+{
+  "download_dir": "/mnt/mypassport/data/media/music",
+  "sources": [
+    {
+      "type": "youtube_music_playlist",
+      "name": "YouTube Music Liked Songs",
+      "url": "https://music.youtube.com/playlist?list=LM"
+    },
+    {
+      "type": "text_file",
+      "name": "Manual Additions",
+      "path": "users/saisreen/playlists/manual_songs.txt"
+    },
+	{
+	  "type": "youtube_music_playlist",
+      "name": "YFavourite Songs",
+      "url": "https://music.youtube.com/playlist?list=PLE6FU1SdxlRA"
+	}
+  ]
+}
