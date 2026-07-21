@@ -245,6 +245,39 @@ def scan_directory(username: str):
     files = scan_existing_files_detailed(download_dir)
     return {"files": files}
 
+@app.get("/api/browse")
+def browse_directory(path: str = "/"):
+    if not path:
+        path = "/"
+        
+    p = Path(path)
+    if not p.exists() or not p.is_dir():
+        p = Path("/")
+        
+    try:
+        subdirs = []
+        for item in p.iterdir():
+            try:
+                if not item.name.startswith(".") and item.is_dir():
+                    subdirs.append(item.name)
+            except Exception:
+                pass
+        subdirs.sort()
+        
+        parent_path = None
+        if p != p.parent:
+            parent_path = str(p.parent).replace("\\", "/")
+            
+        current_path = str(p.absolute()).replace("\\", "/")
+        
+        return {
+            "current_path": current_path,
+            "parent_path": parent_path,
+            "subdirectories": subdirs
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list directory: {e}")
+
 @app.get("/api/cookies/status")
 def get_cookies_status(username: str):
     profile_dir = USERS_DIR / username

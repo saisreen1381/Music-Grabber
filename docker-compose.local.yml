@@ -14,5 +14,7 @@ services:
       - ./music:/music
       # Fallback downloads volume if relative paths are used
       - ./downloads:/app/downloads
+      # Map your host HDD (e.g., D:\Music) to a path inside the container (e.g., /music)
+      - D:\Music:/music
     environment:
       - TZ=Asia/Kolkata

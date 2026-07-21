@@ -1,32 +1,35 @@
 {
   "download_dir": "/mnt/mypassport/data/media/music",
-  "sources": [
-    {
-      "type": "youtube_music_playlist",
-      "name": "YouTube Music Liked Songs",
-      "url": "https://music.youtube.com/playlist?list=LM",
-      "id": "70c2e2ba249b0ed617e2b1c455d09644",
-      "disabled_track_ids": []
-    },
-    {
-      "type": "text_file",
-      "name": "Manual Additions",
-      "path": "users/saisreen/playlists/manual_songs.txt",
-      "id": "faef3fac24934eabf0e8307668ddb5e1",
-      "disabled_track_ids": []
-    },
-    {
-      "type": "youtube_music_playlist",
-      "name": "YFavourite Songs",
-      "url": "https://music.youtube.com/playlist?list=PLE6FU1SdxlRA",
-      "id": "992330d5d7c5824e2c55f32e64e87832",
-      "disabled_track_ids": []
-    }
-  ],
   "filename_template": "%(title)s.%(ext)s",
   "embed_metadata": true,
   "max_concurrent_downloads": 3,
   "auto_sync": false,
   "sync_interval_hours": 24,
-  "sync_time": "02:00"
+  "sync_time": "02:00",
+  "sources": [
+    {
+      "id": "70c2e2ba249b0ed617e2b1c455d09644",
+      "type": "youtube_music_playlist",
+      "name": "YouTube Music Liked Songs",
+      "url": "https://music.youtube.com/playlist?list=LM",
+      "path": "",
+      "disabled_track_ids": []
+    },
+    {
+      "id": "faef3fac24934eabf0e8307668ddb5e1",
+      "type": "text_file",
+      "name": "Manual Additions",
+      "url": "",
+      "path": "users/saisreen/playlists/manual_songs.txt",
+      "disabled_track_ids": []
+    },
+    {
+      "id": "992330d5d7c5824e2c55f32e64e87832",
+      "type": "youtube_music_playlist",
+      "name": "Favourite Songs",
+      "url": "https://music.youtube.com/playlist?list=PLE6FU1SdxlRA",
+      "path": "",
+      "disabled_track_ids": []
+    }
+  ]
 }

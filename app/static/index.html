@@ -213,7 +213,13 @@
                             <!-- Download Dir -->
                             <div class="form-group">
                                 <label for="setting-download-dir">Save Directory Path</label>
-                                <input type="text" id="setting-download-dir" placeholder="e.g. /mnt/mypassport/data/media/music">
+                                <div style="display: flex; gap: 10px;">
+                                    <input type="text" id="setting-download-dir" placeholder="e.g. /mnt/mypassport/data/media/music" style="flex: 1;">
+                                    <button id="browse-dir-btn" class="btn btn-secondary" style="padding: 10px 16px;">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                                        Browse
+                                    </button>
+                                </div>
                                 <span class="help-text">Absolute path to save downloads. The folder will be created if it does not exist.</span>
                             </div>
 
@@ -389,6 +395,30 @@
             <div class="modal-actions">
                 <button id="source-modal-cancel" class="btn btn-secondary">Cancel</button>
                 <button id="source-modal-save" class="btn btn-primary">Add Playlist</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Directory Browser Modal -->
+    <div id="dir-browser-modal" class="modal-overlay" style="display: none;">
+        <div class="glass-card modal-card" style="max-width: 600px;">
+            <h3>Select Save Directory</h3>
+            
+            <div class="dir-browser-current" style="background: rgba(0, 0, 0, 0.2); padding: 8px 12px; border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 0.85rem; margin: 8px 0; border: 1px solid var(--border-glass); word-break: break-all; display: flex; align-items: center; justify-content: space-between;">
+                <span id="dir-browser-path">/</span>
+                <button id="dir-browser-up-btn" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 0.75rem;">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M18 15l-6-6-6 6"/></svg>
+                    Up
+                </button>
+            </div>
+            
+            <div id="dir-browser-list" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 8px; display: flex; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.1);">
+                <!-- Folders list here -->
+            </div>
+            
+            <div class="modal-actions" style="margin-top: 16px;">
+                <button id="dir-browser-cancel" class="btn btn-secondary">Cancel</button>
+                <button id="dir-browser-select" class="btn btn-primary">Select Current Folder</button>
             </div>
         </div>
     </div>

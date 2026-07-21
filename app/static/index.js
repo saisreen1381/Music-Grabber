@@ -6,6 +6,8 @@ let profiles = [];
 let activeConfig = null;
 let currentTracks = [];
 let eventSource = null;
+let currentBrowserPath = "/";
+let parentBrowserPath = null;
 
 // DOM Elements
 const profileSelect = document.getElementById("profile-select");
@@ -65,6 +67,13 @@ const uploadCookiesBtn = document.getElementById("upload-cookies-btn");
 
 // Modals
 const profileModal = document.getElementById("profile-modal");
+const browseDirBtn = document.getElementById("browse-dir-btn");
+const dirBrowserModal = document.getElementById("dir-browser-modal");
+const dirBrowserPath = document.getElementById("dir-browser-path");
+const dirBrowserUpBtn = document.getElementById("dir-browser-up-btn");
+const dirBrowserList = document.getElementById("dir-browser-list");
+const dirBrowserCancel = document.getElementById("dir-browser-cancel");
+const dirBrowserSelect = document.getElementById("dir-browser-select");
 const newProfileUsername = document.getElementById("new-profile-username");
 const profileModalCancel = document.getElementById("profile-modal-cancel");
 const profileModalSave = document.getElementById("profile-modal-save");
@@ -187,6 +196,52 @@ async function refreshCookiesStatus(username) {
         cookiesStatusBadge.className = "badge badge-warning";
         cookiesStatusBadge.textContent = "Status Unknown";
         deleteCookiesBtn.style.display = "none";
+    }
+}
+
+// Directory Browser Navigation
+async function fetchDirectory(path) {
+    dirBrowserList.innerHTML = '<div class="spinner-container" style="padding: 20px;"><div class="spinner"></div></div>';
+    
+    try {
+        const res = await fetch(`/api/browse?path=${encodeURIComponent(path)}`);
+        if (!res.ok) throw new Error("Failed to list directory");
+        const data = await res.json();
+        
+        currentBrowserPath = data.current_path;
+        parentBrowserPath = data.parent_path;
+        
+        dirBrowserPath.textContent = currentBrowserPath;
+        
+        // Show/hide up button
+        if (parentBrowserPath) {
+            dirBrowserUpBtn.style.display = "inline-flex";
+        } else {
+            dirBrowserUpBtn.style.display = "none";
+        }
+        
+        // Render subdirectories
+        dirBrowserList.innerHTML = "";
+        if (data.subdirectories.length === 0) {
+            dirBrowserList.innerHTML = '<div class="empty-sources" style="padding: 16px 0;">No subdirectories found.</div>';
+            return;
+        }
+        
+        data.subdirectories.forEach(sub => {
+            const item = document.createElement("div");
+            item.className = "dir-item";
+            item.innerHTML = `
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span>${escapeHtml(sub)}</span>
+            `;
+            item.addEventListener("click", () => {
+                const slash = currentBrowserPath.endsWith("/") ? "" : "/";
+                fetchDirectory(currentBrowserPath + slash + sub);
+            });
+            dirBrowserList.appendChild(item);
+        });
+    } catch (e) {
+        dirBrowserList.innerHTML = `<div class="empty-sources" style="color: var(--danger); padding: 16px 0;">Error: ${e.message}</div>`;
     }
 }
 
@@ -949,6 +1004,31 @@ deleteCookiesBtn.addEventListener("click", async () => {
         alert(`Deletion error: ${e.message}`);
     } finally {
         deleteCookiesBtn.disabled = false;
+    }
+});
+
+// Show Directory Browser
+browseDirBtn.addEventListener("click", () => {
+    const currentVal = settingDownloadDir.value.trim() || "/";
+    fetchDirectory(currentVal);
+    dirBrowserModal.style.display = "flex";
+});
+
+// Cancel browsing
+dirBrowserCancel.addEventListener("click", () => {
+    dirBrowserModal.style.display = "none";
+});
+
+// Select folder
+dirBrowserSelect.addEventListener("click", () => {
+    settingDownloadDir.value = currentBrowserPath;
+    dirBrowserModal.style.display = "none";
+});
+
+// Move parent directory
+dirBrowserUpBtn.addEventListener("click", () => {
+    if (parentBrowserPath) {
+        fetchDirectory(parentBrowserPath);
     }
 });
 
