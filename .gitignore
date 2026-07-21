@@ -4,13 +4,25 @@ __pycache__/
 *.pyo
 *.pyd
 
-# User configs & private session files
+# User configs & private profiles/session files
+users/
 *cookies.txt
 .spotipy
 spotify_cache/
-users/*/spotify_credentials.txt
 
-# Local sync files & temporary files
+# Local downloaded music & media dirs
+music/
+downloads/
+
+# Developer scratchpad, test, and debug folders
+scratch/
+test/
+debug/
+
+# Sync files & temporary logs/cache files
 .sync/
 *.log
 *.tmp
+.DS_Store
+.idea/
+.vscode/
