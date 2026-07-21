@@ -89,6 +89,9 @@ class ConfigModel(BaseModel):
     auto_sync: Optional[bool] = False
     sync_interval_hours: Optional[int] = 24
     sync_time: Optional[str] = "02:00"
+    seekbar_style: Optional[str] = "solid_envelope"
+    eq_preset: Optional[str] = "flat"
+    autoplay_launch: Optional[bool] = False
     sources: List[SourceModel] = []
 
 class ProfileCreate(BaseModel):
@@ -179,6 +182,9 @@ def get_config(username: str):
         
     # Fill in missing fields with defaults
     modified = False
+    if not data.get("download_dir"):
+        data["download_dir"] = str((profile_dir / "downloads").absolute())
+        modified = True
     if "filename_template" not in data:
         data["filename_template"] = "%(title)s.%(ext)s"
         modified = True
@@ -223,6 +229,8 @@ def save_config(username: str, config: ConfigModel):
     
     # Process sources and assign stable IDs if missing
     config_dict = config.dict()
+    if not config_dict.get("download_dir"):
+        config_dict["download_dir"] = str((profile_dir / "downloads").absolute())
     for src in config_dict["sources"]:
         if not src.get("id"):
             src["id"] = get_source_id(src)
@@ -429,10 +437,23 @@ def discover_local_songs(username: str):
     
     scan_paths = []
     if download_dir:
-        scan_paths.append(Path(download_dir))
+        p = Path(download_dir)
+        if p.is_absolute():
+            scan_paths.append(p)
+        else:
+            scan_paths.append(p.resolve())
+            scan_paths.append((profile_dir / download_dir).resolve())
     for d in additional_dirs:
         if d:
-            scan_paths.append(Path(d))
+            dp = Path(d)
+            if dp.is_absolute():
+                scan_paths.append(dp)
+            else:
+                scan_paths.append(dp.resolve())
+                
+    fallback_downloads = Path("downloads").resolve()
+    if fallback_downloads not in scan_paths:
+        scan_paths.append(fallback_downloads)
             
     # Load metadata cache
     cache_file = profile_dir / "library_metadata_cache.json"
@@ -1169,3 +1190,53 @@ def stop_sync_endpoint(username: str):
     aborted_syncs.add(username)
     paused_syncs.discard(username)
     return {"status": "stopping"}
+
+@app.get("/api/lyrics")
+def get_lyrics(artist: str = "", title: str = ""):
+    if not title:
+        raise HTTPException(status_code=400, detail="Title parameter is required")
+        
+    clean_title = re.sub(r"\.(mp3|flac|m4a|wav|opus|webm|aac|ogg)$", "", title, flags=re.IGNORECASE).strip()
+    clean_artist = artist.strip() if artist and artist.lower() not in ["unknown artist", "downloaded track"] else ""
+    
+    cache_dir = USERS_DIR / "lyrics_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_key = f"{clean_artist}_{clean_title}".lower()
+    cache_filename = hashlib.md5(cache_key.encode("utf-8")).hexdigest() + ".json"
+    cache_path = cache_dir / cache_filename
+    
+    if cache_path.exists():
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+            
+    lyrics_data = {"syncedLyrics": None, "plainLyrics": "Lyrics not found for this track.", "artist": clean_artist, "title": clean_title}
+    try:
+        url = f"https://lrclib.net/api/get?track_name={urllib.parse.quote(clean_title)}"
+        if clean_artist:
+            url += f"&artist_name={urllib.parse.quote(clean_artist)}"
+            
+        req = urllib.request.Request(url, headers={"User-Agent": "MusicGrabber/1.0"})
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                lyrics_data = {
+                    "syncedLyrics": data.get("syncedLyrics"),
+                    "plainLyrics": data.get("plainLyrics") or "No plain text lyrics available for this song.",
+                    "artist": data.get("artistName") or clean_artist,
+                    "title": data.get("trackName") or clean_title,
+                    "album": data.get("albumName")
+                }
+    except Exception as e:
+        logger.warning(f"Failed to fetch lyrics for {clean_title}: {e}")
+        
+    try:
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(lyrics_data, f, ensure_ascii=False)
+    except Exception:
+        pass
+        
+    return lyrics_data
+

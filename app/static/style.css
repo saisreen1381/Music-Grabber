@@ -38,13 +38,14 @@
 }
 
 body {
-    background-color: var(--bg-main);
+    background: #0a0d14;
     color: var(--text-main);
     font-family: var(--font-sans);
     line-height: 1.5;
     overflow: hidden;
     height: 100vh;
     min-height: 100vh;
+    transition: background 0.5s ease;
 }
 
 /* Glowing Background Gradients */
@@ -1299,22 +1300,44 @@ input[type="checkbox"]:checked::before {
     font-weight: 600;
 }
 
-/* Spotify-style Bottom Music Player Bar */
+/* Inline Paper-Slide Expander Drawer */
+@keyframes slideDownPaper {
+    0% {
+        opacity: 0;
+        transform: translateY(-12px) scaleY(0.96);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scaleY(1);
+    }
+}
+
+.discover-card.card-expanded {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 16px var(--primary-glow) !important;
+    transform: translateY(-4px);
+}
+
+.inline-expander-drawer {
+    transform-origin: top center;
+}
+
+/* Spotify-style Bottom Music Player Bar (Always Visible) */
 .music-player-bar {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     height: 90px;
-    background: rgba(10, 12, 22, 0.95);
+    background: rgba(10, 12, 22, 0.96);
     border-top: 1px solid var(--border-glass);
-    z-index: 999;
-    display: flex;
+    z-index: 9999 !important;
+    display: flex !important;
     align-items: center;
     justify-content: space-between;
     padding: 0 24px;
-    backdrop-filter: blur(12px);
-    box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 -6px 35px rgba(0, 0, 0, 0.7);
     animation: slideUp 0.3s ease;
 }
 
@@ -1325,10 +1348,20 @@ input[type="checkbox"]:checked::before {
 
 .player-progress-bar-wrapper input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--primary);
+    appearance: none;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+.player-progress-bar-wrapper input[type="range"]::-moz-range-thumb {
+    width: 0;
+    height: 0;
+    opacity: 0;
+    background: transparent;
+    border: none;
     cursor: pointer;
 }
 .player-volume-control input[type="range"]::-webkit-slider-thumb {
