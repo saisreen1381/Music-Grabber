@@ -462,7 +462,15 @@ async function refreshStatus() {
 }
 
 // Fetch and render existing downloaded files
+function cleanMediaExtension(str) {
+    if (!str) return "";
+    return str.replace(/\.(mp3|flac|m4a|wav|opus|webm|aac|ogg)$/i, "");
+}
+
+// Fetch and render existing downloaded files
 let allDownloadedFiles = [];
+let allToDownloadTracks = [];
+
 async function loadFiles() {
     if (!activeProfile) return;
     try {
@@ -470,39 +478,148 @@ async function loadFiles() {
         const data = await res.json();
         allDownloadedFiles = data.files || [];
         renderFilesList(allDownloadedFiles);
+        await loadToDownloadList();
     } catch (e) {
         console.error("Failed to load directory files", e);
     }
 }
 
-function renderFilesList(files) {
-    filesCountText.textContent = `${files.length} files`;
+async function loadToDownloadList() {
+    if (!activeProfile || !activeConfig || !activeConfig.sources) return;
     
-    if (files.length === 0) {
-        filesTableBody.innerHTML = `<tr><td colspan="2" class="empty-table">No audio files found. Verify your Save Path in Settings.</td></tr>`;
+    allToDownloadTracks = [];
+    const downloadedNames = new Set(allDownloadedFiles.map(f => f.name.toLowerCase()));
+    
+    for (const src of activeConfig.sources) {
+        try {
+            const res = await fetch(`/api/playlist/tracks?username=${activeProfile}&source_id=${src.id}`);
+            if (res.ok) {
+                const tracks = await res.json();
+                const disabled = new Set(src.disabled_track_ids || []);
+                tracks.forEach(t => {
+                    if (!disabled.has(t.id)) {
+                        const title = t.title || t.display_name || "";
+                        const estFilename = (activeConfig.filename_template || "%(title)s.%(ext)s")
+                            .replace("%(title)s", title)
+                            .replace("%(artist)s", t.artist || "")
+                            .replace("%(id)s", t.id || "")
+                            .replace("%(ext)s", "mp3");
+                        const cleanName = estFilename.split("/").pop().split("\\").pop().toLowerCase();
+                        
+                        if (!downloadedNames.has(cleanName)) {
+                            allToDownloadTracks.push({
+                                ...t,
+                                source_name: src.name || "Playlist",
+                                est_path: activeConfig.download_dir ? `${activeConfig.download_dir}/${cleanName}` : cleanName
+                            });
+                        }
+                    }
+                });
+            }
+        } catch (e) {}
+    }
+    
+    renderToDownloadTable(allToDownloadTracks);
+}
+
+function renderToDownloadTable(tracks) {
+    const tbody = document.getElementById("to-download-table-body");
+    const countBadge = document.getElementById("to-download-count");
+    if (countBadge) countBadge.textContent = tracks.length;
+    if (!tbody) return;
+    
+    if (tracks.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-table">All playlist songs are downloaded and up-to-date!</td></tr>`;
         return;
     }
     
-    filesTableBody.innerHTML = "";
-    files.forEach(f => {
+    const showPaths = document.getElementById("toggle-file-paths-checkbox")?.checked;
+    const pathDisplay = showPaths ? "table-cell" : "none";
+    
+    tbody.innerHTML = "";
+    tracks.forEach((t, idx) => {
         const tr = document.createElement("tr");
+        const cleanTitle = cleanMediaExtension(t.title || t.display_name || "Unknown Track");
         tr.innerHTML = `
-            <td>${escapeHtml(f.name)}</td>
-            <td style="white-space: nowrap; color: var(--text-muted); text-align: right;">${formatBytes(f.size_bytes)}</td>
+            <td style="text-align: center;">
+                <button class="btn btn-icon btn-sm play-queued-track-btn" title="Play Song" style="width: 24px; height: 24px; border-radius: 50%; color: var(--primary); padding: 0; display: inline-flex; align-items: center; justify-content: center;">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+            </td>
+            <td style="font-weight: 500;">${escapeHtml(cleanTitle)}</td>
+            <td style="color: var(--text-muted); font-size: 0.8rem;">${escapeHtml(t.source_name)}</td>
+            <td class="file-path-cell" style="display: ${pathDisplay};">${escapeHtml(t.est_path)}</td>
         `;
-        filesTableBody.appendChild(tr);
+        
+        tr.querySelector(".play-queued-track-btn").addEventListener("click", () => {
+            playTrack(t, tracks, idx);
+        });
+        
+        tbody.appendChild(tr);
     });
 }
 
-// Filter downloaded files locally
+function renderFilesList(files) {
+    if (filesCountText) filesCountText.textContent = `${files.length} files`;
+    
+    if (files.length === 0) {
+        filesTableBody.innerHTML = `<tr><td colspan="4" class="empty-table">No audio files found. Verify your Save Path in Settings.</td></tr>`;
+        return;
+    }
+    
+    const showPaths = document.getElementById("toggle-file-paths-checkbox")?.checked;
+    const pathDisplay = showPaths ? "table-cell" : "none";
+    
+    filesTableBody.innerHTML = "";
+    files.forEach((f, idx) => {
+        const tr = document.createElement("tr");
+        const cleanName = cleanMediaExtension(f.name);
+        const mockTrack = {
+            filename: f.name,
+            local_filename: f.name,
+            title: cleanName,
+            artist: "Downloaded Track",
+            thumbnail_url: `/api/thumbnail?path=${encodeURIComponent(f.path)}`
+        };
+        
+        tr.innerHTML = `
+            <td style="text-align: center;">
+                <button class="btn btn-icon btn-sm play-downloaded-file-btn" title="Play File" style="width: 24px; height: 24px; border-radius: 50%; color: var(--primary); padding: 0; display: inline-flex; align-items: center; justify-content: center;">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+            </td>
+            <td style="font-weight: 500;">${escapeHtml(cleanName)}</td>
+            <td style="white-space: nowrap; color: var(--text-muted); text-align: right; font-size: 0.8rem;">${formatBytes(f.size_bytes)}</td>
+            <td class="file-path-cell" style="display: ${pathDisplay};">${escapeHtml(f.path)}</td>
+        `;
+        
+        tr.querySelector(".play-downloaded-file-btn").addEventListener("click", () => {
+            const queue = files.map(fileItem => ({
+                filename: fileItem.name,
+                local_filename: fileItem.name,
+                title: cleanMediaExtension(fileItem.name),
+                artist: "Downloaded Track",
+                thumbnail_url: `/api/thumbnail?path=${encodeURIComponent(fileItem.path)}`
+            }));
+            playTrack(mockTrack, queue, idx);
+        });
+        
+        tbody.appendChild(tr);
+    });
+}
+
+// Filter downloaded and queued files locally
 filesSearchInput.addEventListener("input", () => {
     const q = filesSearchInput.value.toLowerCase().trim();
     if (!q) {
         renderFilesList(allDownloadedFiles);
+        renderToDownloadTable(allToDownloadTracks);
         return;
     }
-    const filtered = allDownloadedFiles.filter(f => f.name.toLowerCase().includes(q));
-    renderFilesList(filtered);
+    const filteredFiles = allDownloadedFiles.filter(f => f.name.toLowerCase().includes(q));
+    const filteredToDownload = allToDownloadTracks.filter(t => (t.title || "").toLowerCase().includes(q) || (t.source_name || "").toLowerCase().includes(q));
+    renderFilesList(filteredFiles);
+    renderToDownloadTable(filteredToDownload);
 });
 
 // Render Playlists Sidebar Sources List
@@ -982,28 +1099,45 @@ syncNowBtn.addEventListener("click", () => {
         }
         
         // Parse sync metrics
-        if (line.includes("New tracks to download: ")) {
+        if (line.includes("Total checked unique target tracks: ")) {
+            const val = parseInt(line.split("Total checked unique target tracks: ")[1]) || 0;
+            const el = document.getElementById("sync-metric-total");
+            if (el) el.textContent = val;
+        } else if (line.includes("Tracks already downloaded: ")) {
+            const val = parseInt(line.split("Tracks already downloaded: ")[1]) || 0;
+            const el = document.getElementById("sync-metric-synced");
+            if (el) el.textContent = val;
+        } else if (line.includes("New tracks to download: ")) {
             totalTracks = parseInt(line.split("New tracks to download: ")[1]) || 0;
-            syncProcessedCount.textContent = `0 / ${totalTracks} Songs`;
+            processedTracks = 0;
+            const el = document.getElementById("sync-metric-todownload");
+            if (el) el.textContent = totalTracks;
+            const elDl = document.getElementById("sync-metric-downloaded");
+            if (elDl) elDl.textContent = `0 / ${totalTracks}`;
+            const badge = document.getElementById("to-download-count");
+            if (badge) badge.textContent = totalTracks;
+            syncModalProgress.style.width = "0%";
         } else if (line.includes("All songs are up-to-date!")) {
             syncCurrentSong.textContent = "All songs are up-to-date!";
             syncModalProgress.style.width = "100%";
-            syncPercentText.textContent = "100%";
-            syncProcessedCount.textContent = "Up to date";
+            const elDl = document.getElementById("sync-metric-downloaded");
+            if (elDl) elDl.textContent = "Up to date";
             syncEtaTime.textContent = "0:00";
         } else if (line.includes("Starting download: ")) {
             const parts = line.split("Starting download: ");
             if (parts.length > 1) {
-                syncCurrentSong.textContent = parts[1];
+                syncCurrentSong.textContent = cleanMediaExtension(parts[1]);
             }
         } else if (line.includes("SUCCESS: ") || line.includes("FAILED: ")) {
             processedTracks++;
+            const elDl = document.getElementById("sync-metric-downloaded");
+            if (elDl) elDl.textContent = `${processedTracks} / ${totalTracks}`;
             if (totalTracks > 0) {
                 const pct = Math.min(100, Math.round((processedTracks / totalTracks) * 100));
                 syncModalProgress.style.width = `${pct}%`;
-                syncPercentText.textContent = `${pct}%`;
-                syncProcessedCount.textContent = `${processedTracks} / ${totalTracks} Songs`;
             }
+            // Auto refresh downloaded files periodically as songs complete
+            loadFiles();
         } else if (line === "SYNC_FINISHED_SUCCESS") {
             endSyncModal("Sync Successful!");
         } else if (line === "SYNC_FINISHED_FAILED") {
@@ -1740,7 +1874,6 @@ function renderDiscoverPage() {
         artists.forEach(art => {
             const tracks = discoverData.artists[art];
             const artistImgUrl = `/api/artist-image?artist=${encodeURIComponent(art)}`;
-            const count = tracks.length;
             const card = document.createElement("div");
             card.className = "discover-card";
             card.innerHTML = `
@@ -1749,7 +1882,6 @@ function renderDiscoverPage() {
                     <img src="${artistImgUrl}" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; z-index: 2;">
                 </div>
                 <div class="discover-card-title">${escapeHtml(art)}</div>
-                <div class="discover-card-subtitle">${count} song${count > 1 ? 's' : ''}</div>
             `;
             card.addEventListener("click", () => openDiscoverDetails("Artist: " + art, discoverData.artists[art]));
             discoverArtistsGrid.appendChild(card);
@@ -1765,7 +1897,6 @@ function renderDiscoverPage() {
             const tracks = discoverData.albums[alb];
             const firstWithThumb = tracks.find(t => t.thumbnail_url);
             const thumbSrc = firstWithThumb ? firstWithThumb.thumbnail_url : "";
-            const count = tracks.length;
             const card = document.createElement("div");
             card.className = "discover-card";
             card.innerHTML = `
@@ -1774,7 +1905,6 @@ function renderDiscoverPage() {
                     ${thumbSrc ? `<img src="${thumbSrc}" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md); z-index: 2;">` : ""}
                 </div>
                 <div class="discover-card-title">${escapeHtml(alb)}</div>
-                <div class="discover-card-subtitle">${count} song${count > 1 ? 's' : ''}</div>
             `;
             card.addEventListener("click", () => openDiscoverDetails("Album: " + alb, discoverData.albums[alb]));
             discoverAlbumsGrid.appendChild(card);
@@ -1790,7 +1920,6 @@ function renderDiscoverPage() {
             const tracks = discoverData.genres[gen];
             const firstWithThumb = tracks.find(t => t.thumbnail_url);
             const thumbSrc = firstWithThumb ? firstWithThumb.thumbnail_url : "";
-            const count = tracks.length;
             const card = document.createElement("div");
             card.className = "discover-card";
             card.innerHTML = `
@@ -1799,7 +1928,6 @@ function renderDiscoverPage() {
                     ${thumbSrc ? `<img src="${thumbSrc}" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md); z-index: 2;">` : ""}
                 </div>
                 <div class="discover-card-title">${escapeHtml(gen)}</div>
-                <div class="discover-card-subtitle">${count} song${count > 1 ? 's' : ''}</div>
             `;
             card.addEventListener("click", () => openDiscoverDetails("Genre: " + gen, discoverData.genres[gen]));
             discoverGenresGrid.appendChild(card);
@@ -2194,4 +2322,48 @@ function drawVisualizerBar(ctx, x, y, width, height, radius) {
 window.addEventListener("load", () => {
     loadProfiles();
     startVisualizerDrawLoop();
+
+    // Dual Subtab Switching (To Be Downloaded vs Downloaded Files)
+    const subtabToDownloadBtn = document.getElementById("subtab-to-download-btn");
+    const subtabDownloadedBtn = document.getElementById("subtab-downloaded-btn");
+    const paneToDownload = document.getElementById("pane-to-download");
+    const paneDownloadedFiles = document.getElementById("pane-downloaded-files");
+
+    if (subtabToDownloadBtn && subtabDownloadedBtn && paneToDownload && paneDownloadedFiles) {
+        subtabToDownloadBtn.addEventListener("click", () => {
+            subtabToDownloadBtn.classList.add("active");
+            subtabDownloadedBtn.classList.remove("active");
+            paneToDownload.style.display = "block";
+            paneDownloadedFiles.style.display = "none";
+        });
+        
+        subtabDownloadedBtn.addEventListener("click", () => {
+            subtabDownloadedBtn.classList.add("active");
+            subtabToDownloadBtn.classList.remove("active");
+            paneDownloadedFiles.style.display = "block";
+            paneToDownload.style.display = "none";
+        });
+    }
+
+    // Path Column Toggle Handler
+    const toggleFilePathsCheckbox = document.getElementById("toggle-file-paths-checkbox");
+    if (toggleFilePathsCheckbox) {
+        toggleFilePathsCheckbox.addEventListener("change", () => {
+            const isChecked = toggleFilePathsCheckbox.checked;
+            document.querySelectorAll(".file-path-col, .file-path-cell").forEach(el => {
+                el.style.display = isChecked ? "table-cell" : "none";
+            });
+        });
+    }
+
+    // Manual Refresh Button
+    const refreshFilesBtn = document.getElementById("refresh-files-btn");
+    if (refreshFilesBtn) {
+        refreshFilesBtn.addEventListener("click", async () => {
+            showToast("Refreshing files and queued tracks...", "info");
+            await loadFiles();
+            await loadToDownloadList();
+            showToast("Files list refreshed.", "success");
+        });
+    }
 });
