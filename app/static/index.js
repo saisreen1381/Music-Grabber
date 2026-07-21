@@ -407,7 +407,7 @@ async function refreshStatus() {
             if (syncControlsWrapper) syncControlsWrapper.style.display = "flex";
             
             // Auto expand logs during sync so users see lines stream in
-            if (terminalBody) terminalBody.style.display = "block";
+            if (terminalBody) terminalBody.style.display = "flex";
             if (logsToggleArrow) logsToggleArrow.style.transform = "rotate(180deg)";
         } else {
             syncBadge.className = "badge badge-idle";
@@ -914,7 +914,7 @@ syncNowBtn.addEventListener("click", () => {
     if (syncControlsWrapper) syncControlsWrapper.style.display = "flex";
 
     // Expand the logs console so lines stream in
-    if (terminalBody) terminalBody.style.display = "block";
+    if (terminalBody) terminalBody.style.display = "flex";
     if (logsToggleArrow) logsToggleArrow.style.transform = "rotate(180deg)";
     syncModalProgress.style.width = "0%";
     syncProcessedCount.textContent = "0 / 0 Songs";
@@ -1068,7 +1068,7 @@ if (maximizeLogsBtn) {
             maximizeLogsIcon.innerHTML = `<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>`;
             // Force terminal body to be visible when maximized
             if (terminalBody) {
-                terminalBody.style.display = "block";
+                terminalBody.style.display = "flex";
             }
             if (logsToggleArrow) {
                 logsToggleArrow.style.transform = "rotate(180deg)";
@@ -1962,7 +1962,7 @@ if (toggleLogsHeader && terminalBody) {
         if (terminalCard.classList.contains("terminal-maximized")) return;
         
         const isHidden = terminalBody.style.display === "none";
-        terminalBody.style.display = isHidden ? "block" : "none";
+        terminalBody.style.display = isHidden ? "flex" : "none";
         if (logsToggleArrow) {
             logsToggleArrow.style.transform = isHidden ? "rotate(180deg)" : "rotate(0deg)";
         }
