@@ -378,6 +378,43 @@ def scan_directory(username: str):
 
 import subprocess
 
+GENRE_ARTIST_MAP = {
+    "taylor swift": "Pop",
+    "bruno mars": "Funk / Pop",
+    "david guetta": "EDM / Dance",
+    "justin bieber": "Pop / R&B",
+    "sai abhyankkar": "Indian / Indie",
+    "karmin": "Pop / Hip-Hop",
+    "sid sriram": "Indian / Classical",
+    "zara larsson": "Pop / Dance",
+    "adele": "Pop / Soul",
+    "the vamps": "Pop / Rock",
+    "matoma": "Tropical House",
+    "ed sheeran": "Pop / Acoustic",
+    "drake": "Hip-Hop / Rap",
+    "post malone": "Hip-Hop / Pop",
+    "coldplay": "Alternative Rock",
+    "the weeknd": "R&B / Synth-Pop",
+    "dua lipa": "Dance-Pop",
+    "arjit singh": "Bollywood / Romantic",
+    "anirudh": "Tamil / EDM",
+    "pritam": "Bollywood",
+    "ar rahman": "Indian / Soundtrack"
+}
+
+def resolve_genre(tags: dict, artist: str, title: str) -> str:
+    raw_genre = tags.get("genre") or tags.get("GENRE") or tags.get("Genre") or tags.get("style") or tags.get("STYLE")
+    if raw_genre and raw_genre.strip() and raw_genre.strip().lower() not in ["music", "unknown genre", "unknown", "other"]:
+        return raw_genre.strip()
+        
+    if artist:
+        art_clean = artist.lower().strip()
+        for mapped_artist, mapped_genre in GENRE_ARTIST_MAP.items():
+            if mapped_artist in art_clean:
+                return mapped_genre
+                
+    return "Pop / Dance" if raw_genre and raw_genre.strip().lower() == "music" else "Pop / Mainstream"
+
 def get_file_metadata(file_path: Path):
     try:
         cmd = [
@@ -392,10 +429,10 @@ def get_file_metadata(file_path: Path):
         fmt = data.get("format", {})
         tags = fmt.get("tags", {})
         
-        title = tags.get("title") or tags.get("TITLE") or file_path.name
+        title = tags.get("title") or tags.get("TITLE") or file_path.stem
         artist = tags.get("artist") or tags.get("ARTIST") or "Unknown Artist"
-        genre = tags.get("genre") or tags.get("GENRE") or "Unknown Genre"
         album = tags.get("album") or tags.get("ALBUM") or "Unknown Album"
+        genre = resolve_genre(tags, artist, title)
         
         thumb_url = f"/api/thumbnail?path={urllib.parse.quote(str(file_path))}"
         return {
@@ -411,9 +448,9 @@ def get_file_metadata(file_path: Path):
         thumb_url = f"/api/thumbnail?path={urllib.parse.quote(str(file_path))}"
         return {
             "filename": file_path.name,
-            "title": file_path.name,
+            "title": file_path.stem,
             "artist": "Unknown Artist",
-            "genre": "Unknown Genre",
+            "genre": "Pop / Mainstream",
             "album": "Unknown Album",
             "duration": 0,
             "thumbnail_url": thumb_url
@@ -469,35 +506,43 @@ def discover_local_songs(username: str):
     seen_file_paths = set()
     cache_updated = False
     
+    AUDIO_EXTENSIONS = {'.mp3', '.m4a', '.opus', '.webm', '.flac', '.wav', '.aac', '.ogg'}
+    
     for download_path in scan_paths:
         if download_path.exists() and download_path.is_dir():
-            for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac']:
-                for file in download_path.rglob(ext):
-                    abs_path = str(file.resolve())
-                    if abs_path not in seen_file_paths:
-                        seen_file_paths.add(abs_path)
-                        try:
-                            stat = file.stat()
-                            mtime = stat.st_mtime
-                            size = stat.st_size
-                        except Exception:
-                            mtime = 0
-                            size = 0
-                            
-                        cached_item = cache.get(abs_path)
-                        if (cached_item and 
-                            cached_item.get("mtime") == mtime and 
-                            cached_item.get("size") == size):
-                            songs.append(cached_item["metadata"])
-                        else:
-                            metadata = get_file_metadata(file)
-                            songs.append(metadata)
-                            cache[abs_path] = {
-                                "mtime": mtime,
-                                "size": size,
-                                "metadata": metadata
-                            }
-                            cache_updated = True
+            try:
+                for file in download_path.rglob('*'):
+                    try:
+                        if file.is_file() and file.suffix.lower() in AUDIO_EXTENSIONS:
+                            abs_path = str(file.resolve())
+                            if abs_path not in seen_file_paths:
+                                seen_file_paths.add(abs_path)
+                                try:
+                                    stat = file.stat()
+                                    mtime = stat.st_mtime
+                                    size = stat.st_size
+                                except Exception:
+                                    mtime = 0
+                                    size = 0
+                                    
+                                cached_item = cache.get(abs_path)
+                                if (cached_item and 
+                                    cached_item.get("mtime") == mtime and 
+                                    cached_item.get("size") == size):
+                                    songs.append(cached_item["metadata"])
+                                else:
+                                    metadata = get_file_metadata(file)
+                                    songs.append(metadata)
+                                    cache[abs_path] = {
+                                        "mtime": mtime,
+                                        "size": size,
+                                        "metadata": metadata
+                                    }
+                                    cache_updated = True
+                    except Exception:
+                        pass
+            except Exception:
+                pass
                             
     # Clean up deleted files from cache
     deleted_keys = [k for k in cache if k not in seen_file_paths]

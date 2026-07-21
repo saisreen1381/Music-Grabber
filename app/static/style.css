@@ -422,23 +422,39 @@ body {
 }
 
 .files-table th, .files-table td {
-    padding: 12px 16px;
+    padding: 10px 14px;
 }
 
 .files-table th {
-    background: #121621;
+    background: #121624;
     color: var(--text-muted);
-    font-weight: 500;
+    font-weight: 600;
     border-bottom: 1px solid var(--border-glass);
     position: sticky;
     top: 0;
-    z-index: 1;
+    z-index: 20;
+    white-space: nowrap;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .files-table td {
     border-bottom: 1px solid var(--border-glass);
     color: var(--text-main);
-    word-break: break-all;
+    word-break: normal;
+    vertical-align: middle;
+}
+
+.play-indicator-cell {
+    width: 50px !important;
+    min-width: 50px !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+}
+
+.genre-cell {
+    white-space: nowrap !important;
 }
 
 .files-table tr:last-child td {

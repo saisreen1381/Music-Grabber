@@ -223,7 +223,9 @@ async function loadConfig(username) {
     try {
         const res = await fetch(`/api/config?username=${username}&t=${Date.now()}`);
         activeConfig = await res.json();
+        if (!activeConfig.sources) activeConfig.sources = [];
         populateSettingsForm();
+        renderSourcesList();
         await refreshCookiesStatus(username);
     } catch (e) {
         console.error("Failed to load config", e);
@@ -2236,6 +2238,7 @@ async function loadDiscoverData() {
         renderDiscoverPage();
     } else {
         discoverArtistsGrid.innerHTML = '<div class="spinner-container"><div class="spinner"></div><p>Loading library metadata...</p></div>';
+        discoverSongsTableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px;"><div class="spinner-container"><div class="spinner"></div><p style="margin-top: 12px; color: var(--text-dim);">Scanning music library folders...</p></div></td></tr>';
     }
     
     try {
@@ -2247,6 +2250,7 @@ async function loadDiscoverData() {
     } catch (e) {
         if (!discoverData) {
             discoverArtistsGrid.innerHTML = `<div class="empty-sources" style="color: var(--danger)">Failed to load discover page: ${e.message}</div>`;
+            discoverSongsTableBody.innerHTML = `<tr><td colspan="6" class="empty-table" style="color: var(--danger)">Failed to scan music library: ${e.message}</td></tr>`;
         }
     }
 }
@@ -2444,16 +2448,41 @@ function renderDiscoverPage() {
             const tr = document.createElement("tr");
             tr.style.cursor = "pointer";
             tr.className = "discover-song-row";
+            
+            const trackThumb = s.thumbnail_url || "";
+            const artistImgUrl = s.artist && s.artist !== "Unknown Artist" ? `/api/artist-image?artist=${encodeURIComponent(s.artist)}` : "";
+            
             tr.innerHTML = `
-                <td class="play-indicator-cell" style="width: 45px; text-align: center; color: var(--text-dim);">
+                <td class="play-indicator-cell" style="width: 50px; min-width: 50px; text-align: center; color: var(--text-dim); white-space: nowrap;">
                     <span class="row-index">${idx + 1}</span>
                     <span class="row-play-icon" style="display: none; color: var(--primary);">▶</span>
                 </td>
-                <td><strong>${escapeHtml(s.title)}</strong></td>
-                <td>${escapeHtml(s.artist)}</td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--bg-card); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border-glass); position: relative;">
+                            <span style="font-size: 1rem; position: absolute; z-index: 1;">🎵</span>
+                            ${trackThumb ? `<img src="${trackThumb}" onerror="this.style.display='none';" style="width: 100%; height: 100%; object-fit: cover; position: absolute; left: 0; top: 0; z-index: 2;">` : ""}
+                        </div>
+                        <strong style="font-size: 0.95rem;">${escapeHtml(s.title)}</strong>
+                    </div>
+                </td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--bg-card); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border-glass); position: relative;">
+                            <span style="font-size: 0.85rem; position: absolute; z-index: 1;">👤</span>
+                            ${artistImgUrl ? `<img src="${artistImgUrl}" onerror="this.style.display='none';" style="width: 100%; height: 100%; object-fit: cover; position: absolute; left: 0; top: 0; z-index: 2;">` : ""}
+                        </div>
+                        <span>${escapeHtml(s.artist)}</span>
+                    </div>
+                </td>
                 <td>${escapeHtml(s.album)}</td>
-                <td>${escapeHtml(s.genre)}</td>
-                 <td style="text-align: right; width: 60px;">
+                <td class="genre-cell" style="white-space: nowrap;">
+                    <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                        <span style="font-size: 0.9rem; opacity: 0.85;">🎸</span>
+                        <span class="badge" style="background: rgba(255, 255, 255, 0.06); padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; border: 1px solid var(--border-glass); white-space: nowrap; display: inline-block;">${escapeHtml(s.genre)}</span>
+                    </div>
+                </td>
+                <td style="text-align: right; width: 60px;">
                     <button class="btn btn-primary btn-icon play-btn-row" title="Play Song" style="width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--primary); border: none; color: #fff; padding: 0;">
                         <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                     </button>

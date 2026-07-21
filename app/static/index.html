@@ -531,32 +531,30 @@
 
                 <!-- 4. DISCOVER TAB -->
                 <div id="tab-discover" class="tab-pane">
-                    <div class="discover-container" style="display: flex; flex-direction: column; gap: 24px; height: 100%; min-height: 0; padding: 24px; overflow: hidden;">
-                        <div class="discover-header" style="flex-shrink: 0;">
-                            <h2 style="font-size: 1.4rem; font-weight: 700;">Discover Local Music</h2>
-                            <p class="help-text">Browse your downloaded music library grouped by Artist, Album, or Genre.</p>
-                        </div>
-                        
-                        <div class="discover-nav" style="display: flex; gap: 12px; border-bottom: 1px solid var(--border-glass); padding-bottom: 10px; flex-shrink: 0;">
-                            <button class="discover-tab-btn active" data-subtab="discover-songs">All Songs</button>
-                            <button class="discover-tab-btn" data-subtab="discover-artists">Artists</button>
-                            <button class="discover-tab-btn" data-subtab="discover-albums">Albums</button>
-                            <button class="discover-tab-btn" data-subtab="discover-genres">Genres</button>
+                    <div class="discover-container" style="display: flex; flex-direction: column; gap: 16px; height: 100%; min-height: 0; padding: 16px 20px; overflow: hidden;">
+                        <div class="discover-header" style="display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; padding-bottom: 12px; border-bottom: 1px solid var(--border-glass);">
+                            <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--text-main);">Discover Local Music</h2>
+                            <div class="discover-nav" style="display: flex; gap: 8px; flex-shrink: 0;">
+                                <button class="discover-tab-btn active" data-subtab="discover-songs">All Songs</button>
+                                <button class="discover-tab-btn" data-subtab="discover-artists">Artists</button>
+                                <button class="discover-tab-btn" data-subtab="discover-albums">Albums</button>
+                                <button class="discover-tab-btn" data-subtab="discover-genres">Genres</button>
+                            </div>
                         </div>
                         
                         <div class="discover-content-pane" style="flex: 1; min-height: 0; overflow-y: auto;">
                             <!-- All Songs Subtab (First/Default Active) -->
                             <div id="discover-songs" class="discover-subtab-pane">
-                                <div class="glass-card table-card" style="padding: 16px;">
+                                <div class="glass-card table-card" style="padding: 0; overflow: hidden;">
                                     <table class="files-table">
                                         <thead>
                                             <tr>
-                                                <th style="width: 45px; text-align: center;">#</th>
+                                                <th class="play-indicator-cell" style="width: 50px; min-width: 50px; text-align: center; white-space: nowrap;">#</th>
                                                 <th>Title</th>
                                                 <th>Artist</th>
                                                 <th>Album</th>
-                                                <th>Genre</th>
-                                                <th style="text-align: right;">Action</th>
+                                                <th style="white-space: nowrap; min-width: 110px;">Genre</th>
+                                                <th style="text-align: right; width: 60px;">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody id="discover-songs-table-body">
