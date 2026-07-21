@@ -117,7 +117,7 @@ def fetch_text_file(path):
             })
     print(f"Loaded {len(tracks)} tracks from manual list.")
     return tracks
-def download_track_ytdlp(ytdlp_path, track, download_dir, cookie_file=None):
+def download_track_ytdlp(ytdlp_path, track, download_dir, cookie_file=None, silent=False):
     url = track["url"]
     cmd = [
         ytdlp_path,
@@ -154,9 +154,27 @@ def download_track_ytdlp(ytdlp_path, track, download_dir, cookie_file=None):
                 if "[download]" in line:
                     if "%" in line and not ("100%" in line or "100.0%" in line):
                         continue
-                if "[download]" in line or "[ExtractAudio]" in line or "[ThumbnailsConvertor]" in line:
-                    print(f"  {line}")
+                if not silent:
+                    if "[download]" in line or "[ExtractAudio]" in line or "[ThumbnailsConvertor]" in line:
+                        print(f"  {line}")
         rc = process.poll()
+        
+        # Scan output lines for destination path
+        downloaded_file_path = None
+        for line in output_lines:
+            if "[ExtractAudio] Destination:" in line:
+                downloaded_file_path = line.split("[ExtractAudio] Destination:")[1].strip()
+                break
+            elif "[download] Destination:" in line:
+                downloaded_file_path = line.split("[download] Destination:")[1].strip()
+                if downloaded_file_path.endswith((".webm", ".m4a", ".opus", ".webm")):
+                    downloaded_file_path = os.path.splitext(downloaded_file_path)[0] + ".mp3"
+                break
+                
+        # If the file actually exists on disk, we treat it as success even if post-processor errored
+        if downloaded_file_path and os.path.exists(downloaded_file_path):
+            return True, output_lines
+            
         return rc == 0, output_lines
     except Exception as e:
         return False, [f"Error running subprocess: {e}"]
@@ -254,14 +272,27 @@ def sync_user(config_path, ytdlp_path="yt-dlp"):
         print(f"\n[{idx+1}/{len(to_download)}] Downloading: {track['display_name']}")
         
         use_cookies = track.get("use_cookies", False) and cookie_file is not None
-        success, output_lines = download_track_ytdlp(ytdlp_path, track, download_dir, cookie_file if use_cookies else None)
+        
+        # If we use cookies, run the first attempt silently to keep logs compact on fallback
+        success, output_lines = download_track_ytdlp(
+            ytdlp_path, track, download_dir, 
+            cookie_file if use_cookies else None, 
+            silent=use_cookies
+        )
         
         if not success and use_cookies:
-            print("  FAILED with cookies. Retrying WITHOUT cookies...")
-            success, output_lines = download_track_ytdlp(ytdlp_path, track, download_dir, None)
+            # First attempt with cookies failed. Retry without cookies and print standard log output
+            success, output_lines = download_track_ytdlp(
+                ytdlp_path, track, download_dir, 
+                None, 
+                silent=False
+            )
             
         if success:
-            print("  SUCCESS!")
+            if not use_cookies:
+                print("  SUCCESS!")
+            else:
+                print("  SUCCESS! (Bypassed invalid cookies)")
             success_count += 1
         else:
             print("  FAILED: Download failed.")
