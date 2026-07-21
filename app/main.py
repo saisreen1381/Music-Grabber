@@ -399,8 +399,20 @@ def discover_local_songs(username: str):
         if d:
             scan_paths.append(Path(d))
             
+    # Load metadata cache
+    cache_file = profile_dir / "library_metadata_cache.json"
+    cache = {}
+    if cache_file.exists():
+        try:
+            with open(cache_file, "r") as cf:
+                cache = json.load(cf)
+        except Exception:
+            pass
+            
     songs = []
     seen_file_paths = set()
+    cache_updated = False
+    
     for download_path in scan_paths:
         if download_path.exists() and download_path.is_dir():
             for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac']:
@@ -408,7 +420,42 @@ def discover_local_songs(username: str):
                     abs_path = str(file.resolve())
                     if abs_path not in seen_file_paths:
                         seen_file_paths.add(abs_path)
-                        songs.append(get_file_metadata(file))
+                        try:
+                            stat = file.stat()
+                            mtime = stat.st_mtime
+                            size = stat.st_size
+                        except Exception:
+                            mtime = 0
+                            size = 0
+                            
+                        cached_item = cache.get(abs_path)
+                        if (cached_item and 
+                            cached_item.get("mtime") == mtime and 
+                            cached_item.get("size") == size):
+                            songs.append(cached_item["metadata"])
+                        else:
+                            metadata = get_file_metadata(file)
+                            songs.append(metadata)
+                            cache[abs_path] = {
+                                "mtime": mtime,
+                                "size": size,
+                                "metadata": metadata
+                            }
+                            cache_updated = True
+                            
+    # Clean up deleted files from cache
+    deleted_keys = [k for k in cache if k not in seen_file_paths]
+    if deleted_keys:
+        for k in deleted_keys:
+            cache.pop(k, None)
+        cache_updated = True
+        
+    if cache_updated:
+        try:
+            with open(cache_file, "w") as cf:
+                json.dump(cache, cf, indent=2)
+        except Exception:
+            pass
             
     # Group by Artist, Genre, Album
     artists = {}

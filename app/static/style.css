@@ -64,11 +64,11 @@ body {
 .app-container {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 24px;
+    padding: 24px 24px 0 24px;
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    min-height: 700px;
+    height: calc(100vh - 90px);
+    min-height: 610px;
 }
 
 /* Header */
@@ -425,7 +425,7 @@ body {
 }
 
 .files-table th {
-    background: rgba(0, 0, 0, 0.1);
+    background: #121621;
     color: var(--text-muted);
     font-weight: 500;
     border-bottom: 1px solid var(--border-glass);

@@ -354,8 +354,18 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp"):
                 if username in aborted_syncs:
                     return
                 t_name = f"Worker-{index+1}"
-                track_name = track['display_name']
-                emit(f"[{t_name}] Starting download: {track_name}")
+                ext = "mp3"
+                title_val = track.get("title") or track.get("display_name") or ""
+                artist_val = track.get("artist") or ""
+                id_val = track.get("video_id") or track.get("id") or ""
+                track_filename = (filename_template
+                                  .replace("%(title)s", title_val)
+                                  .replace("%(artist)s", artist_val)
+                                  .replace("%(id)s", id_val)
+                                  .replace("%(ext)s", ext))
+                track_filename = os.path.basename(track_filename)
+                
+                emit(f"[{t_name}] Starting download: {track_filename}")
                 
                 use_cookies = track.get("use_cookies", False) and cookie_file is not None
                 
@@ -367,7 +377,7 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp"):
                 
                 # Retry without cookies if cookies were invalid
                 if not success and use_cookies:
-                    emit(f"[{t_name}] Retrying without cookies: {track_name}")
+                    emit(f"[{t_name}] Retrying without cookies: {track_filename}")
                     success, output_lines = download_track_ytdlp(
                         ytdlp_path, track, download_dir, 
                         None,

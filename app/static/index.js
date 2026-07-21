@@ -1467,6 +1467,12 @@ function playTrack(track, queue = []) {
     localAudioElement.src = `/api/stream?username=${activeProfile}&filename=${encodeURIComponent(filename)}`;
     localAudioElement.load();
     
+    // Initialize seeker visualizer nodes
+    initVisualizer();
+    if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume();
+    }
+    
     localAudioElement.play().then(() => {
         musicPlayerBar.style.display = "flex";
         updatePlaybackUI();
@@ -1488,7 +1494,7 @@ function updatePlaybackUI() {
     // Update player album art
     if (playerAlbumArt) {
         if (currentPlayingTrack.thumbnail_url) {
-            playerAlbumArt.innerHTML = `<img src="${currentPlayingTrack.thumbnail_url}" style="width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-sm);">`;
+            playerAlbumArt.innerHTML = `<img src="${currentPlayingTrack.thumbnail_url}" onerror="this.remove(); playerAlbumArt.innerHTML='🎵';" style="width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-sm);">`;
         } else {
             playerAlbumArt.innerHTML = `🎵`;
         }
@@ -1687,11 +1693,17 @@ function renderDiscoverPage() {
         discoverArtistsGrid.innerHTML = '<div class="empty-sources">No downloaded songs found yet. Download songs first!</div>';
     } else {
         artists.forEach(art => {
-            const count = discoverData.artists[art].length;
+            const tracks = discoverData.artists[art];
+            const firstWithThumb = tracks.find(t => t.thumbnail_url);
+            const thumbSrc = firstWithThumb ? firstWithThumb.thumbnail_url : "";
+            const count = tracks.length;
             const card = document.createElement("div");
             card.className = "discover-card";
             card.innerHTML = `
-                <div class="discover-card-icon">👤</div>
+                <div class="discover-card-icon" style="position: relative; overflow: hidden; border-radius: 50%;">
+                    <span style="position: absolute; z-index: 1;">👤</span>
+                    ${thumbSrc ? `<img src="${thumbSrc}" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; z-index: 2;">` : ""}
+                </div>
                 <div class="discover-card-title">${escapeHtml(art)}</div>
                 <div class="discover-card-subtitle">${count} song${count > 1 ? 's' : ''}</div>
             `;
@@ -1706,11 +1718,17 @@ function renderDiscoverPage() {
         discoverAlbumsGrid.innerHTML = '<div class="empty-sources">No downloaded songs found yet.</div>';
     } else {
         albums.forEach(alb => {
-            const count = discoverData.albums[alb].length;
+            const tracks = discoverData.albums[alb];
+            const firstWithThumb = tracks.find(t => t.thumbnail_url);
+            const thumbSrc = firstWithThumb ? firstWithThumb.thumbnail_url : "";
+            const count = tracks.length;
             const card = document.createElement("div");
             card.className = "discover-card";
             card.innerHTML = `
-                <div class="discover-card-icon">💿</div>
+                <div class="discover-card-icon" style="position: relative; overflow: hidden; border-radius: var(--radius-md);">
+                    <span style="position: absolute; z-index: 1;">💿</span>
+                    ${thumbSrc ? `<img src="${thumbSrc}" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md); z-index: 2;">` : ""}
+                </div>
                 <div class="discover-card-title">${escapeHtml(alb)}</div>
                 <div class="discover-card-subtitle">${count} song${count > 1 ? 's' : ''}</div>
             `;
@@ -1725,11 +1743,17 @@ function renderDiscoverPage() {
         discoverGenresGrid.innerHTML = '<div class="empty-sources">No downloaded songs found yet.</div>';
     } else {
         genres.forEach(gen => {
-            const count = discoverData.genres[gen].length;
+            const tracks = discoverData.genres[gen];
+            const firstWithThumb = tracks.find(t => t.thumbnail_url);
+            const thumbSrc = firstWithThumb ? firstWithThumb.thumbnail_url : "";
+            const count = tracks.length;
             const card = document.createElement("div");
             card.className = "discover-card";
             card.innerHTML = `
-                <div class="discover-card-icon">🎸</div>
+                <div class="discover-card-icon" style="position: relative; overflow: hidden; border-radius: var(--radius-md);">
+                    <span style="position: absolute; z-index: 1;">🎸</span>
+                    ${thumbSrc ? `<img src="${thumbSrc}" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md); z-index: 2;">` : ""}
+                </div>
                 <div class="discover-card-title">${escapeHtml(gen)}</div>
                 <div class="discover-card-subtitle">${count} song${count > 1 ? 's' : ''}</div>
             `;
@@ -1796,7 +1820,19 @@ function openDiscoverDetails(title, tracks) {
     const nameEl = document.getElementById("discover-details-name");
     const countEl = document.getElementById("discover-details-count");
     
-    if (avatarEl) avatarEl.textContent = icon;
+    if (avatarEl) {
+        avatarEl.style.position = "relative";
+        avatarEl.style.overflow = "hidden";
+        const firstWithThumb = tracks.find(t => t.thumbnail_url);
+        const thumbSrc = firstWithThumb ? firstWithThumb.thumbnail_url : "";
+        const isArtist = title.startsWith("Artist: ");
+        const rad = isArtist ? "50%" : "var(--radius-md)";
+        avatarEl.style.borderRadius = rad;
+        avatarEl.innerHTML = `
+            <span style="position: absolute; z-index: 1;">${icon}</span>
+            ${thumbSrc ? `<img src="${thumbSrc}" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: ${rad}; z-index: 2;">` : ""}
+        `;
+    }
     if (nameEl) nameEl.textContent = cleanName;
     if (countEl) {
         const count = tracks.length;
@@ -1969,7 +2005,136 @@ if (toggleLogsHeader && terminalBody) {
     });
 }
 
+// Seek Bar Music Visualizer Logic
+let audioCtx = null;
+let analyser = null;
+let sourceNode = null;
+let visualizerDataArray = null;
+let visualizerInitialized = false;
+let visualizerAnimationId = null;
+
+function initVisualizer() {
+    if (visualizerInitialized) return;
+    try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContextClass();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64; // Small bin size for neat columns
+        
+        const localAudio = document.getElementById("local-audio-element");
+        if (localAudio) {
+            localAudio.crossOrigin = "anonymous";
+            sourceNode = audioCtx.createMediaElementSource(localAudio);
+            sourceNode.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            
+            const bufferLength = analyser.frequencyBinCount;
+            visualizerDataArray = new Uint8Array(bufferLength);
+            visualizerInitialized = true;
+        }
+    } catch (e) {
+        console.error("Seek bar visualizer AudioContext failed to initialize:", e);
+    }
+}
+
+function startVisualizerDrawLoop() {
+    const canvas = document.getElementById("player-progress-visualizer");
+    if (!canvas) return;
+    
+    const canvasCtx = canvas.getContext("2d");
+    
+    function draw() {
+        visualizerAnimationId = requestAnimationFrame(draw);
+        
+        // Match canvas dimensions to layout container size dynamically
+        const rect = canvas.getBoundingClientRect();
+        if (canvas.width !== rect.width || canvas.height !== rect.height) {
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+        }
+        
+        const width = canvas.width;
+        const height = canvas.height;
+        
+        canvasCtx.clearRect(0, 0, width, height);
+        
+        const localAudio = document.getElementById("local-audio-element");
+        const progress = localAudio && localAudio.duration ? (localAudio.currentTime / localAudio.duration) : 0;
+        
+        let freqs = [];
+        if (analyser && localAudio && !localAudio.paused) {
+            analyser.getByteFrequencyData(visualizerDataArray);
+            for (let i = 0; i < visualizerDataArray.length; i++) {
+                freqs.push(visualizerDataArray[i]);
+            }
+        }
+        
+        const barWidth = 4;
+        const barGap = 3;
+        const totalBarWidth = barWidth + barGap;
+        const barCount = Math.floor(width / totalBarWidth);
+        
+        for (let i = 0; i < barCount; i++) {
+            let val = 0;
+            if (freqs.length > 0) {
+                const freqIdx = Math.min(freqs.length - 1, Math.floor((i / barCount) * freqs.length));
+                val = freqs[freqIdx] / 255;
+            } else {
+                // Static premium waveform shape when idle
+                const angle = (i / barCount) * Math.PI * 3.5;
+                val = 0.15 + 0.12 * Math.abs(Math.sin(angle)) + 0.08 * Math.abs(Math.cos(angle * 2.2));
+            }
+            
+            // Add alive animation
+            if (localAudio && !localAudio.paused && freqs.length === 0) {
+                val += 0.04 * Math.abs(Math.sin(Date.now() / 150 + i));
+            }
+            
+            let barHeight = val * height * 0.85;
+            if (barHeight < 4) barHeight = 4; // Visual floor
+            
+            const x = i * totalBarWidth;
+            const y = (height - barHeight) / 2;
+            
+            const isPlayed = (x / width) <= progress;
+            
+            canvasCtx.beginPath();
+            if (isPlayed) {
+                const grad = canvasCtx.createLinearGradient(0, y, 0, y + barHeight);
+                grad.addColorStop(0, "#6366f1");
+                grad.addColorStop(1, "#06b6d4");
+                canvasCtx.fillStyle = grad;
+            } else {
+                canvasCtx.fillStyle = "rgba(255, 255, 255, 0.15)";
+            }
+            
+            drawVisualizerBar(canvasCtx, x, y, barWidth, barHeight, 2);
+            canvasCtx.fill();
+        }
+    }
+    
+    if (visualizerAnimationId) {
+        cancelAnimationFrame(visualizerAnimationId);
+    }
+    draw();
+}
+
+function drawVisualizerBar(ctx, x, y, width, height, radius) {
+    if (ctx.roundRect) {
+        ctx.roundRect(x, y, width, height, radius);
+        return;
+    }
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + width, y, x + width, y + height, radius);
+    ctx.arcTo(x + width, y + height, x, y + height, radius);
+    ctx.arcTo(x, y + height, x, y, radius);
+    ctx.arcTo(x, y, x + width, y, radius);
+    ctx.closePath();
+}
+
 // Window Load Handler
 window.addEventListener("load", () => {
     loadProfiles();
+    startVisualizerDrawLoop();
 });

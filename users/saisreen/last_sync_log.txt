@@ -1,60 +1,382 @@
-[2026-07-21 20:15:34] === Starting Music Synchronization Process ===
-[2026-07-21 20:15:34] Scanning existing files in '/musichdd'...
-[2026-07-21 20:15:34] Found 68 unique existing tracks in folder.
-[2026-07-21 20:15:34] Processing Source: YouTube Music Liked Songs (youtube_music_playlist)...
-[2026-07-21 20:15:34]   Loaded 34 tracks from cache.
-[2026-07-21 20:15:34] Processing Source: Manual Additions (text_file)...
-[2026-07-21 20:15:34]   Fetching playlist live using yt-dlp...
-[2026-07-21 20:15:34] Processing Source: Favourite Songs (youtube_music_playlist)...
-[2026-07-21 20:15:34]   Loaded 379 tracks from cache.
-[2026-07-21 20:15:34] Total checked unique target tracks: 347
-[2026-07-21 20:15:34] Tracks already downloaded: 6
-[2026-07-21 20:15:34] New tracks to download: 341
-[2026-07-21 20:15:34] Starting downloads with concurrency level: 3
-[2026-07-21 20:15:34] [Worker-1] Starting download: Sun Gemini - JAILER - Kaavaali Lyrical (Telugu) | Superstar Rajinikanth |Sun Pictures |Anirudh |Nelson |Tamannaah
-[2026-07-21 20:15:34] [Worker-2] Starting download: Saregama Telugu - Na Roja Nuvve | Kushi | Vijay Deverakonda | Samantha Ruth Prabhu | Hesham Abdul Wahab | Lyrical
-[2026-07-21 20:15:34] [Worker-3] Starting download: Sonu Nigam - Nanna Nuv Naa Pranam
-[2026-07-21 20:15:42] [Worker-1] SUCCESS: Sun Gemini - JAILER - Kaavaali Lyrical (Telugu) | Superstar Rajinikanth |Sun Pictures |Anirudh |Nelson |Tamannaah
-[2026-07-21 20:15:42] [Worker-1] Starting download: T-Series Telugu - Hi Nanna: Samayama Lyrical Video Song | Nani,Mrunal Thakur | Shouryuv | Hesham Abdul Wahab
-[2026-07-21 20:15:42] [Worker-3] SUCCESS: Sonu Nigam - Nanna Nuv Naa Pranam
-[2026-07-21 20:15:42] [Worker-2] Starting download: T-Series Telugu - Hi Nanna: Ammaadi (Lyrical Video) Nani, Mrunal Thakur | Baby Kiara K | Shouryuv | Hesham Abdul Wahab
-[2026-07-21 20:15:43] [Worker-2] SUCCESS: Saregama Telugu - Na Roja Nuvve | Kushi | Vijay Deverakonda | Samantha Ruth Prabhu | Hesham Abdul Wahab | Lyrical
-[2026-07-21 20:15:43] [Worker-3] Starting download: Hesham Abdul Wahab - Kushi Title Song (From "Kushi") (Telugu)
-[2026-07-21 20:15:51] [Worker-1] SUCCESS: T-Series Telugu - Hi Nanna: Samayama Lyrical Video Song | Nani,Mrunal Thakur | Shouryuv | Hesham Abdul Wahab
-[2026-07-21 20:15:51] [Worker-1] Starting download: Vishal Chandrashekhar - Inthandham (From "Sita Ramam (Telugu)")
-[2026-07-21 20:15:52] [Worker-2] SUCCESS: T-Series Telugu - Hi Nanna: Ammaadi (Lyrical Video) Nani, Mrunal Thakur | Baby Kiara K | Shouryuv | Hesham Abdul Wahab
-[2026-07-21 20:15:52] [Worker-2] Starting download: Yuvan Shankar Raja - Topic - Ee Raathale
-[2026-07-21 20:15:52] [Worker-3] SUCCESS: Hesham Abdul Wahab - Kushi Title Song (From "Kushi") (Telugu)
-[2026-07-21 20:15:52] [Worker-3] Starting download: Dhanunjaya - Topic - Naa Madhi (From "Thiru")
-[2026-07-21 20:15:58] [Worker-1] SUCCESS: Vishal Chandrashekhar - Inthandham (From "Sita Ramam (Telugu)")
-[2026-07-21 20:15:58] [Worker-1] Starting download: Hesham Abdul Wahab - Na Roja Nuvve
-[2026-07-21 20:15:59] [Worker-3] SUCCESS: Dhanunjaya - Topic - Naa Madhi (From "Thiru")
-[2026-07-21 20:15:59] [Worker-2] Starting download: Rock City - Locked Away
-[2026-07-21 20:16:05] [Worker-2] SUCCESS: Yuvan Shankar Raja - Topic - Ee Raathale
-[2026-07-21 20:16:05] [Worker-3] Starting download: Maroon 5 - Animals
-[2026-07-21 20:16:07] [Worker-1] SUCCESS: Hesham Abdul Wahab - Na Roja Nuvve
-[2026-07-21 20:16:07] [Worker-1] Starting download: Passenger - Let Her Go
-[2026-07-21 20:16:07] [Worker-2] SUCCESS: Rock City - Locked Away
-[2026-07-21 20:16:07] [Worker-2] Starting download: Ellie Goulding - Love Me Like You Do (From "Fifty Shades Of Grey")
-[2026-07-21 20:16:09] [Worker-1] Retrying without cookies: Passenger - Let Her Go
-[2026-07-21 20:16:11] [Worker-1] FAILED: Passenger - Let Her Go
-[2026-07-21 20:16:11]   --- Error Details for Passenger - Let Her Go ---
-[2026-07-21 20:16:11]     Deprecated Feature: Support for Python version 3.10 has been deprecated. Please update to Python 3.11 or above
-[2026-07-21 20:16:11]     WARNING: Ignoring unsupported JavaScript runtime(s): deno,node. Supported runtimes: deno, node, bun, quickjs.
-[2026-07-21 20:16:11]     [youtube] Extracting URL: https://www.youtube.com/watch?v=B3EN7Ewwwvs
-[2026-07-21 20:16:11]     [youtube] B3EN7Ewwwvs: Downloading webpage
-[2026-07-21 20:16:11]     [youtube] B3EN7Ewwwvs: Downloading android vr player API JSON
-[2026-07-21 20:16:11]     ERROR: [youtube] B3EN7Ewwwvs: Video unavailable. This video is not available
-[2026-07-21 20:16:11]   --------------------------------------
-[2026-07-21 20:16:11] [Worker-3] Starting download: Charlie Puth - Attention (Acoustic)
-[2026-07-21 20:16:13] [Worker-3] SUCCESS: Maroon 5 - Animals
-[2026-07-21 20:16:13] [Worker-1] Starting download: Ed Sheeran - Shape of You
-[2026-07-21 20:16:14] [Worker-2] SUCCESS: Ellie Goulding - Love Me Like You Do (From "Fifty Shades Of Grey")
-[2026-07-21 20:16:14] [Worker-2] Starting download: OneRepublic - Counting Stars
-[2026-07-21 20:16:18] [Worker-3] SUCCESS: Charlie Puth - Attention (Acoustic)
-[2026-07-21 20:16:18] [Worker-3] Starting download: Ed Sheeran - Perfect
-[2026-07-21 20:16:26] =======================================================
-[2026-07-21 20:16:26] SYNCHRONIZATION SUMMARY:
-[2026-07-21 20:16:26]   Successfully Synced: 14
-[2026-07-21 20:16:26]   Failed:              1
-[2026-07-21 20:16:26] =======================================================
+[2026-07-21 20:20:58] === Starting Music Synchronization Process ===
+[2026-07-21 20:20:58] Scanning existing files in '/musichdd'...
+[2026-07-21 20:20:58] Found 68 unique existing tracks in folder.
+[2026-07-21 20:20:58] Processing Source: YouTube Music Liked Songs (youtube_music_playlist)...
+[2026-07-21 20:20:58]   Loaded 34 tracks from cache.
+[2026-07-21 20:20:58] Processing Source: Manual Additions (text_file)...
+[2026-07-21 20:20:58]   Fetching playlist live using yt-dlp...
+[2026-07-21 20:20:58] Processing Source: Favourite Songs (youtube_music_playlist)...
+[2026-07-21 20:20:58]   Loaded 379 tracks from cache.
+[2026-07-21 20:20:58] Total checked unique target tracks: 347
+[2026-07-21 20:20:58] Tracks already downloaded: 6
+[2026-07-21 20:20:58] New tracks to download: 341
+[2026-07-21 20:20:58] Starting downloads with concurrency level: 3
+[2026-07-21 20:20:58] [Worker-1] Starting download: Sun Gemini - JAILER - Kaavaali Lyrical (Telugu) | Superstar Rajinikanth |Sun Pictures |Anirudh |Nelson |Tamannaah
+[2026-07-21 20:20:58] [Worker-2] Starting download: Saregama Telugu - Na Roja Nuvve | Kushi | Vijay Deverakonda | Samantha Ruth Prabhu | Hesham Abdul Wahab | Lyrical
+[2026-07-21 20:20:58] [Worker-3] Starting download: Sonu Nigam - Nanna Nuv Naa Pranam
+[2026-07-21 20:21:07] [Worker-3] SUCCESS: Sonu Nigam - Nanna Nuv Naa Pranam
+[2026-07-21 20:21:07] [Worker-1] Starting download: T-Series Telugu - Hi Nanna: Samayama Lyrical Video Song | Nani,Mrunal Thakur | Shouryuv | Hesham Abdul Wahab
+[2026-07-21 20:21:07] [Worker-1] SUCCESS: Sun Gemini - JAILER - Kaavaali Lyrical (Telugu) | Superstar Rajinikanth |Sun Pictures |Anirudh |Nelson |Tamannaah
+[2026-07-21 20:21:07] [Worker-2] Starting download: T-Series Telugu - Hi Nanna: Ammaadi (Lyrical Video) Nani, Mrunal Thakur | Baby Kiara K | Shouryuv | Hesham Abdul Wahab
+[2026-07-21 20:21:07] [Worker-2] SUCCESS: Saregama Telugu - Na Roja Nuvve | Kushi | Vijay Deverakonda | Samantha Ruth Prabhu | Hesham Abdul Wahab | Lyrical
+[2026-07-21 20:21:07] [Worker-3] Starting download: Hesham Abdul Wahab - Kushi Title Song (From "Kushi") (Telugu)
+[2026-07-21 20:21:15] [Worker-2] SUCCESS: T-Series Telugu - Hi Nanna: Ammaadi (Lyrical Video) Nani, Mrunal Thakur | Baby Kiara K | Shouryuv | Hesham Abdul Wahab
+[2026-07-21 20:21:15] [Worker-1] Starting download: Vishal Chandrashekhar - Inthandham (From "Sita Ramam (Telugu)")
+[2026-07-21 20:21:15] [Worker-1] SUCCESS: T-Series Telugu - Hi Nanna: Samayama Lyrical Video Song | Nani,Mrunal Thakur | Shouryuv | Hesham Abdul Wahab
+[2026-07-21 20:21:15] [Worker-2] Starting download: Yuvan Shankar Raja - Topic - Ee Raathale
+[2026-07-21 20:21:15] [Worker-3] SUCCESS: Hesham Abdul Wahab - Kushi Title Song (From "Kushi") (Telugu)
+[2026-07-21 20:21:15] [Worker-3] Starting download: Dhanunjaya - Topic - Naa Madhi (From "Thiru")
+[2026-07-21 20:21:22] [Worker-1] SUCCESS: Vishal Chandrashekhar - Inthandham (From "Sita Ramam (Telugu)")
+[2026-07-21 20:21:22] [Worker-1] Starting download: Hesham Abdul Wahab - Na Roja Nuvve
+[2026-07-21 20:21:22] [Worker-3] SUCCESS: Dhanunjaya - Topic - Naa Madhi (From "Thiru")
+[2026-07-21 20:21:22] [Worker-2] Starting download: Rock City - Locked Away
+[2026-07-21 20:21:23] [Worker-2] SUCCESS: Yuvan Shankar Raja - Topic - Ee Raathale
+[2026-07-21 20:21:23] [Worker-3] Starting download: Maroon 5 - Animals
+[2026-07-21 20:21:30] [Worker-2] SUCCESS: Rock City - Locked Away
+[2026-07-21 20:21:30] [Worker-1] Starting download: Passenger - Let Her Go
+[2026-07-21 20:21:31] [Worker-1] SUCCESS: Hesham Abdul Wahab - Na Roja Nuvve
+[2026-07-21 20:21:31] [Worker-2] Starting download: Ellie Goulding - Love Me Like You Do (From "Fifty Shades Of Grey")
+[2026-07-21 20:21:31] [Worker-3] SUCCESS: Maroon 5 - Animals
+[2026-07-21 20:21:31] [Worker-3] Starting download: Charlie Puth - Attention (Acoustic)
+[2026-07-21 20:21:32] [Worker-1] Retrying without cookies: Passenger - Let Her Go
+[2026-07-21 20:21:34] [Worker-1] FAILED: Passenger - Let Her Go
+[2026-07-21 20:21:34]   --- Error Details for Passenger - Let Her Go ---
+[2026-07-21 20:21:34]     Deprecated Feature: Support for Python version 3.10 has been deprecated. Please update to Python 3.11 or above
+[2026-07-21 20:21:34]     WARNING: Ignoring unsupported JavaScript runtime(s): deno,node. Supported runtimes: deno, node, bun, quickjs.
+[2026-07-21 20:21:34]     [youtube] Extracting URL: https://www.youtube.com/watch?v=B3EN7Ewwwvs
+[2026-07-21 20:21:34]     [youtube] B3EN7Ewwwvs: Downloading webpage
+[2026-07-21 20:21:34]     [youtube] B3EN7Ewwwvs: Downloading android vr player API JSON
+[2026-07-21 20:21:34]     ERROR: [youtube] B3EN7Ewwwvs: Video unavailable. This video is not available
+[2026-07-21 20:21:34]   --------------------------------------
+[2026-07-21 20:21:34] [Worker-1] Starting download: Ed Sheeran - Shape of You
+[2026-07-21 20:21:37] [Worker-2] SUCCESS: Ellie Goulding - Love Me Like You Do (From "Fifty Shades Of Grey")
+[2026-07-21 20:21:37] [Worker-2] Starting download: OneRepublic - Counting Stars
+[2026-07-21 20:21:38] [Worker-3] SUCCESS: Charlie Puth - Attention (Acoustic)
+[2026-07-21 20:21:38] [Worker-3] Starting download: Ed Sheeran - Perfect
+[2026-07-21 20:21:41] [Worker-1] SUCCESS: Ed Sheeran - Shape of You
+[2026-07-21 20:21:41] [Worker-1] Starting download: Maroon 5 - Sugar
+[2026-07-21 20:21:43] [Worker-2] SUCCESS: OneRepublic - Counting Stars
+[2026-07-21 20:21:43] [Worker-2] Starting download: Charlie Puth - We Don't Talk Anymore (feat. Selena Gomez)
+[2026-07-21 20:21:48] [Worker-1] SUCCESS: Maroon 5 - Sugar
+[2026-07-21 20:21:48] [Worker-3] Starting download: Maroon 5 - Memories
+[2026-07-21 20:21:50] [Worker-3] Retrying without cookies: Maroon 5 - Memories
+[2026-07-21 20:21:51] [Worker-3] SUCCESS: Ed Sheeran - Perfect
+[2026-07-21 20:21:51] [Worker-1] Starting download: Lahari Music - Bharat Ane Nenu (The Song Of Bharat) Lyrical Video Song | Mahesh Babu, Devi Sri Prasad,Koratala Siva
+[2026-07-21 20:21:52] [Worker-2] SUCCESS: Charlie Puth - We Don't Talk Anymore (feat. Selena Gomez)
+[2026-07-21 20:21:52] [Worker-2] Starting download: ImagineDragons - Imagine Dragons - Demons (Official Music Video)
+[2026-07-21 20:21:52] [Worker-3] FAILED: Maroon 5 - Memories
+[2026-07-21 20:21:52]   --- Error Details for Maroon 5 - Memories ---
+[2026-07-21 20:21:52]     Deprecated Feature: Support for Python version 3.10 has been deprecated. Please update to Python 3.11 or above
+[2026-07-21 20:21:52]     WARNING: Ignoring unsupported JavaScript runtime(s): deno,node. Supported runtimes: deno, node, bun, quickjs.
+[2026-07-21 20:21:52]     [youtube] Extracting URL: https://www.youtube.com/watch?v=1w6xKlGRg_c
+[2026-07-21 20:21:52]     [youtube] 1w6xKlGRg_c: Downloading webpage
+[2026-07-21 20:21:52]     [youtube] 1w6xKlGRg_c: Downloading android vr player API JSON
+[2026-07-21 20:21:52]     ERROR: [youtube] 1w6xKlGRg_c: Video unavailable. This video is not available
+[2026-07-21 20:21:52]   --------------------------------------
+[2026-07-21 20:21:52] [Worker-3] Starting download: iamOTHER - Pharrell Williams - Happy (Official Music Video)
+[2026-07-21 20:21:58] [Worker-1] SUCCESS: Lahari Music - Bharat Ane Nenu (The Song Of Bharat) Lyrical Video Song | Mahesh Babu, Devi Sri Prasad,Koratala Siva
+[2026-07-21 20:21:58] [Worker-1] Starting download: EminemMusic - Eminem ft. Rihanna - The Monster (Explicit) [Official Video]
+[2026-07-21 20:21:59] [Worker-2] SUCCESS: ImagineDragons - Imagine Dragons - Demons (Official Music Video)
+[2026-07-21 20:21:59] [Worker-2] Starting download: ImagineDragons - Imagine Dragons - Radioactive
+[2026-07-21 20:22:01] [Worker-3] SUCCESS: iamOTHER - Pharrell Williams - Happy (Official Music Video)
+[2026-07-21 20:22:01] [Worker-3] Starting download: EminemMusic - Eminem - The Monster ft. Rihanna (Audio)
+[2026-07-21 20:22:06] [Worker-1] SUCCESS: EminemMusic - Eminem ft. Rihanna - The Monster (Explicit) [Official Video]
+[2026-07-21 20:22:06] [Worker-1] Starting download: M.M. Keeravaani - Topic - Desi Girl 2.0 (Varanasi Event)
+[2026-07-21 20:22:09] [Worker-2] SUCCESS: ImagineDragons - Imagine Dragons - Radioactive
+[2026-07-21 20:22:09] [Worker-2] Starting download: Sai Abhyankkar - Aasa Kooda (From "Think Indie")
+[2026-07-21 20:22:09] [Worker-3] SUCCESS: EminemMusic - Eminem - The Monster ft. Rihanna (Audio)
+[2026-07-21 20:22:09] [Worker-3] Starting download: Bebhumika - Topic - Boom Boom (From "Dude (Telugu)")
+[2026-07-21 20:22:14] [Worker-1] SUCCESS: M.M. Keeravaani - Topic - Desi Girl 2.0 (Varanasi Event)
+[2026-07-21 20:22:14] [Worker-1] Starting download: Sam C.S. - Topic - Om Namo Bhagavate Vasudevaya
+[2026-07-21 20:22:16] [Worker-2] SUCCESS: Sai Abhyankkar - Aasa Kooda (From "Think Indie")
+[2026-07-21 20:22:16] [Worker-2] Starting download: Shruti Haasan - Globetrotter
+[2026-07-21 20:22:17] [Worker-3] SUCCESS: Bebhumika - Topic - Boom Boom (From "Dude (Telugu)")
+[2026-07-21 20:22:17] [Worker-3] Starting download: Mohit Chauhan - Chikiri Chikiri (Telugu)
+[2026-07-21 20:22:21] [Worker-1] SUCCESS: Sam C.S. - Topic - Om Namo Bhagavate Vasudevaya
+[2026-07-21 20:22:21] [Worker-1] Starting download: Anirudh Ravichander - Chittemma
+[2026-07-21 20:22:23] [Worker-2] SUCCESS: Shruti Haasan - Globetrotter
+[2026-07-21 20:22:23] [Worker-2] Starting download: Sid Sriram - Maate Vinadhuga
+[2026-07-21 20:22:24] [Worker-3] SUCCESS: Mohit Chauhan - Chikiri Chikiri (Telugu)
+[2026-07-21 20:22:24] [Worker-3] Starting download: Anurag Kulkarni - Topic - Singles Anthem
+[2026-07-21 20:22:28] [Worker-1] SUCCESS: Anirudh Ravichander - Chittemma
+[2026-07-21 20:22:28] [Worker-1] Starting download: Amit Trivedi - Manasu Maree
+[2026-07-21 20:22:31] [Worker-2] SUCCESS: Sid Sriram - Maate Vinadhuga
+[2026-07-21 20:22:31] [Worker-2] Starting download: Sivam - Topic - Daakko Daakko Meka
+[2026-07-21 20:22:33] [Worker-3] SUCCESS: Anurag Kulkarni - Topic - Singles Anthem
+[2026-07-21 20:22:33] [Worker-3] Starting download: Release - Topic - Srivalli
+[2026-07-21 20:22:36] [Worker-1] SUCCESS: Amit Trivedi - Manasu Maree
+[2026-07-21 20:22:36] [Worker-1] Starting download: Release - Topic - Leharaayi
+[2026-07-21 20:22:38] [Worker-2] SUCCESS: Sivam - Topic - Daakko Daakko Meka
+[2026-07-21 20:22:38] [Worker-2] Starting download: Release - Topic - Puttene Prema
+[2026-07-21 20:22:40] [Worker-3] SUCCESS: Release - Topic - Srivalli
+[2026-07-21 20:22:40] [Worker-3] Starting download: Anurag Kulkarni - Topic - Baby Oh Baby
+[2026-07-21 20:22:43] [Worker-1] SUCCESS: Release - Topic - Leharaayi
+[2026-07-21 20:22:43] [Worker-1] Starting download: Haricharan Seshadri - Ay Pilla
+[2026-07-21 20:22:44] [Worker-2] SUCCESS: Release - Topic - Puttene Prema
+[2026-07-21 20:22:44] [Worker-2] Starting download: Release - Topic - Evo Evo Kalale
+[2026-07-21 20:22:48] [Worker-3] SUCCESS: Anurag Kulkarni - Topic - Baby Oh Baby
+[2026-07-21 20:22:48] [Worker-3] Starting download: Farhan Akhtar - Topic - Senorita
+[2026-07-21 20:22:50] [Worker-1] SUCCESS: Haricharan Seshadri - Ay Pilla
+[2026-07-21 20:22:50] [Worker-1] Starting download: joi barua - Dil Dhadakne Do
+[2026-07-21 20:22:52] [Worker-2] SUCCESS: Release - Topic - Evo Evo Kalale
+[2026-07-21 20:22:52] [Worker-2] Starting download: Shreya Ghoshal Official - Allasani Vaari
+[2026-07-21 20:22:56] [Worker-3] SUCCESS: Farhan Akhtar - Topic - Senorita
+[2026-07-21 20:22:56] [Worker-3] Starting download: Armaan Malik - Ninnila
+[2026-07-21 20:22:57] [Worker-1] SUCCESS: joi barua - Dil Dhadakne Do
+[2026-07-21 20:22:57] [Worker-1] Starting download: Shakthikanth Karthick - Topic - Oosupodu
+[2026-07-21 20:22:59] [Worker-2] SUCCESS: Shreya Ghoshal Official - Allasani Vaari
+[2026-07-21 20:22:59] [Worker-2] Starting download: Sid Sriram - Emai Poyave
+[2026-07-21 20:23:03] [Worker-3] SUCCESS: Armaan Malik - Ninnila
+[2026-07-21 20:23:03] [Worker-3] Starting download: Sid Sriram - Adiga Adiga
+[2026-07-21 20:23:06] [Worker-2] SUCCESS: Sid Sriram - Emai Poyave
+[2026-07-21 20:23:06] [Worker-1] Starting download: MF DOOM - ?
+[2026-07-21 20:23:08] [Worker-1] SUCCESS: Shakthikanth Karthick - Topic - Oosupodu
+[2026-07-21 20:23:08] [Worker-2] Starting download: Vivek Sagar - Topic - Arerey Manasa
+[2026-07-21 20:23:10] [Worker-3] SUCCESS: Sid Sriram - Adiga Adiga
+[2026-07-21 20:23:10] [Worker-3] Starting download: Anurag Kulkarni - Topic - Pillaa Raa
+[2026-07-21 20:23:14] [Worker-1] SUCCESS: MF DOOM - ?
+[2026-07-21 20:23:14] [Worker-1] Starting download: Release - Topic - Undiporaadhey
+[2026-07-21 20:23:15] [Worker-2] SUCCESS: Vivek Sagar - Topic - Arerey Manasa
+[2026-07-21 20:23:15] [Worker-2] Starting download: Release - Topic - Priyathama Priyathama
+[2026-07-21 20:23:17] [Worker-3] SUCCESS: Anurag Kulkarni - Topic - Pillaa Raa
+[2026-07-21 20:23:17] [Worker-3] Starting download: Release - Topic - Manasa Manasa
+[2026-07-21 20:23:21] [Worker-1] SUCCESS: Release - Topic - Undiporaadhey
+[2026-07-21 20:23:21] [Worker-1] Starting download: Anurag Kulkarni - Topic - Kanne Kanne (From "Arjun Suravaram")
+[2026-07-21 20:23:22] [Worker-2] SUCCESS: Release - Topic - Priyathama Priyathama
+[2026-07-21 20:23:22] [Worker-2] Starting download: Spoorthi Jithender - Topic - Undipova
+[2026-07-21 20:23:24] [Worker-3] SUCCESS: Release - Topic - Manasa Manasa
+[2026-07-21 20:23:24] [Worker-3] Starting download: Release - Topic - Vastunna Vachestunna
+[2026-07-21 20:23:29] [Worker-1] SUCCESS: Anurag Kulkarni - Topic - Kanne Kanne (From "Arjun Suravaram")
+[2026-07-21 20:23:29] [Worker-1] Starting download: Sid Sriram - Emo Emo (From "Raahu")
+[2026-07-21 20:23:30] [Worker-2] SUCCESS: Spoorthi Jithender - Topic - Undipova
+[2026-07-21 20:23:30] [Worker-2] Starting download: Release - Topic - Emito Idhi
+[2026-07-21 20:23:31] [Worker-3] SUCCESS: Release - Topic - Vastunna Vachestunna
+[2026-07-21 20:23:31] [Worker-3] Starting download: Anirudh Ravichander - Master the Blaster (From "Master")
+[2026-07-21 20:23:36] [Worker-1] SUCCESS: Sid Sriram - Emo Emo (From "Raahu")
+[2026-07-21 20:23:36] [Worker-1] Starting download: Release - Topic - Naa Kanulu Yepudu
+[2026-07-21 20:23:37] [Worker-3] SUCCESS: Anirudh Ravichander - Master the Blaster (From "Master")
+[2026-07-21 20:23:37] [Worker-2] Starting download: Kaala Bhairava - Topic - Tharagathi Gadhi
+[2026-07-21 20:23:37] [Worker-2] SUCCESS: Release - Topic - Emito Idhi
+[2026-07-21 20:23:37] [Worker-3] Starting download: Thaman S - Topic - Hey Idi Nenena (From "Solo Brathuke So Better")
+[2026-07-21 20:23:43] [Worker-1] SUCCESS: Release - Topic - Naa Kanulu Yepudu
+[2026-07-21 20:23:43] [Worker-1] Starting download: Sid Sriram - Yemunnave Pilla (From "Nallamalla")
+[2026-07-21 20:23:44] [Worker-3] SUCCESS: Thaman S - Topic - Hey Idi Nenena (From "Solo Brathuke So Better")
+[2026-07-21 20:23:44] [Worker-2] Starting download: HC - Dosti
+[2026-07-21 20:23:46] [Worker-2] SUCCESS: Kaala Bhairava - Topic - Tharagathi Gadhi
+[2026-07-21 20:23:46] [Worker-3] Starting download: Release - Topic - Jala Jala Jalapaatham Nuvvu
+[2026-07-21 20:23:57] [Worker-1] SUCCESS: Sid Sriram - Yemunnave Pilla (From "Nallamalla")
+[2026-07-21 20:23:57] [Worker-1] Starting download: HC - Nee Kallalona
+[2026-07-21 20:24:01] [Worker-2] SUCCESS: HC - Dosti
+[2026-07-21 20:24:01] [Worker-2] Starting download: Yazin Nizar - Topic - Naalo Chilipi Kala (Theme Song)
+[2026-07-21 20:24:01] [Worker-3] SUCCESS: Release - Topic - Jala Jala Jalapaatham Nuvvu
+[2026-07-21 20:24:01] [Worker-3] Starting download: Chinmayi Sripada - Yenti Yenti
+[2026-07-21 20:24:11] [Worker-1] SUCCESS: HC - Nee Kallalona
+[2026-07-21 20:24:11] [Worker-1] Starting download: Devi Sri Prasad - Uppenantha
+[2026-07-21 20:24:13] [Worker-3] SUCCESS: Chinmayi Sripada - Yenti Yenti
+[2026-07-21 20:24:13] [Worker-2] Starting download: Anurag Kulkarni - Topic - Choosi Chudangane
+[2026-07-21 20:24:23] [Worker-2] SUCCESS: Yazin Nizar - Topic - Naalo Chilipi Kala (Theme Song)
+[2026-07-21 20:24:23] [Worker-3] Starting download: Yazin Nizar - Topic - Ammaye Challo Antu
+[2026-07-21 20:24:28] [Worker-2] SUCCESS: Anurag Kulkarni - Topic - Choosi Chudangane
+[2026-07-21 20:24:28] [Worker-1] Starting download: Anirudh Ravichander - Nee Paata Madhuram (The Touch of Love)
+[2026-07-21 20:24:29] [Worker-1] SUCCESS: Devi Sri Prasad - Uppenantha
+[2026-07-21 20:24:29] [Worker-2] Starting download: Anirudh Ravichander - Po Ve Po (The Pain of Love)
+[2026-07-21 20:24:39] [Worker-3] SUCCESS: Yazin Nizar - Topic - Ammaye Challo Antu
+[2026-07-21 20:24:39] [Worker-3] Starting download: Suchith Suresan - Topic - Kallumoosi
+[2026-07-21 20:24:45] [Worker-1] SUCCESS: Anirudh Ravichander - Nee Paata Madhuram (The Touch of Love)
+[2026-07-21 20:24:45] [Worker-1] Starting download: Pradeep Kumar Official - Life Of Ram
+[2026-07-21 20:24:46] [Worker-2] SUCCESS: Anirudh Ravichander - Po Ve Po (The Pain of Love)
+[2026-07-21 20:24:46] [Worker-2] Starting download: Harris Jayaraj - Topic - Oh! Shanthi Shanthi
+[2026-07-21 20:24:52] [Worker-3] SUCCESS: Suchith Suresan - Topic - Kallumoosi
+[2026-07-21 20:24:52] [Worker-3] Starting download: Harris Jayaraj - Topic - Naaloney Pongaynu
+[2026-07-21 20:24:58] [Worker-2] SUCCESS: Harris Jayaraj - Topic - Oh! Shanthi Shanthi
+[2026-07-21 20:24:58] [Worker-1] Starting download: Release - Topic - Endhuko Emo
+[2026-07-21 20:25:02] [Worker-1] SUCCESS: Pradeep Kumar Official - Life Of Ram
+[2026-07-21 20:25:02] [Worker-2] Starting download: Vijay Prakash Sharma - Hello Rammante
+[2026-07-21 20:25:11] [Worker-3] SUCCESS: Harris Jayaraj - Topic - Naaloney Pongaynu
+[2026-07-21 20:25:11] [Worker-3] Starting download: Various Artists - Topic - Rooba Rooba
+[2026-07-21 20:25:15] [Worker-1] SUCCESS: Release - Topic - Endhuko Emo
+[2026-07-21 20:25:15] [Worker-1] Starting download: Various Artists - Topic - Ola Olaala Ala
+[2026-07-21 20:25:17] [Worker-2] SUCCESS: Vijay Prakash Sharma - Hello Rammante
+[2026-07-21 20:25:17] [Worker-2] Starting download: Karthik - Topic - Chilipiga
+[2026-07-21 20:25:28] [Worker-3] SUCCESS: Various Artists - Topic - Rooba Rooba
+[2026-07-21 20:25:28] [Worker-3] Starting download: Naresh Iyer - Topic - Nenu Nuvvantu
+[2026-07-21 20:25:34] [Worker-2] SUCCESS: Karthik - Topic - Chilipiga
+[2026-07-21 20:25:34] [Worker-1] Starting download: Harris Jayaraj - Topic - Monna Kanipinchavu
+[2026-07-21 20:25:36] [Worker-1] SUCCESS: Various Artists - Topic - Ola Olaala Ala
+[2026-07-21 20:25:36] [Worker-2] Starting download: BLACKPINK - Kill This Love
+[2026-07-21 20:25:39] [Worker-2] Retrying without cookies: BLACKPINK - Kill This Love
+[2026-07-21 20:25:41] [Worker-2] FAILED: BLACKPINK - Kill This Love
+[2026-07-21 20:25:42]   --- Error Details for BLACKPINK - Kill This Love ---
+[2026-07-21 20:25:42]     Deprecated Feature: Support for Python version 3.10 has been deprecated. Please update to Python 3.11 or above
+[2026-07-21 20:25:42]     WARNING: Ignoring unsupported JavaScript runtime(s): deno,node. Supported runtimes: deno, node, bun, quickjs.
+[2026-07-21 20:25:42]     [youtube] Extracting URL: https://www.youtube.com/watch?v=z7e54L8usac
+[2026-07-21 20:25:42]     [youtube] z7e54L8usac: Downloading webpage
+[2026-07-21 20:25:42]     [youtube] z7e54L8usac: Downloading android vr player API JSON
+[2026-07-21 20:25:42]     ERROR: [youtube] z7e54L8usac: Video unavailable
+[2026-07-21 20:25:42]   --------------------------------------
+[2026-07-21 20:25:42] [Worker-3] Starting download: Vinod Venugopal Acharya - Kuttanadan Punjayile
+[2026-07-21 20:25:43] [Worker-3] SUCCESS: Naresh Iyer - Topic - Nenu Nuvvantu
+[2026-07-21 20:25:43] [Worker-1] Starting download: Green Day - Boulevard of Broken Dreams
+[2026-07-21 20:25:49] [Worker-1] SUCCESS: Harris Jayaraj - Topic - Monna Kanipinchavu
+[2026-07-21 20:25:49] [Worker-2] Starting download: Vidya Vox - Be Free
+[2026-07-21 20:25:56] [Worker-3] SUCCESS: Vinod Venugopal Acharya - Kuttanadan Punjayile
+[2026-07-21 20:25:56] [Worker-3] Starting download: Release - Topic - Maguva Maguva
+[2026-07-21 20:25:57] [Worker-1] SUCCESS: Green Day - Boulevard of Broken Dreams
+[2026-07-21 20:25:57] [Worker-1] Starting download: Jungle4eva - Cherry
+[2026-07-21 20:26:02] [Worker-2] SUCCESS: Vidya Vox - Be Free
+[2026-07-21 20:26:02] [Worker-2] Starting download: Jungle4eva - House In LA
+[2026-07-21 20:26:10] [Worker-1] SUCCESS: Jungle4eva - Cherry
+[2026-07-21 20:26:10] [Worker-3] Starting download: Zedd - The Middle
+[2026-07-21 20:26:11] [Worker-3] SUCCESS: Release - Topic - Maguva Maguva
+[2026-07-21 20:26:11] [Worker-1] Starting download: Armaan Malik - Buttabomma
+[2026-07-21 20:26:17] [Worker-2] SUCCESS: Jungle4eva - House In LA
+[2026-07-21 20:26:17] [Worker-2] Starting download: Taylor Swift - Wildest Dreams
+[2026-07-21 20:26:23] [Worker-3] SUCCESS: Zedd - The Middle
+[2026-07-21 20:26:23] [Worker-3] Starting download: Prabhas - Topic - Jiyo Re Bahubali
+[2026-07-21 20:26:24] [Worker-1] SUCCESS: Armaan Malik - Buttabomma
+[2026-07-21 20:26:24] [Worker-1] Starting download: Sid Sriram - Vachindamma
+[2026-07-21 20:26:30] [Worker-2] SUCCESS: Taylor Swift - Wildest Dreams
+[2026-07-21 20:26:30] [Worker-2] Starting download: Sid Sriram - Inkem Inkem Inkem Kaavaale
+[2026-07-21 20:26:36] [Worker-3] SUCCESS: Prabhas - Topic - Jiyo Re Bahubali
+[2026-07-21 20:26:36] [Worker-3] Starting download: Armaan Malik - Padi Padi Leche
+[2026-07-21 20:26:39] [Worker-1] SUCCESS: Sid Sriram - Vachindamma
+[2026-07-21 20:26:39] [Worker-1] Starting download: Devi Sri Prasad - Prema Vennela (From "Chitralahari")
+[2026-07-21 20:26:44] [Worker-2] SUCCESS: Sid Sriram - Inkem Inkem Inkem Kaavaale
+[2026-07-21 20:26:44] [Worker-2] Starting download: Sid Sriram - Kadalalle (From "Dear Comrade")
+[2026-07-21 20:26:48] [Worker-3] SUCCESS: Armaan Malik - Padi Padi Leche
+[2026-07-21 20:26:48] [Worker-3] Starting download: Anurag Kulkarni - Topic - Ramuloo Ramulaa
+[2026-07-21 20:26:53] [Worker-1] SUCCESS: Devi Sri Prasad - Prema Vennela (From "Chitralahari")
+[2026-07-21 20:26:53] [Worker-1] Starting download: Anirudh Ravichander - Hoyna Hoyna
+[2026-07-21 20:26:58] [Worker-2] SUCCESS: Sid Sriram - Kadalalle (From "Dear Comrade")
+[2026-07-21 20:26:58] [Worker-2] Starting download: Sid Sriram - Samajavaragamana
+[2026-07-21 20:27:04] [Worker-3] SUCCESS: Anurag Kulkarni - Topic - Ramuloo Ramulaa
+[2026-07-21 20:27:04] [Worker-3] Starting download: Maroon 5 - Cold
+[2026-07-21 20:27:07] [Worker-1] SUCCESS: Anirudh Ravichander - Hoyna Hoyna
+[2026-07-21 20:27:07] [Worker-1] Starting download: Calvin Harris - How Deep Is Your Love
+[2026-07-21 20:27:11] [Worker-2] SUCCESS: Sid Sriram - Samajavaragamana
+[2026-07-21 20:27:11] [Worker-2] Starting download: MAX - Lights Down Low
+[2026-07-21 20:27:18] [Worker-3] SUCCESS: Maroon 5 - Cold
+[2026-07-21 20:27:18] [Worker-3] Starting download: Release - Topic - Dhruva Dhruva
+[2026-07-21 20:27:20] [Worker-1] SUCCESS: Calvin Harris - How Deep Is Your Love
+[2026-07-21 20:27:20] [Worker-1] Starting download: Ajay Gogavale - Topic - Brothers Anthem
+[2026-07-21 20:27:24] [Worker-2] SUCCESS: MAX - Lights Down Low
+[2026-07-21 20:27:24] [Worker-2] Starting download: Deepak Blue - Topic - Sarileru Neekevvaru - A Tribute To The Indian Army
+[2026-07-21 20:27:32] [Worker-3] SUCCESS: Release - Topic - Dhruva Dhruva
+[2026-07-21 20:27:32] [Worker-3] Starting download: Maroon 5 - Maps
+[2026-07-21 20:27:36] [Worker-2] SUCCESS: Deepak Blue - Topic - Sarileru Neekevvaru - A Tribute To The Indian Army
+[2026-07-21 20:27:36] [Worker-1] Starting download: A. R. Rahman - New York Nagarama
+[2026-07-21 20:27:38] [Worker-1] SUCCESS: Ajay Gogavale - Topic - Brothers Anthem
+[2026-07-21 20:27:38] [Worker-2] Starting download: OneRepublic - Rescue Me
+[2026-07-21 20:27:48] [Worker-3] SUCCESS: Maroon 5 - Maps
+[2026-07-21 20:27:48] [Worker-3] Starting download: Taylor Swift - ME! (feat. Brendon Urie of Panic! At The Disco)
+[2026-07-21 20:27:51] [Worker-2] SUCCESS: OneRepublic - Rescue Me
+[2026-07-21 20:27:51] [Worker-1] Starting download: Khalid - Talk
+[2026-07-21 20:27:53] [Worker-1] SUCCESS: A. R. Rahman - New York Nagarama
+[2026-07-21 20:27:53] [Worker-2] Starting download: Post Malone - Sunflower (Spider-Man: Into the Spider-Verse)
+[2026-07-21 20:28:05] [Worker-1] SUCCESS: Khalid - Talk
+[2026-07-21 20:28:05] [Worker-3] Starting download: Avicii - SOS
+[2026-07-21 20:28:05] [Worker-2] SUCCESS: Post Malone - Sunflower (Spider-Man: Into the Spider-Verse)
+[2026-07-21 20:28:05] [Worker-1] Starting download: GRYFFIN - Whole Heart
+[2026-07-21 20:28:09] [Worker-3] SUCCESS: Taylor Swift - ME! (feat. Brendon Urie of Panic! At The Disco)
+[2026-07-21 20:28:09] [Worker-2] Starting download: Tayler Buono - Something About You
+[2026-07-21 20:28:17] [Worker-3] SUCCESS: Avicii - SOS
+[2026-07-21 20:28:17] [Worker-3] Starting download: Disclosure - Latch
+[2026-07-21 20:28:19] [Worker-1] SUCCESS: GRYFFIN - Whole Heart
+[2026-07-21 20:28:19] [Worker-1] Starting download: The Vamps - All Night
+[2026-07-21 20:28:24] [Worker-2] SUCCESS: Tayler Buono - Something About You
+[2026-07-21 20:28:24] [Worker-2] Starting download: Maroon 5 - Don't Wanna Know
+[2026-07-21 20:28:32] [Worker-3] SUCCESS: Disclosure - Latch
+[2026-07-21 20:28:32] [Worker-3] Starting download: The Score - Born For This
+[2026-07-21 20:28:33] [Worker-1] SUCCESS: The Vamps - All Night
+[2026-07-21 20:28:33] [Worker-1] Starting download: The Score - Stronger
+[2026-07-21 20:28:37] [Worker-2] SUCCESS: Maroon 5 - Don't Wanna Know
+[2026-07-21 20:28:37] [Worker-2] Starting download: The Score - Believe
+[2026-07-21 20:28:45] [Worker-1] SUCCESS: The Score - Stronger
+[2026-07-21 20:28:45] [Worker-3] Starting download: Portugal. The Man - Feel It Still
+[2026-07-21 20:28:49] [Worker-2] SUCCESS: The Score - Believe
+[2026-07-21 20:28:49] [Worker-1] Starting download: The Score - Unstoppable
+[2026-07-21 20:28:57] [Worker-3] SUCCESS: Portugal. The Man - Feel It Still
+[2026-07-21 20:28:57] [Worker-2] Starting download: TritonalTV - I Feel The Love (Original Mix)
+[2026-07-21 20:29:02] [Worker-1] SUCCESS: The Score - Unstoppable
+[2026-07-21 20:29:02] [Worker-3] Starting download: Fall Out Boy - Immortals
+[2026-07-21 20:29:06] [Worker-3] SUCCESS: The Score - Born For This
+[2026-07-21 20:29:06] [Worker-1] Starting download: X Ambassadors - QUICKSAND
+[2026-07-21 20:29:10] [Worker-2] SUCCESS: TritonalTV - I Feel The Love (Original Mix)
+[2026-07-21 20:29:10] [Worker-2] Starting download: Plain White Ts - Hey There Delilah
+[2026-07-21 20:29:14] [Worker-3] SUCCESS: Fall Out Boy - Immortals
+[2026-07-21 20:29:14] [Worker-3] Starting download: Alan Walker - Faded
+[2026-07-21 20:29:22] [Worker-1] SUCCESS: X Ambassadors - QUICKSAND
+[2026-07-21 20:29:22] [Worker-1] Starting download: Billie Eilish - bad guy
+[2026-07-21 20:29:24] [Worker-2] SUCCESS: Plain White Ts - Hey There Delilah
+[2026-07-21 20:29:24] [Worker-2] Starting download: zayn - Good Years
+[2026-07-21 20:29:28] [Worker-3] SUCCESS: Alan Walker - Faded
+[2026-07-21 20:29:28] [Worker-3] Starting download: zayn - Still Got Time
+[2026-07-21 20:29:35] [Worker-1] SUCCESS: Billie Eilish - bad guy
+[2026-07-21 20:29:35] [Worker-1] Starting download: Hailee Steinfeld - Hell Nos And Headphones
+[2026-07-21 20:29:37] [Worker-2] SUCCESS: zayn - Good Years
+[2026-07-21 20:29:37] [Worker-2] Starting download: Olivia O'Brien - hate u love u
+[2026-07-21 20:29:42] [Worker-3] SUCCESS: zayn - Still Got Time
+[2026-07-21 20:29:42] [Worker-3] Starting download: NICK JONAS - Find You
+[2026-07-21 20:29:49] [Worker-1] SUCCESS: Hailee Steinfeld - Hell Nos And Headphones
+[2026-07-21 20:29:49] [Worker-1] Starting download: Lauv - i'm so tired...
+[2026-07-21 20:29:51] [Worker-2] SUCCESS: Olivia O'Brien - hate u love u
+[2026-07-21 20:29:51] [Worker-2] Starting download: Jonas Brothers - Cool
+[2026-07-21 20:29:54] [Worker-3] SUCCESS: NICK JONAS - Find You
+[2026-07-21 20:29:54] [Worker-3] Starting download: Major Lazer Official - Light It Up (feat. Nyla & Fuse ODG) (Remix)
+[2026-07-21 20:30:00] [Worker-1] SUCCESS: Lauv - i'm so tired...
+[2026-07-21 20:30:00] [Worker-1] Starting download: Rita Ora - Anywhere
+[2026-07-21 20:30:03] [Worker-2] SUCCESS: Jonas Brothers - Cool
+[2026-07-21 20:30:03] [Worker-2] Starting download: Selena Gomez - Kill Em With Kindness
+[2026-07-21 20:30:07] [Worker-3] SUCCESS: Major Lazer Official - Light It Up (feat. Nyla & Fuse ODG) (Remix)
+[2026-07-21 20:30:07] [Worker-3] Starting download: Justin Bieber - Friends
+[2026-07-21 20:30:13] [Worker-1] SUCCESS: Rita Ora - Anywhere
+[2026-07-21 20:30:13] [Worker-1] Starting download: Ariana Grande - Dangerous Woman
+[2026-07-21 20:30:15] [Worker-2] SUCCESS: Selena Gomez - Kill Em With Kindness
+[2026-07-21 20:30:15] [Worker-2] Starting download: Campsite Dream - Little Do You Know
+[2026-07-21 20:30:20] [Worker-3] SUCCESS: Justin Bieber - Friends
+[2026-07-21 20:30:20] [Worker-3] Starting download: Sia - Cheap Thrills
+[2026-07-21 20:30:28] [Worker-2] SUCCESS: Campsite Dream - Little Do You Know
+[2026-07-21 20:30:28] [Worker-1] Starting download: STARLEY - Call on Me (Ryan Riback Remix)
+[2026-07-21 20:30:31] [Worker-1] SUCCESS: Ariana Grande - Dangerous Woman
+[2026-07-21 20:30:31] [Worker-2] Starting download: Lady Gaga - Million Reasons
+[2026-07-21 20:30:34] [Worker-3] SUCCESS: Sia - Cheap Thrills
+[2026-07-21 20:30:34] [Worker-3] Starting download: DNCE - Body Moves
+[2026-07-21 20:30:42] [Worker-1] SUCCESS: STARLEY - Call on Me (Ryan Riback Remix)
+[2026-07-21 20:30:42] [Worker-1] Starting download: Alan Walker - Alone
+[2026-07-21 20:30:44] [Worker-2] SUCCESS: Lady Gaga - Million Reasons
+[2026-07-21 20:30:44] [Worker-2] Starting download: NICK JONAS - Close
+[2026-07-21 20:30:48] [Worker-3] SUCCESS: DNCE - Body Moves
+[2026-07-21 20:30:48] [Worker-3] Starting download: Fifth Harmony - Work from Home
+[2026-07-21 20:30:53] [Worker-1] SUCCESS: Alan Walker - Alone
+[2026-07-21 20:30:53] [Worker-1] Starting download: Ariana Grande - Into You
+[2026-07-21 20:30:59] [Worker-2] SUCCESS: NICK JONAS - Close
+[2026-07-21 20:30:59] [Worker-2] Starting download: Major Lazer Official - Cold Water
+[2026-07-21 20:31:02] [Worker-3] SUCCESS: Fifth Harmony - Work from Home
+[2026-07-21 20:31:02] [Worker-3] Starting download: One Direction - Drag Me Down
+[2026-07-21 20:31:08] [Worker-1] SUCCESS: Ariana Grande - Into You
+[2026-07-21 20:31:08] [Worker-1] Starting download: The Wanted - Glad You Came
+[2026-07-21 20:31:13] [Worker-2] SUCCESS: Major Lazer Official - Cold Water
+[2026-07-21 20:31:13] [Worker-2] Starting download: Maroon 5 - One More Night
+[2026-07-21 20:31:15] [Worker-3] SUCCESS: One Direction - Drag Me Down
+[2026-07-21 20:31:15] [Worker-3] Starting download: Maroon 5 - Love Somebody
+[2026-07-21 20:31:22] [Worker-1] SUCCESS: The Wanted - Glad You Came
+[2026-07-21 20:31:22] [Worker-1] Starting download: Taylor Swift - I Knew You Were Trouble.
+[2026-07-21 20:31:27] [Worker-2] SUCCESS: Maroon 5 - One More Night
+[2026-07-21 20:31:27] [Worker-2] Starting download: Shawn Mendes - Life Of The Party
+[2026-07-21 20:31:29] [Worker-3] SUCCESS: Maroon 5 - Love Somebody
+[2026-07-21 20:31:29] [Worker-3] Starting download: Shawn Mendes - Roses
+[2026-07-21 20:31:35] [Worker-1] SUCCESS: Taylor Swift - I Knew You Were Trouble.
+[2026-07-21 20:31:35] [Worker-1] Starting download: Shawn Mendes - Stitches
+[2026-07-21 20:31:40] [Worker-2] SUCCESS: Shawn Mendes - Life Of The Party
+[2026-07-21 20:31:40] [Worker-2] Starting download: Shawn Mendes - Treat You Better
+[2026-07-21 20:31:44] [Worker-3] SUCCESS: Shawn Mendes - Roses
+[2026-07-21 20:31:44] [Worker-3] Starting download: Shawn Mendes - In My Blood
+[2026-07-21 20:31:49] [Worker-1] SUCCESS: Shawn Mendes - Stitches
+[2026-07-21 20:31:49] [Worker-1] Starting download: KATO - Topic - Show You Love
+[2026-07-21 20:31:58] [Worker-2] SUCCESS: Shawn Mendes - Treat You Better
+[2026-07-21 20:31:58] [Worker-2] Starting download: Hailee Steinfeld - Let Me Go
+[2026-07-21 20:32:09] =======================================================
+[2026-07-21 20:32:09] SYNCHRONIZATION SUMMARY:
+[2026-07-21 20:32:09]   Successfully Synced: 164
+[2026-07-21 20:32:09]   Failed:              3
+[2026-07-21 20:32:09] =======================================================

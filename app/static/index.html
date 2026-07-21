@@ -597,15 +597,15 @@
     </div>
 
     <!-- Spotify-style Bottom Music Player Bar -->
-    <div id="music-player-bar" class="music-player-bar" style="display: none;">
+    <div id="music-player-bar" class="music-player-bar" style="display: flex;">
         <!-- Left: Track Info -->
         <div class="player-track-info" style="display: flex; align-items: center; gap: 12px; width: 30%; min-width: 180px;">
-            <div class="player-album-art" style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); flex-shrink: 0;">
+            <div id="player-album-art" class="player-album-art" style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); flex-shrink: 0; position: relative; overflow: hidden;">
                 🎵
             </div>
             <div class="player-metadata" style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
-                <span id="player-track-title" style="font-weight: 600; font-size: 0.9rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">Song Title</span>
-                <span id="player-track-artist" style="font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">Artist Name</span>
+                <span id="player-track-title" style="font-weight: 600; font-size: 0.9rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">Select a song to play</span>
+                <span id="player-track-artist" style="font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">No Active Track</span>
             </div>
         </div>
         
@@ -628,12 +628,15 @@
             
             <div class="player-progress-bar-wrapper" style="display: flex; align-items: center; gap: 10px; width: 100%;">
                 <span id="player-current-time" style="font-size: 0.75rem; color: var(--text-dim); min-width: 32px; text-align: right;">0:00</span>
-                <input type="range" id="player-progress-slider" min="0" max="100" value="0" style="flex: 1; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; cursor: pointer; outline: none; transition: background 0.1s;">
+                <div style="flex: 1; position: relative; height: 28px; display: flex; align-items: center;">
+                    <canvas id="player-progress-visualizer" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; border-radius: 4px;"></canvas>
+                    <input type="range" id="player-progress-slider" min="0" max="100" value="0" style="position: relative; z-index: 2; width: 100%; height: 100%; background: transparent; cursor: pointer; outline: none; -webkit-appearance: none; margin: 0;">
+                </div>
                 <span id="player-total-time" style="font-size: 0.75rem; color: var(--text-dim); min-width: 32px;">0:00</span>
             </div>
         </div>
         
-        <!-- Right: Volume, PIP, Close -->
+        <!-- Right: Volume, PIP -->
         <div class="player-extra-container" style="display: flex; align-items: center; gap: 16px; width: 30%; justify-content: flex-end; min-width: 150px;">
             <button id="player-pip-btn" class="btn btn-icon" title="Picture in Picture" style="color: var(--text-dim); padding: 6px;">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><path d="M14 14h6v6h-6z"/></svg>
@@ -644,7 +647,7 @@
                 <input type="range" id="player-volume-slider" min="0" max="100" value="80" style="width: 70px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; cursor: pointer; outline: none;">
             </div>
             
-            <button id="player-close-btn" class="btn btn-icon" title="Close Player" style="color: var(--text-dim); padding: 6px;">
+            <button id="player-close-btn" class="btn btn-icon" title="Close Player" style="display: none; padding: 6px;">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
         </div>
