@@ -507,31 +507,22 @@ async function loadToDownloadList() {
     if (!activeProfile || !activeConfig || !activeConfig.sources) return;
     
     allToDownloadTracks = [];
-    const downloadedNames = new Set(allDownloadedFiles.map(f => f.name.toLowerCase()));
     
     for (const src of activeConfig.sources) {
         try {
             const res = await fetch(`/api/playlist/tracks?username=${activeProfile}&source_id=${src.id}`);
             if (res.ok) {
-                const tracks = await res.json();
-                const disabled = new Set(src.disabled_track_ids || []);
+                const data = await res.json();
+                const tracks = data.tracks || [];
                 tracks.forEach(t => {
-                    if (!disabled.has(t.id)) {
-                        const title = t.title || t.display_name || "";
-                        const estFilename = (activeConfig.filename_template || "%(title)s.%(ext)s")
-                            .replace("%(title)s", title)
-                            .replace("%(artist)s", t.artist || "")
-                            .replace("%(id)s", t.id || "")
-                            .replace("%(ext)s", "mp3");
-                        const cleanName = estFilename.split("/").pop().split("\\").pop().toLowerCase();
-                        
-                        if (!downloadedNames.has(cleanName)) {
-                            allToDownloadTracks.push({
-                                ...t,
-                                source_name: src.name || "Playlist",
-                                est_path: activeConfig.download_dir ? `${activeConfig.download_dir}/${cleanName}` : cleanName
-                            });
-                        }
+                    if (!t.downloaded && t.enabled) {
+                        const title = cleanMediaExtension(t.title || t.display_name || "Unknown Track");
+                        allToDownloadTracks.push({
+                            ...t,
+                            title: title,
+                            source_name: src.name || "Playlist",
+                            est_path: activeConfig.download_dir ? `${activeConfig.download_dir}/${title}.mp3` : `${title}.mp3`
+                        });
                     }
                 });
             }
@@ -548,7 +539,7 @@ function renderToDownloadTable(tracks) {
     if (!tbody) return;
     
     if (tracks.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="empty-table">All playlist songs are downloaded and up-to-date!</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-table" style="padding: 40px; text-align: center; color: var(--text-muted);">🎉 All playlist songs are downloaded and up-to-date!</td></tr>`;
         return;
     }
     
@@ -579,10 +570,12 @@ function renderToDownloadTable(tracks) {
 }
 
 function renderFilesList(files) {
-    if (filesCountText) filesCountText.textContent = `${files.length} files`;
+    if (filesCountText) filesCountText.textContent = `${files.length}`;
+    
+    if (!filesTableBody) return;
     
     if (files.length === 0) {
-        filesTableBody.innerHTML = `<tr><td colspan="4" class="empty-table">No audio files found. Verify your Save Path in Settings.</td></tr>`;
+        filesTableBody.innerHTML = `<tr><td colspan="4" class="empty-table" style="padding: 40px; text-align: center; color: var(--text-muted);">No audio files found in library directories.</td></tr>`;
         return;
     }
     
@@ -623,7 +616,7 @@ function renderFilesList(files) {
             playTrack(mockTrack, queue, idx);
         });
         
-        tbody.appendChild(tr);
+        filesTableBody.appendChild(tr);
     });
 }
 
