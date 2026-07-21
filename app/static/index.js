@@ -2300,35 +2300,39 @@ async function loadDiscoverData() {
     }
 }
 
-// Inline Paper-Slide Expander Drawer for Artist, Album, and Genre Cards
+// Inline Expander Drawer for Artist, Album, and Genre Cards
 function toggleInlineExpander(cardElement, gridContainer, title, type, tracks) {
-    // Check if this card's drawer is currently open
-    const nextElem = cardElement.nextElementSibling;
-    const isAlreadyOpen = nextElem && nextElem.classList.contains("inline-expander-drawer");
+    const parentPane = gridContainer.parentElement || gridContainer;
     
-    // Close all open drawers in this grid container
-    gridContainer.querySelectorAll(".inline-expander-drawer").forEach(el => el.remove());
-    gridContainer.querySelectorAll(".discover-card").forEach(el => el.classList.remove("card-expanded"));
+    // Check if this card's drawer is currently open
+    const isAlreadyOpen = cardElement.classList.contains("card-selected");
+    
+    // Close all open drawers in this subtab pane and clear card highlights
+    parentPane.querySelectorAll(".inline-expander-drawer").forEach(el => el.remove());
+    gridContainer.querySelectorAll(".discover-card").forEach(el => {
+        el.classList.remove("card-selected");
+        el.classList.remove("card-expanded");
+    });
     
     if (isAlreadyOpen) return; // Toggled closed
     
-    cardElement.classList.add("card-expanded");
+    cardElement.classList.add("card-selected");
     
-    // Create the Paper-Slide Inline Drawer element
+    // Create the Expander Drawer element
     const drawer = document.createElement("div");
     drawer.className = "inline-expander-drawer glass-card";
     drawer.style.cssText = `
-        grid-column: 1 / -1;
         width: 100%;
-        margin: 16px 0;
+        margin: 16px 0 12px 0;
         padding: 20px 24px;
         background: rgba(14, 17, 28, 0.96);
-        border: 1px solid var(--border-active);
+        border: 1px solid var(--primary);
         border-radius: var(--radius-lg);
         display: flex;
         gap: 24px;
-        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6);
-        animation: slideDownPaper 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6), 0 0 20px rgba(99, 102, 241, 0.25);
+        animation: slideDownPaper 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        flex-shrink: 0;
     `;
     
     const cleanTitle = title.replace(/^(Artist|Album|Genre):\s*/, "");
@@ -2337,41 +2341,41 @@ function toggleInlineExpander(cardElement, gridContainer, title, type, tracks) {
         : (tracks.find(t => t.thumbnail_url)?.thumbnail_url || "");
     const defaultIcon = type === "artist" ? "👤" : (type === "album" ? "💿" : "🎸");
     
-    // Left Overview Column (Artist Avatar, Name, Description, Play All Button)
+    // Left Overview Column
     const leftCol = document.createElement("div");
-    leftCol.style.cssText = "width: 220px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; text-align: center; border-right: 1px solid rgba(255,255,255,0.08); padding-right: 20px; justify-content: center;";
+    leftCol.style.cssText = "width: 210px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; text-align: center; border-right: 1px solid rgba(255,255,255,0.08); padding-right: 20px; justify-content: center;";
     leftCol.innerHTML = `
-        <div style="width: 90px; height: 90px; border-radius: ${type === 'artist' ? '50%' : 'var(--radius-md)'}; position: relative; overflow: hidden; margin-bottom: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.4); background: var(--primary);">
+        <div style="width: 85px; height: 85px; border-radius: ${type === 'artist' ? '50%' : 'var(--radius-md)'}; position: relative; overflow: hidden; margin-bottom: 10px; box-shadow: 0 8px 20px rgba(0,0,0,0.4); background: var(--primary);">
             <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 2.2rem; z-index: 1;">${defaultIcon}</span>
             ${imgUrl ? `<img src="${imgUrl}" onerror="this.remove();" style="position: absolute; left:0; top:0; width:100%; height:100%; object-fit:cover; z-index:2;">` : ''}
         </div>
-        <h3 style="margin: 0 0 6px 0; font-size: 1.15rem; font-weight: 700; color: var(--text-main); word-break: break-word; line-height: 1.2;">${escapeHtml(cleanTitle)}</h3>
-        <p style="font-size: 0.75rem; color: var(--text-dim); margin: 0 0 10px 0; line-height: 1.4;">Official ${type.charAt(0).toUpperCase() + type.slice(1)} catalog in your downloaded music library.</p>
-        <span class="badge badge-idle" style="margin-bottom: 12px; font-size: 0.75rem;">${tracks.length} ${tracks.length === 1 ? 'Song' : 'Songs'}</span>
+        <h3 style="margin: 0 0 4px 0; font-size: 1.15rem; font-weight: 700; color: var(--text-main); word-break: break-word; line-height: 1.2;">${escapeHtml(cleanTitle)}</h3>
+        <p style="font-size: 0.75rem; color: var(--text-dim); margin: 0 0 8px 0; line-height: 1.3;">Downloaded ${type.charAt(0).toUpperCase() + type.slice(1)} music catalog.</p>
+        <span class="badge badge-idle" style="margin-bottom: 10px; font-size: 0.75rem; background: rgba(99, 102, 241, 0.15); color: var(--primary); border: 1px solid rgba(99, 102, 241, 0.3);">${tracks.length} ${tracks.length === 1 ? 'Song' : 'Songs'}</span>
         <button class="btn btn-primary btn-sm play-all-inline-btn" style="width: 100%; border-radius: 20px; display: flex; align-items: center; justify-content: center; gap: 6px;">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             Play All Songs
         </button>
     `;
     
-    // Right Songs List Column (Internal Scroll)
+    // Right Songs List Column
     const rightCol = document.createElement("div");
     rightCol.style.cssText = "flex: 1; min-width: 0; display: flex; flex-direction: column;";
     rightCol.innerHTML = `
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-            <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--text-main);">Songs List (${tracks.length})</h4>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--text-main);">Tracks in ${escapeHtml(cleanTitle)} (${tracks.length})</h4>
             <button class="btn btn-icon btn-sm close-inline-drawer-btn" style="color: var(--text-dim);" title="Close">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
         </div>
-        <div class="inline-tracks-scroll" style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px;">
+        <div class="inline-tracks-scroll" style="max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px;">
         </div>
     `;
     
     const scrollList = rightCol.querySelector(".inline-tracks-scroll");
     tracks.forEach((t, idx) => {
         const item = document.createElement("div");
-        item.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.04); border-radius: var(--radius-sm); transition: var(--transition); cursor: pointer;";
+        item.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.04); border-radius: var(--radius-sm); transition: var(--transition); cursor: pointer;";
         item.innerHTML = `
             <div style="display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1;">
                 <span style="font-size: 0.8rem; color: var(--text-dim); width: 20px; text-align: center;">${idx + 1}</span>
@@ -2380,7 +2384,7 @@ function toggleInlineExpander(cardElement, gridContainer, title, type, tracks) {
                     <div style="font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(t.artist || 'Unknown Artist')} ${t.album ? '• ' + escapeHtml(t.album) : ''}</div>
                 </div>
             </div>
-            <button class="btn btn-primary btn-sm play-single-inline-btn" style="padding: 0; width: 28px; height: 28px; border-radius: 50%; min-width: 0; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" title="Play Track">
+            <button class="btn btn-primary btn-sm play-single-inline-btn" style="padding: 0; width: 26px; height: 26px; border-radius: 50%; min-width: 0; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" title="Play Track">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             </button>
         `;
@@ -2403,27 +2407,55 @@ function toggleInlineExpander(cardElement, gridContainer, title, type, tracks) {
     
     rightCol.querySelector(".close-inline-drawer-btn").addEventListener("click", () => {
         drawer.remove();
-        cardElement.classList.remove("card-expanded");
+        cardElement.classList.remove("card-selected");
     });
     
     drawer.appendChild(leftCol);
     drawer.appendChild(rightCol);
     
-    // Slide insert after clicked card element
-    cardElement.after(drawer);
+    // Find the last card in the same horizontal row as the clicked card
+    const allCards = Array.from(gridContainer.querySelectorAll(".discover-card"));
+    const clickedTop = cardElement.offsetTop;
+    let lastInRow = cardElement;
+    for (let i = 0; i < allCards.length; i++) {
+        if (Math.abs(allCards[i].offsetTop - clickedTop) < 15) {
+            lastInRow = allCards[i];
+        }
+    }
+    
+    // Insert expander drawer immediately after the last card of this visual row
+    lastInRow.after(drawer);
+    
+    // Smooth scroll drawer into view
+    drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
+
+let discoverSearchQuery = "";
 
 function renderDiscoverPage() {
     if (!discoverData) return;
-    renderDiscoverSongsTable();
+    renderDiscoverSongsTable(discoverSearchQuery);
+    renderDiscoverArtistsGrid(discoverSearchQuery);
+    renderDiscoverAlbumsGrid(discoverSearchQuery);
+    renderDiscoverGenresGrid(discoverSearchQuery);
 }
 
-function renderDiscoverArtistsGrid() {
+function renderDiscoverArtistsGrid(query = "") {
     if (!discoverData || !discoverArtistsGrid) return;
     discoverArtistsGrid.innerHTML = "";
-    const artists = Object.keys(discoverData.artists).sort();
+    let artists = Object.keys(discoverData.artists).sort();
+    const q = query.trim().toLowerCase();
+    
+    if (q) {
+        artists = artists.filter(art => {
+            if (art.toLowerCase().includes(q)) return true;
+            const tracks = discoverData.artists[art] || [];
+            return tracks.some(t => (t.title && t.title.toLowerCase().includes(q)) || (t.album && t.album.toLowerCase().includes(q)));
+        });
+    }
+
     if (artists.length === 0) {
-        discoverArtistsGrid.innerHTML = '<div class="empty-sources">No downloaded songs found yet.</div>';
+        discoverArtistsGrid.innerHTML = `<div class="empty-sources">${q ? 'No artists matching "' + escapeHtml(query) + '" found.' : 'No downloaded songs found yet.'}</div>`;
     } else {
         artists.forEach(art => {
             const tracks = discoverData.artists[art];
@@ -2444,12 +2476,22 @@ function renderDiscoverArtistsGrid() {
     }
 }
 
-function renderDiscoverAlbumsGrid() {
+function renderDiscoverAlbumsGrid(query = "") {
     if (!discoverData || !discoverAlbumsGrid) return;
     discoverAlbumsGrid.innerHTML = "";
-    const albums = Object.keys(discoverData.albums).sort();
+    let albums = Object.keys(discoverData.albums).sort();
+    const q = query.trim().toLowerCase();
+    
+    if (q) {
+        albums = albums.filter(alb => {
+            if (alb.toLowerCase().includes(q)) return true;
+            const tracks = discoverData.albums[alb] || [];
+            return tracks.some(t => (t.title && t.title.toLowerCase().includes(q)) || (t.artist && t.artist.toLowerCase().includes(q)));
+        });
+    }
+
     if (albums.length === 0) {
-        discoverAlbumsGrid.innerHTML = '<div class="empty-sources">No downloaded songs found yet.</div>';
+        discoverAlbumsGrid.innerHTML = `<div class="empty-sources">${q ? 'No albums matching "' + escapeHtml(query) + '" found.' : 'No downloaded songs found yet.'}</div>`;
     } else {
         albums.forEach(alb => {
             const tracks = discoverData.albums[alb];
@@ -2470,12 +2512,22 @@ function renderDiscoverAlbumsGrid() {
     }
 }
 
-function renderDiscoverGenresGrid() {
+function renderDiscoverGenresGrid(query = "") {
     if (!discoverData || !discoverGenresGrid) return;
     discoverGenresGrid.innerHTML = "";
-    const genres = Object.keys(discoverData.genres).sort();
+    let genres = Object.keys(discoverData.genres).sort();
+    const q = query.trim().toLowerCase();
+    
+    if (q) {
+        genres = genres.filter(gen => {
+            if (gen.toLowerCase().includes(q)) return true;
+            const tracks = discoverData.genres[gen] || [];
+            return tracks.some(t => (t.title && t.title.toLowerCase().includes(q)) || (t.artist && t.artist.toLowerCase().includes(q)));
+        });
+    }
+
     if (genres.length === 0) {
-        discoverGenresGrid.innerHTML = '<div class="empty-sources">No downloaded songs found yet.</div>';
+        discoverGenresGrid.innerHTML = `<div class="empty-sources">${q ? 'No genres matching "' + escapeHtml(query) + '" found.' : 'No downloaded songs found yet.'}</div>`;
     } else {
         genres.forEach(gen => {
             const tracks = discoverData.genres[gen];
@@ -2496,11 +2548,23 @@ function renderDiscoverGenresGrid() {
     }
 }
 
-function renderDiscoverSongsTable() {
+function renderDiscoverSongsTable(query = "") {
+    if (!discoverData || !discoverSongsTableBody) return;
     discoverSongsTableBody.innerHTML = "";
-    const songs = discoverData.all_songs;
+    let songs = discoverData.all_songs || [];
+    const q = query.trim().toLowerCase();
+    
+    if (q) {
+        songs = songs.filter(s => 
+            (s.title && s.title.toLowerCase().includes(q)) ||
+            (s.artist && s.artist.toLowerCase().includes(q)) ||
+            (s.album && s.album.toLowerCase().includes(q)) ||
+            (s.genre && s.genre.toLowerCase().includes(q))
+        );
+    }
+
     if (songs.length === 0) {
-        discoverSongsTableBody.innerHTML = '<tr><td colspan="6" class="empty-table">No downloaded songs found yet.</td></tr>';
+        discoverSongsTableBody.innerHTML = `<tr><td colspan="6" class="empty-table">${q ? 'No songs matching "' + escapeHtml(query) + '" found.' : 'No downloaded songs found yet.'}</td></tr>`;
     } else {
         songs.forEach((s, idx) => {
             const tr = document.createElement("tr");
@@ -3128,6 +3192,15 @@ window.addEventListener("load", () => {
             document.querySelectorAll(".file-path-col, .file-path-cell").forEach(el => {
                 el.style.display = isChecked ? "table-cell" : "none";
             });
+        });
+    }
+
+    // Discover Search Input Handler
+    const discoverSearchInput = document.getElementById("discover-search-input");
+    if (discoverSearchInput) {
+        discoverSearchInput.addEventListener("input", (e) => {
+            discoverSearchQuery = e.target.value;
+            renderDiscoverPage();
         });
     }
 
