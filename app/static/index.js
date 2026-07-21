@@ -203,10 +203,11 @@ async function handleProfileChange(username) {
     // Load config
     await loadConfig(username);
     
-    // Refresh status, downloaded files, and source sidebar
+    // Refresh status, downloaded files, discover data, and source sidebar
     refreshStatus();
     loadFiles();
     renderSourcesList();
+    loadDiscoverData();
     
     // Reset playlist details pane
     noPlaylistSelectedView.style.display = "flex";
@@ -1458,6 +1459,14 @@ function playTrack(track, queue = []) {
     currentQueueIndex = queue.findIndex(t => t.id === track.id || t.filename === track.filename);
     currentPlayingTrack = track;
     
+    // Save last played track and queue in localStorage for instant resume
+    try {
+        if (activeProfile) {
+            localStorage.setItem(`musicgrabber_last_track_${activeProfile}`, JSON.stringify(track));
+            localStorage.setItem(`musicgrabber_last_queue_${activeProfile}`, JSON.stringify(queue));
+        }
+    } catch (e) {}
+    
     const filename = track.local_filename || track.filename;
     if (!filename) {
         alert("Cannot play song: local filename not found.");
@@ -1611,10 +1620,42 @@ localAudioElement.addEventListener("play", updatePlaybackUI);
 localAudioElement.addEventListener("pause", updatePlaybackUI);
 
 playerPlayBtn.addEventListener("click", () => {
-    if (localAudioElement.paused) {
-        localAudioElement.play();
+    // If audio element is currently loaded and paused, toggle play
+    if (localAudioElement.src && localAudioElement.src !== "" && !localAudioElement.src.endsWith("/")) {
+        if (localAudioElement.paused) {
+            localAudioElement.play();
+        } else {
+            localAudioElement.pause();
+        }
     } else {
-        localAudioElement.pause();
+        // Try resuming last played track from localStorage
+        try {
+            const savedTrackStr = localStorage.getItem(`musicgrabber_last_track_${activeProfile}`);
+            const savedQueueStr = localStorage.getItem(`musicgrabber_last_queue_${activeProfile}`);
+            if (savedTrackStr) {
+                const savedTrack = JSON.parse(savedTrackStr);
+                const savedQueue = savedQueueStr ? JSON.parse(savedQueueStr) : [savedTrack];
+                playTrack(savedTrack, savedQueue);
+                return;
+            }
+        } catch (e) {}
+        
+        // Fallback: play first available song from discover data or downloaded files
+        if (discoverData && discoverData.all_songs && discoverData.all_songs.length > 0) {
+            playTrack(discoverData.all_songs[0], discoverData.all_songs);
+        } else if (allDownloadedFiles && allDownloadedFiles.length > 0) {
+            const firstFile = allDownloadedFiles[0];
+            const mockTrack = {
+                filename: firstFile.name,
+                local_filename: firstFile.name,
+                title: firstFile.name,
+                artist: "Downloaded Track",
+                thumbnail_url: `/api/thumbnail?path=${encodeURIComponent(firstFile.path)}`
+            };
+            playTrack(mockTrack, [mockTrack]);
+        } else {
+            showToast("No songs found to play. Synchronize a playlist or download songs first!", "warning");
+        }
     }
 });
 
@@ -1668,10 +1709,12 @@ document.querySelectorAll(".discover-tab-btn").forEach(btn => {
 async function loadDiscoverData() {
     if (!activeProfile) return;
     
-    discoverArtistsGrid.innerHTML = '<div class="spinner-container"><div class="spinner"></div><p>Scanning library metadata...</p></div>';
-    discoverAlbumsGrid.innerHTML = "";
-    discoverGenresGrid.innerHTML = "";
-    discoverSongsTableBody.innerHTML = "";
+    // Render existing data immediately if already loaded
+    if (discoverData) {
+        renderDiscoverPage();
+    } else {
+        discoverArtistsGrid.innerHTML = '<div class="spinner-container"><div class="spinner"></div><p>Loading library metadata...</p></div>';
+    }
     
     try {
         const res = await fetch(`/api/discover?username=${activeProfile}&t=${Date.now()}`);
@@ -1680,7 +1723,9 @@ async function loadDiscoverData() {
         discoverData = await res.json();
         renderDiscoverPage();
     } catch (e) {
-        discoverArtistsGrid.innerHTML = `<div class="empty-sources" style="color: var(--danger)">Failed to load discover page: ${e.message}</div>`;
+        if (!discoverData) {
+            discoverArtistsGrid.innerHTML = `<div class="empty-sources" style="color: var(--danger)">Failed to load discover page: ${e.message}</div>`;
+        }
     }
 }
 
@@ -1694,15 +1739,14 @@ function renderDiscoverPage() {
     } else {
         artists.forEach(art => {
             const tracks = discoverData.artists[art];
-            const firstWithThumb = tracks.find(t => t.thumbnail_url);
-            const thumbSrc = firstWithThumb ? firstWithThumb.thumbnail_url : "";
+            const artistImgUrl = `/api/artist-image?artist=${encodeURIComponent(art)}`;
             const count = tracks.length;
             const card = document.createElement("div");
             card.className = "discover-card";
             card.innerHTML = `
                 <div class="discover-card-icon" style="position: relative; overflow: hidden; border-radius: 50%;">
                     <span style="position: absolute; z-index: 1;">👤</span>
-                    ${thumbSrc ? `<img src="${thumbSrc}" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; z-index: 2;">` : ""}
+                    <img src="${artistImgUrl}" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; z-index: 2;">
                 </div>
                 <div class="discover-card-title">${escapeHtml(art)}</div>
                 <div class="discover-card-subtitle">${count} song${count > 1 ? 's' : ''}</div>
@@ -1823,11 +1867,18 @@ function openDiscoverDetails(title, tracks) {
     if (avatarEl) {
         avatarEl.style.position = "relative";
         avatarEl.style.overflow = "hidden";
-        const firstWithThumb = tracks.find(t => t.thumbnail_url);
-        const thumbSrc = firstWithThumb ? firstWithThumb.thumbnail_url : "";
         const isArtist = title.startsWith("Artist: ");
         const rad = isArtist ? "50%" : "var(--radius-md)";
         avatarEl.style.borderRadius = rad;
+        
+        let thumbSrc = "";
+        if (isArtist) {
+            thumbSrc = `/api/artist-image?artist=${encodeURIComponent(cleanName)}`;
+        } else {
+            const firstWithThumb = tracks.find(t => t.thumbnail_url);
+            thumbSrc = firstWithThumb ? firstWithThumb.thumbnail_url : "";
+        }
+        
         avatarEl.innerHTML = `
             <span style="position: absolute; z-index: 1;">${icon}</span>
             ${thumbSrc ? `<img src="${thumbSrc}" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: ${rad}; z-index: 2;">` : ""}
@@ -2069,29 +2120,35 @@ function startVisualizerDrawLoop() {
             }
         }
         
-        const barWidth = 4;
-        const barGap = 3;
+        const barWidth = 2.5;
+        const barGap = 1.5;
         const totalBarWidth = barWidth + barGap;
         const barCount = Math.floor(width / totalBarWidth);
         
         for (let i = 0; i < barCount; i++) {
             let val = 0;
+            const normX = i / barCount;
+            
+            // Ultra-detailed waveform frequency contour representing audio amplitude/energy
+            const w1 = Math.sin(normX * Math.PI * 4);
+            const w2 = Math.cos(normX * Math.PI * 11);
+            const w3 = Math.sin(normX * Math.PI * 22);
+            const contour = 0.18 + 0.22 * Math.abs(w1 * 0.45 + w2 * 0.35 + w3 * 0.2);
+            
             if (freqs.length > 0) {
-                const freqIdx = Math.min(freqs.length - 1, Math.floor((i / barCount) * freqs.length));
-                val = freqs[freqIdx] / 255;
+                const freqIdx = Math.min(freqs.length - 1, Math.floor(normX * freqs.length));
+                const realFreq = freqs[freqIdx] / 255;
+                val = 0.4 * contour + 0.6 * realFreq;
             } else {
-                // Static premium waveform shape when idle
-                const angle = (i / barCount) * Math.PI * 3.5;
-                val = 0.15 + 0.12 * Math.abs(Math.sin(angle)) + 0.08 * Math.abs(Math.cos(angle * 2.2));
+                val = contour;
             }
             
-            // Add alive animation
-            if (localAudio && !localAudio.paused && freqs.length === 0) {
-                val += 0.04 * Math.abs(Math.sin(Date.now() / 150 + i));
+            if (localAudio && !localAudio.paused) {
+                val += 0.05 * Math.abs(Math.sin(Date.now() / 120 + i * 0.5));
             }
             
-            let barHeight = val * height * 0.85;
-            if (barHeight < 4) barHeight = 4; // Visual floor
+            let barHeight = val * height * 0.9;
+            if (barHeight < 3) barHeight = 3;
             
             const x = i * totalBarWidth;
             const y = (height - barHeight) / 2;
@@ -2105,10 +2162,10 @@ function startVisualizerDrawLoop() {
                 grad.addColorStop(1, "#06b6d4");
                 canvasCtx.fillStyle = grad;
             } else {
-                canvasCtx.fillStyle = "rgba(255, 255, 255, 0.15)";
+                canvasCtx.fillStyle = "rgba(255, 255, 255, 0.14)";
             }
             
-            drawVisualizerBar(canvasCtx, x, y, barWidth, barHeight, 2);
+            drawVisualizerBar(canvasCtx, x, y, barWidth, barHeight, 1);
             canvasCtx.fill();
         }
     }

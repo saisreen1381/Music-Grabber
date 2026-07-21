@@ -2,6 +2,7 @@ import os
 import json
 import datetime
 import urllib.parse
+import urllib.request
 import hashlib
 import re
 from pathlib import Path
@@ -309,6 +310,40 @@ def get_thumbnail(path: str):
         print(f"Failed to extract cover art for {path}: {e}")
         
     raise HTTPException(status_code=404, detail="No cover art found")
+
+@app.get("/api/artist-image")
+def get_artist_image(artist: str):
+    if not artist or artist.lower() == "unknown artist":
+        raise HTTPException(status_code=404, detail="Artist unknown")
+        
+    cache_dir = Path("users/cover_cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    hasher = hashlib.md5(artist.lower().encode("utf-8")).hexdigest()
+    cached_jpg = cache_dir / f"artist_{hasher}.jpg"
+    
+    if cached_jpg.exists() and cached_jpg.stat().st_size > 0:
+        return FileResponse(str(cached_jpg))
+        
+    try:
+        url = f"https://api.deezer.com/search/artist?q={urllib.parse.quote(artist)}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=4) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            items = data.get("data", [])
+            if items:
+                img_url = items[0].get("picture_medium") or items[0].get("picture_big")
+                if img_url:
+                    img_req = urllib.request.Request(img_url, headers={"User-Agent": "Mozilla/5.0"})
+                    with urllib.request.urlopen(img_req, timeout=5) as img_res:
+                        with open(cached_jpg, "wb") as f:
+                            f.write(img_res.read())
+                    if cached_jpg.exists() and cached_jpg.stat().st_size > 0:
+                        return FileResponse(str(cached_jpg))
+    except Exception as e:
+        print(f"Failed to fetch artist image for {artist}: {e}")
+        
+    raise HTTPException(status_code=404, detail="Artist image not found")
 
 @app.get("/api/scan")
 def scan_directory(username: str):
