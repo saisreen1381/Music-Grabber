@@ -211,8 +211,9 @@ paused_syncs = set()
 aborted_syncs = set()
 
 # Generator function for streaming sync logs to FastAPI SSE
-def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp"):
+def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
     log_queue = queue.Queue()
+    username = Path(config_path).parent.name
     
     def emit(msg):
         log_queue.put(msg)
@@ -441,6 +442,8 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp"):
     thread = threading.Thread(target=worker_thread)
     thread.daemon = True
     thread.start()
+    if scheduler:
+        scheduler.register_sync_thread(username, thread)
     
     # Read from queue and yield lines
     while True:

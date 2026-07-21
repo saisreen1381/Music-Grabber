@@ -29,6 +29,15 @@ from app.scheduler import BackgroundScheduler
 
 app = FastAPI(title="Music Grabber UI")
 
+@app.middleware("http")
+async def add_no_cache_headers(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static") or request.url.path == "/":
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 # Allow CORS for development
 app.add_middleware(
     CORSMiddleware,
@@ -1261,25 +1270,23 @@ def trigger_manual_sync(username: str):
         
     state_file = profile_dir / "sync_state.json"
     
-    # Check scheduler lock
-    success = scheduler.trigger_manual_sync(username, config_file)
-    if not success:
-        raise HTTPException(status_code=409, detail="A synchronization is already in progress for this profile.")
-        
     def sse_log_generator():
         log_lines = []
         try:
-            gen = run_sync_engine_generator(str(config_file), YTDLP_PATH)
+            gen = run_sync_engine_generator(str(config_file), YTDLP_PATH, scheduler)
             sync_success = True
-            for line in gen:
-                if line == "SYNC_FINISHED_SUCCESS":
+            for raw_line in gen:
+                if raw_line == "SYNC_FINISHED_SUCCESS":
                     sync_success = True
-                elif line == "SYNC_FINISHED_FAILED":
+                elif raw_line == "SYNC_FINISHED_FAILED":
                     sync_success = False
-                else:
-                    timestamped = f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {line}"
-                    log_lines.append(timestamped)
-                    yield f"data: {timestamped}\n\n"
+                elif raw_line:
+                    for line in str(raw_line).splitlines():
+                        clean = line.strip()
+                        if clean:
+                            timestamped = f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {clean}"
+                            log_lines.append(timestamped)
+                            yield f"data: {timestamped}\n\n"
             
             # Save final logs to profile directory
             log_file = profile_dir / "last_sync_log.txt"

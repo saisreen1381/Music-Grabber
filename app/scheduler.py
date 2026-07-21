@@ -13,7 +13,7 @@ class BackgroundScheduler:
         self.running = False
         self.thread = None
         # Keep track of active usernames currently syncing to avoid overlaps
-        self.active_syncs = set()
+        self.active_sync_threads = {}
         self.sync_lock = threading.Lock()
 
     def start(self):
@@ -42,22 +42,29 @@ class BackgroundScheduler:
 
     def is_syncing(self, username):
         with self.sync_lock:
-            return username in self.active_syncs
+            thread = self.active_sync_threads.get(username)
+            if thread is not None:
+                if thread.is_alive():
+                    return True
+                else:
+                    del self.active_sync_threads[username]
+            return False
+
+    def register_sync_thread(self, username, thread):
+        with self.sync_lock:
+            self.active_sync_threads[username] = thread
 
     def trigger_manual_sync(self, username, config_path):
         with self.sync_lock:
-            if username in self.active_syncs:
+            thread = self.active_sync_threads.get(username)
+            if thread and thread.is_alive():
                 return False
-            self.active_syncs.add(username)
-        
-        # We don't block; the main.py will consume the SSE generator.
-        # So we just provide a helper to remove it when finished.
         return True
 
     def release_sync(self, username):
         with self.sync_lock:
-            if username in self.active_syncs:
-                self.active_syncs.remove(username)
+            if username in self.active_sync_threads:
+                del self.active_sync_threads[username]
 
     def _check_all_profiles(self):
         if not self.users_dir.exists():
@@ -183,10 +190,8 @@ class BackgroundScheduler:
             return now + datetime.timedelta(days=1)
 
     def _run_auto_sync(self, username, config_file, state_file):
-        with self.sync_lock:
-            if username in self.active_syncs:
-                return
-            self.active_syncs.add(username)
+        if self.is_syncing(username):
+            return
             
         user_dir = config_file.parent
         log_file = user_dir / "last_sync_log.txt"

@@ -1032,9 +1032,14 @@ if (viewSyncModalBtn) {
 
 // Manual Sync Triggers (SSE Logs)
 syncNowBtn.addEventListener("click", () => {
-    if (!activeProfile || eventSource) return;
+    if (!activeProfile) return;
     
-    terminalBody.innerHTML = '<span class="system-line">[System] Triggering synchronization...</span>';
+    if (eventSource) {
+        try { eventSource.close(); } catch(e) {}
+        eventSource = null;
+    }
+    
+    terminalBody.innerHTML = '<div class="system-line" style="display: block; color: #818cf8; font-weight: 600; margin-bottom: 3px;">[System] Triggering synchronization...</div>';
     syncBadge.className = "badge badge-syncing";
     syncBadge.textContent = "Syncing";
     syncNowBtn.disabled = true;
@@ -1068,16 +1073,16 @@ syncNowBtn.addEventListener("click", () => {
     // Expand the logs console so lines stream in
     if (terminalBody) terminalBody.style.display = "flex";
     if (logsToggleArrow) logsToggleArrow.style.transform = "rotate(180deg)";
-    syncModalProgress.style.width = "0%";
-    syncProcessedCount.textContent = "0 / 0 Songs";
-    syncPercentText.textContent = "0%";
-    syncElapsedTime.textContent = "0:00";
-    syncEtaTime.textContent = "Calculating...";
+    if (syncModalProgress) syncModalProgress.style.width = "0%";
+    if (syncProcessedCount) syncProcessedCount.textContent = "0 / 0 Songs";
+    if (syncPercentText) syncPercentText.textContent = "0%";
+    if (syncElapsedTime) syncElapsedTime.textContent = "0:00";
+    if (syncEtaTime) syncEtaTime.textContent = "Calculating...";
     
     // Rotating quotes
     function updateQuote() {
         const idx = Math.floor(Math.random() * syncQuotes.length);
-        syncQuoteBox.textContent = syncQuotes[idx];
+        if (syncQuoteBox) syncQuoteBox.textContent = syncQuotes[idx];
     }
     updateQuote();
     quoteTimer = setInterval(updateQuote, 8000);
@@ -1091,24 +1096,29 @@ syncNowBtn.addEventListener("click", () => {
     
     syncTimer = setInterval(() => {
         const elapsedSec = Math.floor((Date.now() - syncStartTime) / 1000);
-        syncElapsedTime.textContent = formatTimer(elapsedSec);
+        if (syncElapsedTime) syncElapsedTime.textContent = formatTimer(elapsedSec);
         
         if (processedTracks > 0 && processedTracks < totalTracks) {
             const avgTime = elapsedSec / processedTracks;
             const rem = totalTracks - processedTracks;
-            syncEtaTime.textContent = formatTimer(Math.floor(avgTime * rem));
+            if (syncEtaTime) syncEtaTime.textContent = formatTimer(Math.floor(avgTime * rem));
         } else if (processedTracks >= totalTracks && totalTracks > 0) {
-            syncEtaTime.textContent = "0:00";
+            if (syncEtaTime) syncEtaTime.textContent = "0:00";
         } else {
-            syncEtaTime.textContent = "Calculating...";
+            if (syncEtaTime) syncEtaTime.textContent = "Calculating...";
         }
     }, 1000);
     
     function endSyncModal(titleText) {
         if (syncTimer) { clearInterval(syncTimer); syncTimer = null; }
         if (quoteTimer) { clearInterval(quoteTimer); quoteTimer = null; }
-        syncModalTitle.innerHTML = titleText;
+        if (syncModalTitle) syncModalTitle.innerHTML = titleText;
         if (syncModalClose) syncModalClose.style.display = "none";
+        if (syncNowBtn) syncNowBtn.disabled = false;
+        if (syncBadge) {
+            syncBadge.className = "badge badge-idle";
+            syncBadge.textContent = "Idle";
+        }
     }
     
     // Connect to Server Sent Events
@@ -1118,8 +1128,10 @@ syncNowBtn.addEventListener("click", () => {
         const line = event.data;
         
         if (line === "SYNC_COMPLETE") {
-            eventSource.close();
-            eventSource = null;
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
             appendTerminalLine("[System] Sync Complete!");
             refreshStatus();
             loadFiles();
@@ -1183,32 +1195,50 @@ syncNowBtn.addEventListener("click", () => {
     
     eventSource.onerror = (e) => {
         console.error("SSE stream error", e);
-        eventSource.close();
-        eventSource = null;
-        appendTerminalLine("[System] Download stream connection lost.");
+        if (eventSource) {
+            try { eventSource.close(); } catch(err) {}
+            eventSource = null;
+        }
+        if (syncNowBtn) syncNowBtn.disabled = false;
+        syncBadge.className = "badge badge-idle";
+        syncBadge.textContent = "Idle";
+        appendTerminalLine("[System] Sync connection completed or reset.");
         refreshStatus();
-        endSyncModal("<span style='color: var(--danger)'>Download Stream Interrupted</span>");
+        loadFiles();
+        endSyncModal("Sync Complete");
     };
 });
 
 function appendTerminalLine(text) {
-    const span = document.createElement("span");
+    if (!terminalBody || !text) return;
+    const div = document.createElement("div");
+    div.style.display = "block";
+    div.style.marginBottom = "3px";
+    div.style.wordBreak = "break-word";
     
     // Classify line styling
     if (text.includes("SUCCESS") || text.includes("successfully") || text.includes("Complete")) {
-        span.className = "success-line";
+        div.className = "success-line";
+        div.style.color = "#34d399";
+        div.style.fontWeight = "500";
     } else if (text.includes("ERROR") || text.includes("FAILED")) {
-        span.className = "error-line";
+        div.className = "error-line";
+        div.style.color = "#f87171";
+        div.style.fontWeight = "500";
     } else if (text.includes("Warning") || text.includes("Retry") || text.includes("Retrying")) {
-        span.className = "warning-line";
-    } else if (text.startsWith("===") || text.startsWith("---") || text.startsWith("[System]")) {
-        span.className = "system-line";
-    } else if (text.startsWith("[")) {
-        span.className = "info-line";
+        div.className = "warning-line";
+        div.style.color = "#fbbf24";
+    } else if (text.startsWith("===") || text.startsWith("---") || text.includes("[System]")) {
+        div.className = "system-line";
+        div.style.color = "#818cf8";
+        div.style.fontWeight = "600";
+    } else {
+        div.className = "info-line";
+        div.style.color = "#e4e4e7";
     }
     
-    span.textContent = text;
-    terminalBody.appendChild(span);
+    div.textContent = text;
+    terminalBody.appendChild(div);
     terminalBody.scrollTop = terminalBody.scrollHeight;
 }
 
