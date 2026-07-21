@@ -321,35 +321,49 @@ def get_thumbnail(path: str):
 
 @app.get("/api/artist-image")
 def get_artist_image(artist: str):
-    if not artist or artist.lower() == "unknown artist":
+    if not artist or artist.lower() in ["unknown artist", "downloaded track"]:
+        raise HTTPException(status_code=404, detail="Artist unknown")
+        
+    primary_artist = re.split(r'[,/;&]|feat\.|ft\.', artist, flags=re.I)[0].strip()
+    if not primary_artist:
         raise HTTPException(status_code=404, detail="Artist unknown")
         
     cache_dir = Path("users/cover_cache")
     os.makedirs(cache_dir, exist_ok=True)
     
-    hasher = hashlib.md5(artist.lower().encode("utf-8")).hexdigest()
+    hasher = hashlib.md5(primary_artist.lower().encode("utf-8")).hexdigest()
     cached_jpg = cache_dir / f"artist_{hasher}.jpg"
+    cached_404 = cache_dir / f"artist_404_{hasher}.txt"
     
     if cached_jpg.exists() and cached_jpg.stat().st_size > 0:
         return FileResponse(str(cached_jpg))
         
+    if cached_404.exists():
+        raise HTTPException(status_code=404, detail="Artist image not found")
+        
     try:
-        url = f"https://api.deezer.com/search/artist?q={urllib.parse.quote(artist)}"
+        url = f"https://api.deezer.com/search/artist?q={urllib.parse.quote(primary_artist)}"
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=4) as response:
+        with urllib.request.urlopen(req, timeout=3) as response:
             data = json.loads(response.read().decode("utf-8"))
             items = data.get("data", [])
             if items:
                 img_url = items[0].get("picture_medium") or items[0].get("picture_big")
                 if img_url:
                     img_req = urllib.request.Request(img_url, headers={"User-Agent": "Mozilla/5.0"})
-                    with urllib.request.urlopen(img_req, timeout=5) as img_res:
+                    with urllib.request.urlopen(img_req, timeout=4) as img_res:
                         with open(cached_jpg, "wb") as f:
                             f.write(img_res.read())
                     if cached_jpg.exists() and cached_jpg.stat().st_size > 0:
                         return FileResponse(str(cached_jpg))
-    except Exception as e:
-        print(f"Failed to fetch artist image for {artist}: {e}")
+    except Exception:
+        pass
+        
+    try:
+        with open(cached_404, "w") as f:
+            f.write("404")
+    except Exception:
+        pass
         
     raise HTTPException(status_code=404, detail="Artist image not found")
 

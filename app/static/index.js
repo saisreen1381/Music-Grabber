@@ -1661,18 +1661,34 @@ if (saveSettingsBtn) {
 
 // ==================== Spotify-style Player Logic ====================
 
-function playTrack(track, queue = []) {
+function playTrack(track, queue = [], index = -1) {
     if (!track) return;
     
-    playerQueue = queue;
-    currentQueueIndex = queue.findIndex(t => t.id === track.id || t.filename === track.filename);
+    if (queue && queue.length > 0) {
+        playerQueue = queue;
+    } else if (!playerQueue || playerQueue.length === 0) {
+        playerQueue = [track];
+    }
+    
+    if (index >= 0) {
+        currentQueueIndex = index;
+    } else {
+        const foundIdx = playerQueue.findIndex(t => 
+            (t.local_filename && track.local_filename && t.local_filename === track.local_filename) ||
+            (t.filename && track.filename && t.filename === track.filename) ||
+            (t.path && track.path && t.path === track.path) ||
+            (t.title && track.title && t.title === track.title)
+        );
+        currentQueueIndex = foundIdx >= 0 ? foundIdx : 0;
+    }
+    
     currentPlayingTrack = track;
     
     // Save last played track and queue in localStorage for instant resume
     try {
         if (activeProfile) {
             localStorage.setItem(`musicgrabber_last_track_${activeProfile}`, JSON.stringify(track));
-            localStorage.setItem(`musicgrabber_last_queue_${activeProfile}`, JSON.stringify(queue));
+            localStorage.setItem(`musicgrabber_last_queue_${activeProfile}`, JSON.stringify(playerQueue));
         }
     } catch (e) {}
     
@@ -1727,60 +1743,12 @@ function updatePlaybackUI() {
     }
     
     updatePipCanvas(title, artist);
-    applyDynamicThemeTint(currentPlayingTrack);
+    document.body.style.background = "#0a0d14";
     
     // Refresh queue modal if visible
     const queueModal = document.getElementById("queue-drawer-modal");
     if (queueModal && queueModal.style.display === "flex") {
         renderQueueList();
-    }
-}
-
-// Dynamic Theme Tinting from Album Art
-function applyDynamicThemeTint(track) {
-    const enabled = document.getElementById("setting-dynamic-theme")?.checked ?? true;
-    if (!enabled || !track) {
-        document.body.style.background = "#0a0d14";
-        return;
-    }
-    
-    if (track.thumbnail_url) {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.src = track.thumbnail_url;
-        img.onload = () => {
-            try {
-                const cvs = document.createElement("canvas");
-                cvs.width = 20;
-                cvs.height = 20;
-                const ctx = cvs.getContext("2d");
-                ctx.drawImage(img, 0, 0, 20, 20);
-                const data = ctx.getImageData(5, 5, 10, 10).data;
-                let r = 0, g = 0, b = 0, count = 0;
-                for (let i = 0; i < data.length; i += 4) {
-                    r += data[i];
-                    g += data[i + 1];
-                    b += data[i + 2];
-                    count++;
-                }
-                r = Math.floor(r / count);
-                g = Math.floor(g / count);
-                b = Math.floor(b / count);
-                
-                const darkR = Math.floor(r * 0.35);
-                const darkG = Math.floor(g * 0.35);
-                const darkB = Math.floor(b * 0.35);
-                
-                document.body.style.background = `radial-gradient(ellipse at top, rgba(${darkR}, ${darkG}, ${darkB}, 0.95) 0%, #0a0c12 100%)`;
-            } catch (e) {
-                document.body.style.background = "#0a0d14";
-            }
-        };
-        img.onerror = () => {
-            document.body.style.background = "#0a0d14";
-        };
-    } else {
-        document.body.style.background = "#0a0d14";
     }
 }
 
@@ -2370,21 +2338,26 @@ function toggleInlineExpander(cardElement, gridContainer, title, type, tracks) {
 
 function renderDiscoverPage() {
     if (!discoverData) return;
-    
+    renderDiscoverSongsTable();
+}
+
+function renderDiscoverArtistsGrid() {
+    if (!discoverData || !discoverArtistsGrid) return;
     discoverArtistsGrid.innerHTML = "";
     const artists = Object.keys(discoverData.artists).sort();
     if (artists.length === 0) {
-        discoverArtistsGrid.innerHTML = '<div class="empty-sources">No downloaded songs found yet. Download songs first!</div>';
+        discoverArtistsGrid.innerHTML = '<div class="empty-sources">No downloaded songs found yet.</div>';
     } else {
         artists.forEach(art => {
             const tracks = discoverData.artists[art];
-            const artistImgUrl = `/api/artist-image?artist=${encodeURIComponent(art)}`;
+            const primaryArt = art.split(",")[0].trim();
+            const artistImgUrl = `/api/artist-image?artist=${encodeURIComponent(primaryArt)}`;
             const card = document.createElement("div");
             card.className = "discover-card";
             card.innerHTML = `
                 <div class="discover-card-icon" style="position: relative; overflow: hidden; border-radius: 50%;">
                     <span style="position: absolute; z-index: 1;">👤</span>
-                    <img src="${artistImgUrl}" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; z-index: 2;">
+                    <img src="${artistImgUrl}" loading="lazy" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; z-index: 2;">
                 </div>
                 <div class="discover-card-title">${escapeHtml(art)}</div>
             `;
@@ -2392,7 +2365,10 @@ function renderDiscoverPage() {
             discoverArtistsGrid.appendChild(card);
         });
     }
-    
+}
+
+function renderDiscoverAlbumsGrid() {
+    if (!discoverData || !discoverAlbumsGrid) return;
     discoverAlbumsGrid.innerHTML = "";
     const albums = Object.keys(discoverData.albums).sort();
     if (albums.length === 0) {
@@ -2407,7 +2383,7 @@ function renderDiscoverPage() {
             card.innerHTML = `
                 <div class="discover-card-icon" style="position: relative; overflow: hidden; border-radius: var(--radius-md);">
                     <span style="position: absolute; z-index: 1;">💿</span>
-                    ${thumbSrc ? `<img src="${thumbSrc}" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md); z-index: 2;">` : ""}
+                    ${thumbSrc ? `<img src="${thumbSrc}" loading="lazy" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md); z-index: 2;">` : ""}
                 </div>
                 <div class="discover-card-title">${escapeHtml(alb)}</div>
             `;
@@ -2415,7 +2391,10 @@ function renderDiscoverPage() {
             discoverAlbumsGrid.appendChild(card);
         });
     }
-    
+}
+
+function renderDiscoverGenresGrid() {
+    if (!discoverData || !discoverGenresGrid) return;
     discoverGenresGrid.innerHTML = "";
     const genres = Object.keys(discoverData.genres).sort();
     if (genres.length === 0) {
@@ -2430,7 +2409,7 @@ function renderDiscoverPage() {
             card.innerHTML = `
                 <div class="discover-card-icon" style="position: relative; overflow: hidden; border-radius: var(--radius-md);">
                     <span style="position: absolute; z-index: 1;">🎸</span>
-                    ${thumbSrc ? `<img src="${thumbSrc}" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md); z-index: 2;">` : ""}
+                    ${thumbSrc ? `<img src="${thumbSrc}" loading="lazy" onerror="this.remove();" style="position: absolute; left:0; top:0; width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md); z-index: 2;">` : ""}
                 </div>
                 <div class="discover-card-title">${escapeHtml(gen)}</div>
             `;
@@ -2438,7 +2417,9 @@ function renderDiscoverPage() {
             discoverGenresGrid.appendChild(card);
         });
     }
-    
+}
+
+function renderDiscoverSongsTable() {
     discoverSongsTableBody.innerHTML = "";
     const songs = discoverData.all_songs;
     if (songs.length === 0) {
@@ -2450,7 +2431,6 @@ function renderDiscoverPage() {
             tr.className = "discover-song-row";
             
             const trackThumb = s.thumbnail_url || "";
-            const artistImgUrl = s.artist && s.artist !== "Unknown Artist" ? `/api/artist-image?artist=${encodeURIComponent(s.artist)}` : "";
             
             tr.innerHTML = `
                 <td class="play-indicator-cell" style="width: 50px; min-width: 50px; text-align: center; color: var(--text-dim); white-space: nowrap;">
@@ -2461,20 +2441,12 @@ function renderDiscoverPage() {
                     <div style="display: flex; align-items: center; gap: 12px;">
                         <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--bg-card); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border-glass); position: relative;">
                             <span style="font-size: 1rem; position: absolute; z-index: 1;">🎵</span>
-                            ${trackThumb ? `<img src="${trackThumb}" onerror="this.style.display='none';" style="width: 100%; height: 100%; object-fit: cover; position: absolute; left: 0; top: 0; z-index: 2;">` : ""}
+                            ${trackThumb ? `<img src="${trackThumb}" loading="lazy" onerror="this.style.display='none';" style="width: 100%; height: 100%; object-fit: cover; position: absolute; left: 0; top: 0; z-index: 2;">` : ""}
                         </div>
                         <strong style="font-size: 0.95rem;">${escapeHtml(s.title)}</strong>
                     </div>
                 </td>
-                <td>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--bg-card); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border-glass); position: relative;">
-                            <span style="font-size: 0.85rem; position: absolute; z-index: 1;">👤</span>
-                            ${artistImgUrl ? `<img src="${artistImgUrl}" onerror="this.style.display='none';" style="width: 100%; height: 100%; object-fit: cover; position: absolute; left: 0; top: 0; z-index: 2;">` : ""}
-                        </div>
-                        <span>${escapeHtml(s.artist)}</span>
-                    </div>
-                </td>
+                <td>${escapeHtml(s.artist)}</td>
                 <td>${escapeHtml(s.album)}</td>
                 <td class="genre-cell" style="white-space: nowrap;">
                     <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">

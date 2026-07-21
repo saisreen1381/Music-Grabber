@@ -542,25 +542,27 @@
                             </div>
                         </div>
                         
-                        <div class="discover-content-pane" style="flex: 1; min-height: 0; overflow-y: auto;">
+                        <div class="discover-content-pane" style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column;">
                             <!-- All Songs Subtab (First/Default Active) -->
-                            <div id="discover-songs" class="discover-subtab-pane">
-                                <div class="glass-card table-card" style="padding: 0; overflow: hidden;">
-                                    <table class="files-table">
-                                        <thead>
-                                            <tr>
-                                                <th class="play-indicator-cell" style="width: 50px; min-width: 50px; text-align: center; white-space: nowrap;">#</th>
-                                                <th>Title</th>
-                                                <th>Artist</th>
-                                                <th>Album</th>
-                                                <th style="white-space: nowrap; min-width: 110px;">Genre</th>
-                                                <th style="text-align: right; width: 60px;">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="discover-songs-table-body">
-                                            <!-- Songs rows go here -->
-                                        </tbody>
-                                    </table>
+                            <div id="discover-songs" class="discover-subtab-pane" style="height: 100%; display: flex; flex-direction: column; min-height: 0;">
+                                <div class="glass-card table-card" style="padding: 0; display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden;">
+                                    <div class="table-scroll-wrapper" style="flex: 1; min-height: 0; overflow-y: auto; position: relative;">
+                                        <table class="files-table">
+                                            <thead>
+                                                <tr>
+                                                    <th class="play-indicator-cell" style="width: 50px; min-width: 50px; text-align: center; white-space: nowrap;">#</th>
+                                                    <th>Title</th>
+                                                    <th>Artist</th>
+                                                    <th>Album</th>
+                                                    <th style="white-space: nowrap; min-width: 110px;">Genre</th>
+                                                    <th style="text-align: right; width: 60px;">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="discover-songs-table-body">
+                                                <!-- Songs rows go here -->
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
 
