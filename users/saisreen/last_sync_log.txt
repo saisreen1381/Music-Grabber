@@ -1,34 +1,33 @@
-=== Single Track Download: Aasa Kooda (From "Think Indie") ===
+=== Single Track Download: Desi Girl 2.0 (Varanasi Event) ===
 Deprecated Feature: Support for Python version 3.10 has been deprecated. Please update to Python 3.11 or above
 WARNING: Ignoring unsupported JavaScript runtime(s): deno,node. Supported runtimes: deno, node, bun, quickjs.
-[youtube] Extracting URL: https://www.youtube.com/watch?v=rVqcPUQ2YXI
-[youtube] rVqcPUQ2YXI: Downloading webpage
-[youtube] rVqcPUQ2YXI: Downloading tv downgraded player API JSON
-[youtube] rVqcPUQ2YXI: Downloading player dfc3d2b2-main
+[youtube] Extracting URL: https://www.youtube.com/watch?v=RgFAy_RsVnA
+[youtube] RgFAy_RsVnA: Downloading webpage
+[youtube] RgFAy_RsVnA: Downloading tv downgraded player API JSON
+[youtube] RgFAy_RsVnA: Downloading player dfc3d2b2-main
 [youtube] [jsc:deno] Solving JS challenges using deno
 [youtube] [jsc:deno] Downloading challenge solver lib script from  https://github.com/yt-dlp/ejs/releases/download/0.8.0/yt.solver.lib.min.js
-[youtube] rVqcPUQ2YXI: Downloading m3u8 information
-[info] rVqcPUQ2YXI: Downloading 1 format(s): 251
+[youtube] RgFAy_RsVnA: Downloading m3u8 information
+[info] RgFAy_RsVnA: Downloading 1 format(s): 251
 [info] Downloading video thumbnail 44 ...
-[info] Writing video thumbnail 44 to: /mnt/mypassport/data/media/music/Aasa Kooda (From ＂Think Indie＂).webp
-[download] Destination: /mnt/mypassport/data/media/music/Aasa Kooda (From ＂Think Indie＂).webm
+[info] Writing video thumbnail 44 to: /musichdd/Desi Girl 2.0 (Varanasi Event).webp
+[download] Destination: /musichdd/Desi Girl 2.0 (Varanasi Event).webm
 
-[download]   0.0% of    3.62MiB at  281.35KiB/s ETA 00:13
-[download]   0.1% of    3.62MiB at  747.56KiB/s ETA 00:04
-[download]   0.2% of    3.62MiB at    1.59MiB/s ETA 00:02
-[download]   0.4% of    3.62MiB at    3.18MiB/s ETA 00:01
-[download]   0.8% of    3.62MiB at  671.42KiB/s ETA 00:05
-[download]   1.7% of    3.62MiB at  904.06KiB/s ETA 00:04
-[download]   3.4% of    3.62MiB at    1.23MiB/s ETA 00:02
-[download]   6.9% of    3.62MiB at    1.76MiB/s ETA 00:01
-[download]  13.8% of    3.62MiB at    2.43MiB/s ETA 00:01
-[download]  27.6% of    3.62MiB at    2.88MiB/s ETA 00:00
-[download]  55.2% of    3.62MiB at    3.36MiB/s ETA 00:00
-[download] 100.0% of    3.62MiB at    3.77MiB/s ETA 00:00
-[download] 100% of    3.62MiB in 00:00:01 at 3.42MiB/s
-[ExtractAudio] Destination: /mnt/mypassport/data/media/music/Aasa Kooda (From ＂Think Indie＂).mp3
-Deleting original file /mnt/mypassport/data/media/music/Aasa Kooda (From ＂Think Indie＂).webm (pass -k to keep)
-[Metadata] Adding metadata to "/mnt/mypassport/data/media/music/Aasa Kooda (From ＂Think Indie＂).mp3"
-[ThumbnailsConvertor] Converting thumbnail "/mnt/mypassport/data/media/music/Aasa Kooda (From ＂Think Indie＂).webp" to png
-[EmbedThumbnail] ffmpeg: Adding thumbnail to "/mnt/mypassport/data/media/music/Aasa Kooda (From ＂Think Indie＂).mp3"
+[download]   0.1% of    1.74MiB at   43.72KiB/s ETA 00:40
+[download]   0.2% of    1.74MiB at  128.47KiB/s ETA 00:13
+[download]   0.4% of    1.74MiB at  292.34KiB/s ETA 00:06
+[download]   0.8% of    1.74MiB at  601.70KiB/s ETA 00:02
+[download]   1.7% of    1.74MiB at  544.63KiB/s ETA 00:03
+[download]   3.5% of    1.74MiB at  874.92KiB/s ETA 00:01
+[download]   7.1% of    1.74MiB at    1.13MiB/s ETA 00:01
+[download]  14.3% of    1.74MiB at    1.29MiB/s ETA 00:01
+[download]  28.7% of    1.74MiB at    1.30MiB/s ETA 00:00
+[download]  57.4% of    1.74MiB at    1.60MiB/s ETA 00:00
+[download] 100.0% of    1.74MiB at    1.82MiB/s ETA 00:00
+[download] 100% of    1.74MiB in 00:00:01 at 1.54MiB/s
+[ExtractAudio] Destination: /musichdd/Desi Girl 2.0 (Varanasi Event).mp3
+Deleting original file /musichdd/Desi Girl 2.0 (Varanasi Event).webm (pass -k to keep)
+[Metadata] Adding metadata to "/musichdd/Desi Girl 2.0 (Varanasi Event).mp3"
+[ThumbnailsConvertor] Converting thumbnail "/musichdd/Desi Girl 2.0 (Varanasi Event).webp" to png
+[EmbedThumbnail] ffmpeg: Adding thumbnail to "/musichdd/Desi Girl 2.0 (Varanasi Event).mp3"
 Result: SUCCESS

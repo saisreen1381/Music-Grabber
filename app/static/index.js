@@ -51,6 +51,19 @@ const deselectAllTracksBtn = document.getElementById("deselect-all-tracks");
 const tracksSearchInput = document.getElementById("tracks-search");
 const tracksLoadingSpinner = document.getElementById("tracks-loading-spinner");
 const tracksItemsContainer = document.getElementById("tracks-items-container");
+const tracksSelectedCount = document.getElementById("tracks-selected-count");
+
+// Sync Progress Modal Elements
+const syncProgressModal = document.getElementById("sync-progress-modal");
+const syncModalTitle = document.getElementById("sync-modal-title");
+const syncQuoteBox = document.getElementById("sync-quote-box");
+const syncCurrentSong = document.getElementById("sync-current-song");
+const syncModalProgress = document.getElementById("sync-modal-progress");
+const syncProcessedCount = document.getElementById("sync-processed-count");
+const syncPercentText = document.getElementById("sync-percent-text");
+const syncElapsedTime = document.getElementById("sync-elapsed-time");
+const syncEtaTime = document.getElementById("sync-eta-time");
+const syncModalClose = document.getElementById("sync-modal-close");
 
 // Settings Tab Elements
 const settingDownloadDir = document.getElementById("setting-download-dir");
@@ -66,6 +79,10 @@ const scheduleIntervalField = document.getElementById("schedule-interval-field")
 const settingSyncTime = document.getElementById("setting-sync-time");
 const settingSyncInterval = document.getElementById("setting-sync-interval");
 const saveSettingsBtn = document.getElementById("save-settings-btn");
+const addLibraryDirInput = document.getElementById("add-library-dir-input");
+const browseLibraryDirBtn = document.getElementById("browse-library-dir-btn");
+const addLibraryDirBtn = document.getElementById("add-library-dir-btn");
+const libraryDirsList = document.getElementById("library-dirs-list");
 const cookiesStatusBadge = document.getElementById("cookies-status-badge");
 const deleteCookiesBtn = document.getElementById("delete-cookies-btn");
 const settingCookiesFile = document.getElementById("setting-cookies-file");
@@ -86,6 +103,7 @@ const discoverDetailsClose = document.getElementById("discover-details-close");
 
 // Spotify Bottom Player Elements
 const musicPlayerBar = document.getElementById("music-player-bar");
+const playerAlbumArt = document.getElementById("player-album-art");
 const playerTrackTitle = document.getElementById("player-track-title");
 const playerTrackArtist = document.getElementById("player-track-artist");
 const playerPrevBtn = document.getElementById("player-prev-btn");
@@ -285,6 +303,10 @@ async function fetchDirectory(path) {
 function populateSettingsForm() {
     if (!activeConfig) return;
     
+    if (!activeConfig.additional_library_dirs) {
+        activeConfig.additional_library_dirs = [];
+    }
+    
     settingDownloadDir.value = activeConfig.download_dir || "";
     settingFilenamePreset.value = activeConfig.filename_template || "%(title)s.%(ext)s";
     settingEmbedMetadata.checked = activeConfig.embed_metadata !== false;
@@ -309,6 +331,47 @@ function populateSettingsForm() {
         scheduleIntervalField.style.display = "none";
         scheduleTimeField.style.display = "block";
     }
+    
+    renderAdditionalLibraryDirs();
+}
+
+function renderAdditionalLibraryDirs() {
+    if (!libraryDirsList || !activeConfig) return;
+    const dirs = activeConfig.additional_library_dirs || [];
+    libraryDirsList.innerHTML = "";
+    
+    if (dirs.length === 0) {
+        libraryDirsList.innerHTML = `<span style="font-size: 0.8rem; color: var(--text-dim); font-style: italic;">No additional scan folders configured.</span>`;
+        return;
+    }
+    
+    dirs.forEach(path => {
+        const item = document.createElement("div");
+        item.className = "library-dir-item";
+        item.style.display = "flex";
+        item.style.alignItems = "center";
+        item.style.justifyContent = "space-between";
+        item.style.background = "rgba(255,255,255,0.02)";
+        item.style.padding = "8px 12px";
+        item.style.borderRadius = "var(--radius-md)";
+        item.style.border = "1px solid rgba(255,255,255,0.05)";
+        item.style.fontSize = "0.85rem";
+        item.style.color = "var(--text-main)";
+        
+        item.innerHTML = `
+            <span>${escapeHtml(path)}</span>
+            <button class="btn btn-icon delete-library-dir-btn" data-path="${escapeHtml(path)}" style="padding: 4px; color: var(--danger); width: 24px; height: 24px; min-width: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%;">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+        `;
+        
+        item.querySelector(".delete-library-dir-btn").addEventListener("click", () => {
+            activeConfig.additional_library_dirs = activeConfig.additional_library_dirs.filter(p => p !== path);
+            renderAdditionalLibraryDirs();
+        });
+        
+        libraryDirsList.appendChild(item);
+    });
 }
 
 // Refresh status card information
@@ -492,10 +555,19 @@ async function loadPlaylistTracks(sourceId, refresh = false) {
     }
 }
 
+function updateSelectedCount() {
+    if (!tracksSelectedCount) return;
+    const checkboxes = tracksItemsContainer.querySelectorAll(".track-check");
+    const total = checkboxes.length;
+    const checked = Array.from(checkboxes).filter(cb => cb.checked).length;
+    tracksSelectedCount.textContent = `Selected: ${checked} / ${total}`;
+}
+
 // Render Tracks Items inside details card
 function renderTracksList(tracks) {
     if (tracks.length === 0) {
         tracksItemsContainer.innerHTML = `<div class="empty-tracks-view"><p>This playlist source has no songs, or it hasn't been fetched yet. Click "Refresh List" above.</p></div>`;
+        if (tracksSelectedCount) tracksSelectedCount.textContent = "Selected: 0 / 0";
         return;
     }
     
@@ -602,10 +674,12 @@ function renderTracksList(tracks) {
             } catch (e) {
                 console.error("Failed to toggle track", e);
             }
+            updateSelectedCount();
         });
         
         tracksItemsContainer.appendChild(row);
     });
+    updateSelectedCount();
 }
 
 // Track filtering
@@ -638,6 +712,7 @@ async function setAllTracksState(enabled) {
     
     // Update local state
     currentTracks.forEach(t => t.enabled = enabled);
+    updateSelectedCount();
     
     try {
         await fetch("/api/playlist/tracks/toggle-all", {
@@ -728,7 +803,8 @@ saveSettingsBtn.addEventListener("click", async () => {
             body: JSON.stringify(activeConfig)
         });
         if (res.ok) {
-            alert("Settings saved successfully.");
+            const data = await res.json();
+            alert(data.message || "Settings saved successfully.");
             await loadConfig(activeProfile);
             refreshStatus();
             loadFiles();
@@ -745,6 +821,24 @@ saveSettingsBtn.addEventListener("click", async () => {
 });
 
 // Manual Sync Triggers (SSE Logs)
+const syncQuotes = [
+    '"Without music, life would be a mistake." – Friedrich Nietzsche',
+    '"Music washes away from the soul the dust of everyday life." – Berthold Auerbach',
+    '"Where words fail, music speaks." – Hans Christian Andersen',
+    '"One good thing about music, when it hits you, you feel no pain." – Bob Marley',
+    '"Music is the shorthand of emotion." – Leo Tolstoy',
+    '"Tip: Paste cookie contents in Settings to download private Liked Songs!"',
+    '"Tip: You can download songs immediately in Playlists using inline download buttons!"',
+    '"Tip: Enable the Background Scheduler in Settings to sync music every day!"',
+    '"Tip: Groupings under the Discover tab are parsed dynamically from audio tags!"',
+    '"Tip: The Spotify-style media player stays active across all navigation screens!"'
+];
+
+syncModalClose.addEventListener("click", () => {
+    syncProgressModal.style.display = "none";
+});
+
+// Manual Sync Triggers (SSE Logs)
 syncNowBtn.addEventListener("click", () => {
     if (!activeProfile || eventSource) return;
     
@@ -752,6 +846,60 @@ syncNowBtn.addEventListener("click", () => {
     syncBadge.className = "badge badge-syncing";
     syncBadge.textContent = "Syncing";
     syncNowBtn.disabled = true;
+    
+    // Reset and show modal
+    let totalTracks = 0;
+    let processedTracks = 0;
+    const syncStartTime = Date.now();
+    let syncTimer = null;
+    let quoteTimer = null;
+    
+    syncProgressModal.style.display = "flex";
+    syncModalClose.style.display = "none";
+    syncModalTitle.innerHTML = '<span class="spinner" style="width: 16px; height: 16px; border-width: 2px; border-top-color: var(--primary); margin: 0;"></span> Syncing Library...';
+    syncCurrentSong.textContent = "Scanning local library...";
+    syncModalProgress.style.width = "0%";
+    syncProcessedCount.textContent = "0 / 0 Songs";
+    syncPercentText.textContent = "0%";
+    syncElapsedTime.textContent = "0:00";
+    syncEtaTime.textContent = "Calculating...";
+    
+    // Rotating quotes
+    function updateQuote() {
+        const idx = Math.floor(Math.random() * syncQuotes.length);
+        syncQuoteBox.textContent = syncQuotes[idx];
+    }
+    updateQuote();
+    quoteTimer = setInterval(updateQuote, 8000);
+    
+    // Elapsed and ETA Timer
+    function formatTimer(sec) {
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+    
+    syncTimer = setInterval(() => {
+        const elapsedSec = Math.floor((Date.now() - syncStartTime) / 1000);
+        syncElapsedTime.textContent = formatTimer(elapsedSec);
+        
+        if (processedTracks > 0 && processedTracks < totalTracks) {
+            const avgTime = elapsedSec / processedTracks;
+            const rem = totalTracks - processedTracks;
+            syncEtaTime.textContent = formatTimer(Math.floor(avgTime * rem));
+        } else if (processedTracks >= totalTracks && totalTracks > 0) {
+            syncEtaTime.textContent = "0:00";
+        } else {
+            syncEtaTime.textContent = "Calculating...";
+        }
+    }, 1000);
+    
+    function endSyncModal(titleText) {
+        if (syncTimer) { clearInterval(syncTimer); syncTimer = null; }
+        if (quoteTimer) { clearInterval(quoteTimer); quoteTimer = null; }
+        syncModalTitle.innerHTML = titleText;
+        syncModalClose.style.display = "block";
+    }
     
     // Connect to Server Sent Events
     eventSource = new EventSource(`/api/sync/run?username=${activeProfile}`);
@@ -765,12 +913,42 @@ syncNowBtn.addEventListener("click", () => {
             appendTerminalLine("[System] Sync Complete!");
             refreshStatus();
             loadFiles();
+            endSyncModal("Sync Complete!");
             
             // Reload tracks to show downloaded badge
             if (activePlaylistSourceId) {
                 loadPlaylistTracks(activePlaylistSourceId, false);
             }
             return;
+        }
+        
+        // Parse sync metrics
+        if (line.includes("New tracks to download: ")) {
+            totalTracks = parseInt(line.split("New tracks to download: ")[1]) || 0;
+            syncProcessedCount.textContent = `0 / ${totalTracks} Songs`;
+        } else if (line.includes("All songs are up-to-date!")) {
+            syncCurrentSong.textContent = "All songs are up-to-date!";
+            syncModalProgress.style.width = "100%";
+            syncPercentText.textContent = "100%";
+            syncProcessedCount.textContent = "Up to date";
+            syncEtaTime.textContent = "0:00";
+        } else if (line.includes("Starting download: ")) {
+            const parts = line.split("Starting download: ");
+            if (parts.length > 1) {
+                syncCurrentSong.textContent = parts[1];
+            }
+        } else if (line.includes("SUCCESS: ") || line.includes("FAILED: ")) {
+            processedTracks++;
+            if (totalTracks > 0) {
+                const pct = Math.min(100, Math.round((processedTracks / totalTracks) * 100));
+                syncModalProgress.style.width = `${pct}%`;
+                syncPercentText.textContent = `${pct}%`;
+                syncProcessedCount.textContent = `${processedTracks} / ${totalTracks} Songs`;
+            }
+        } else if (line === "SYNC_FINISHED_SUCCESS") {
+            endSyncModal("Sync Successful!");
+        } else if (line === "SYNC_FINISHED_FAILED") {
+            endSyncModal("<span style='color: var(--danger)'>Sync Completed with Errors</span>");
         }
         
         appendTerminalLine(line);
@@ -782,6 +960,7 @@ syncNowBtn.addEventListener("click", () => {
         eventSource = null;
         appendTerminalLine("[System] Download stream connection lost.");
         refreshStatus();
+        endSyncModal("<span style='color: var(--danger)'>Download Stream Interrupted</span>");
     };
 });
 
@@ -1127,11 +1306,39 @@ deleteCookiesBtn.addEventListener("click", async () => {
     }
 });
 
+// Track which input is being populated by directory browser
+let currentBrowsingTargetInput = null;
+
 // Show Directory Browser
 browseDirBtn.addEventListener("click", () => {
+    currentBrowsingTargetInput = settingDownloadDir;
     const currentVal = settingDownloadDir.value.trim() || "/";
     fetchDirectory(currentVal);
     dirBrowserModal.style.display = "flex";
+});
+
+browseLibraryDirBtn.addEventListener("click", () => {
+    currentBrowsingTargetInput = addLibraryDirInput;
+    const currentVal = addLibraryDirInput.value.trim() || "/";
+    fetchDirectory(currentVal);
+    dirBrowserModal.style.display = "flex";
+});
+
+addLibraryDirBtn.addEventListener("click", () => {
+    const path = addLibraryDirInput.value.trim();
+    if (!path) return;
+    
+    if (!activeConfig.additional_library_dirs) {
+        activeConfig.additional_library_dirs = [];
+    }
+    
+    if (!activeConfig.additional_library_dirs.includes(path)) {
+        activeConfig.additional_library_dirs.push(path);
+        renderAdditionalLibraryDirs();
+        addLibraryDirInput.value = "";
+    } else {
+        alert("Directory is already added.");
+    }
 });
 
 // Cancel browsing
@@ -1141,7 +1348,9 @@ dirBrowserCancel.addEventListener("click", () => {
 
 // Select folder
 dirBrowserSelect.addEventListener("click", () => {
-    settingDownloadDir.value = currentBrowserPath;
+    if (currentBrowsingTargetInput) {
+        currentBrowsingTargetInput.value = currentBrowserPath;
+    }
     dirBrowserModal.style.display = "none";
 });
 
@@ -1188,6 +1397,15 @@ function updatePlaybackUI() {
     playerTrackTitle.textContent = title;
     playerTrackArtist.textContent = artist;
     
+    // Update player album art
+    if (playerAlbumArt) {
+        if (currentPlayingTrack.thumbnail_url) {
+            playerAlbumArt.innerHTML = `<img src="${currentPlayingTrack.thumbnail_url}" style="width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-sm);">`;
+        } else {
+            playerAlbumArt.innerHTML = `🎵`;
+        }
+    }
+    
     if (localAudioElement.paused) {
         playSvg.style.display = "block";
         pauseSvg.style.display = "none";
@@ -1210,23 +1428,41 @@ const pipCtx = pipCanvas.getContext("2d");
 
 function updatePipCanvas(title, artist) {
     const grad = pipCtx.createLinearGradient(0, 0, 300, 300);
-    grad.addColorStop(0, "#6366f1");
-    grad.addColorStop(1, "#06b6d4");
+    grad.addColorStop(0, "#111827");
+    grad.addColorStop(1, "#1f2937");
     pipCtx.fillStyle = grad;
     pipCtx.fillRect(0, 0, 300, 300);
     
-    pipCtx.fillStyle = "#ffffff";
-    pipCtx.font = "bold 20px 'Outfit', sans-serif";
-    pipCtx.textAlign = "center";
-    pipCtx.fillText(title, 150, 120, 260);
-    
-    pipCtx.fillStyle = "rgba(255, 255, 255, 0.7)";
-    pipCtx.font = "16px 'Inter', sans-serif";
-    pipCtx.fillText(artist, 150, 160, 260);
-    
-    pipCtx.fillStyle = "rgba(255, 255, 255, 0.3)";
-    pipCtx.font = "80px sans-serif";
-    pipCtx.fillText("🎵", 150, 250);
+    if (currentPlayingTrack && currentPlayingTrack.thumbnail_url) {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = currentPlayingTrack.thumbnail_url;
+        img.onload = () => {
+            pipCtx.drawImage(img, 75, 20, 150, 150);
+            
+            pipCtx.fillStyle = "#ffffff";
+            pipCtx.font = "bold 16px 'Outfit', sans-serif";
+            pipCtx.textAlign = "center";
+            pipCtx.fillText(title, 150, 210, 260);
+            
+            pipCtx.fillStyle = "rgba(255, 255, 255, 0.7)";
+            pipCtx.font = "14px 'Inter', sans-serif";
+            pipCtx.fillText(artist, 150, 240, 260);
+        };
+    } else {
+        pipCtx.fillStyle = "#ffffff";
+        pipCtx.font = "bold 20px 'Outfit', sans-serif";
+        pipCtx.textAlign = "center";
+        pipCtx.fillText(title, 150, 120, 260);
+        
+        pipCtx.fillStyle = "rgba(255, 255, 255, 0.7)";
+        pipCtx.font = "16px 'Inter', sans-serif";
+        pipCtx.fillText(artist, 150, 160, 260);
+        
+        pipCtx.fillStyle = "rgba(255, 255, 255, 0.3)";
+        pipCtx.font = "80px sans-serif";
+        pipCtx.fillText("🎵", 150, 250);
+    }
 }
 
 async function togglePip() {
@@ -1417,11 +1653,17 @@ function renderDiscoverPage() {
     discoverSongsTableBody.innerHTML = "";
     const songs = discoverData.all_songs;
     if (songs.length === 0) {
-        discoverSongsTableBody.innerHTML = '<tr><td colspan="5" class="empty-table">No downloaded songs found yet.</td></tr>';
+        discoverSongsTableBody.innerHTML = '<tr><td colspan="6" class="empty-table">No downloaded songs found yet.</td></tr>';
     } else {
-        songs.forEach(s => {
+        songs.forEach((s, idx) => {
             const tr = document.createElement("tr");
+            tr.style.cursor = "pointer";
+            tr.className = "discover-song-row";
             tr.innerHTML = `
+                <td class="play-indicator-cell" style="width: 45px; text-align: center; color: var(--text-dim);">
+                    <span class="row-index">${idx + 1}</span>
+                    <span class="row-play-icon" style="display: none; color: var(--primary);">▶</span>
+                </td>
                 <td><strong>${escapeHtml(s.title)}</strong></td>
                 <td>${escapeHtml(s.artist)}</td>
                 <td>${escapeHtml(s.album)}</td>
@@ -1432,6 +1674,14 @@ function renderDiscoverPage() {
                     </button>
                 </td>
             `;
+            
+            // Clicking anywhere on the row plays the song
+            tr.addEventListener("click", (e) => {
+                // Avoid double trigger if clicking the button specifically
+                if (e.target.closest(".play-btn-row")) return;
+                playTrack(s, songs);
+            });
+            
             tr.querySelector(".play-btn-row").addEventListener("click", () => {
                 playTrack(s, songs);
             });

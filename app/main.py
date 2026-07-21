@@ -1,6 +1,9 @@
 import os
 import json
 import datetime
+import urllib.parse
+import hashlib
+import re
 from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel
@@ -76,6 +79,7 @@ class SourceModel(BaseModel):
 
 class ConfigModel(BaseModel):
     download_dir: str
+    additional_library_dirs: Optional[List[str]] = []
     filename_template: Optional[str] = "%(title)s.%(ext)s"
     embed_metadata: Optional[bool] = True
     max_concurrent_downloads: Optional[int] = 3
@@ -220,13 +224,89 @@ def save_config(username: str, config: ConfigModel):
         if not src.get("id"):
             src["id"] = get_source_id(src)
             
+    # Check if download_dir changed and copy files
+    old_download_dir = None
+    transferred_count = 0
+    if config_file.exists():
+        try:
+            with open(config_file, "r", encoding="utf-8") as f:
+                old_config = json.load(f)
+                old_download_dir = old_config.get("download_dir")
+        except Exception:
+            pass
+            
+    new_download_dir = config_dict.get("download_dir")
+    if old_download_dir and new_download_dir and old_download_dir != new_download_dir:
+        old_path = Path(old_download_dir)
+        new_path = Path(new_download_dir)
+        if old_path.exists() and old_path.is_dir():
+            os.makedirs(new_path, exist_ok=True)
+            import shutil
+            for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac', '*.webp']:
+                for file in old_path.glob(ext):
+                    try:
+                        dest = new_path / file.name
+                        if not dest.exists():
+                            shutil.copy2(file, dest)
+                            transferred_count += 1
+                    except Exception as e:
+                        print(f"Failed to copy file {file.name}: {e}")
+            
     try:
         with open(config_file, "w", encoding="utf-8") as f:
             json.dump(config_dict, f, indent=2)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save configuration: {e}")
         
-    return {"status": "success", "config": config_dict}
+    msg = "Settings saved successfully."
+    if transferred_count > 0:
+        msg += f" Transferred {transferred_count} files to the new directory."
+        
+    return {"status": "success", "config": config_dict, "message": msg}
+
+@app.get("/api/thumbnail")
+def get_thumbnail(path: str):
+    audio_path = Path(path)
+    if not audio_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    # 1. If it's already an image file, return it
+    if audio_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.webp']:
+        return FileResponse(str(audio_path))
+        
+    # 2. Check for sibling image file
+    for img_ext in ['.jpg', '.jpeg', '.png', '.webp']:
+        sibling = audio_path.with_suffix(img_ext)
+        if sibling.exists():
+            return FileResponse(str(sibling))
+            
+    # 3. Try to extract embedded cover art using ffmpeg
+    cache_dir = Path("users/cover_cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    hasher = hashlib.md5(path.encode("utf-8")).hexdigest()
+    extracted_jpg = cache_dir / f"{hasher}.jpg"
+    
+    if extracted_jpg.exists():
+        return FileResponse(str(extracted_jpg))
+        
+    try:
+        cmd = [
+            "ffmpeg", "-y", 
+            "-i", str(audio_path), 
+            "-an", 
+            "-vcodec", "mjpeg",
+            "-f", "image2",
+            str(extracted_jpg)
+        ]
+        import subprocess
+        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=5)
+        if extracted_jpg.exists() and extracted_jpg.stat().st_size > 0:
+            return FileResponse(str(extracted_jpg))
+    except Exception as e:
+        print(f"Failed to extract cover art for {path}: {e}")
+        
+    raise HTTPException(status_code=404, detail="No cover art found")
 
 @app.get("/api/scan")
 def scan_directory(username: str):
@@ -272,22 +352,26 @@ def get_file_metadata(file_path: Path):
         genre = tags.get("genre") or tags.get("GENRE") or "Unknown Genre"
         album = tags.get("album") or tags.get("ALBUM") or "Unknown Album"
         
+        thumb_url = f"/api/thumbnail?path={urllib.parse.quote(str(file_path))}"
         return {
             "filename": file_path.name,
             "title": title,
             "artist": artist,
             "genre": genre,
             "album": album,
-            "duration": float(fmt.get("duration", 0))
+            "duration": float(fmt.get("duration", 0)),
+            "thumbnail_url": thumb_url
         }
     except Exception:
+        thumb_url = f"/api/thumbnail?path={urllib.parse.quote(str(file_path))}"
         return {
             "filename": file_path.name,
             "title": file_path.name,
             "artist": "Unknown Artist",
             "genre": "Unknown Genre",
             "album": "Unknown Album",
-            "duration": 0
+            "duration": 0,
+            "thumbnail_url": thumb_url
         }
 
 @app.get("/api/discover")
@@ -304,18 +388,25 @@ def discover_local_songs(username: str):
         config = json.load(f)
         
     download_dir = config.get("download_dir")
-    if not download_dir:
-        return {"artists": {}, "genres": {}, "albums": {}, "all_songs": []}
-        
-    download_path = Path(download_dir)
-    if not download_path.exists():
-        return {"artists": {}, "genres": {}, "albums": {}, "all_songs": []}
-        
+    additional_dirs = config.get("additional_library_dirs", [])
+    
+    scan_paths = []
+    if download_dir:
+        scan_paths.append(Path(download_dir))
+    for d in additional_dirs:
+        if d:
+            scan_paths.append(Path(d))
+            
     songs = []
-    # Scan for common audio formats
-    for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac']:
-        for file in download_path.glob(ext):
-            songs.append(get_file_metadata(file))
+    seen_file_paths = set()
+    for download_path in scan_paths:
+        if download_path.exists() and download_path.is_dir():
+            for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac']:
+                for file in download_path.glob(ext):
+                    abs_path = str(file.resolve())
+                    if abs_path not in seen_file_paths:
+                        seen_file_paths.add(abs_path)
+                        songs.append(get_file_metadata(file))
             
     # Group by Artist, Genre, Album
     artists = {}
@@ -324,19 +415,33 @@ def discover_local_songs(username: str):
     
     for s in songs:
         # Group by artist
-        art = s["artist"]
-        if art not in artists:
-            artists[art] = []
-        artists[art].append(s)
+        art_string = s.get("artist", "Unknown Artist")
+        clean_artists = art_string.replace(";", ",").replace("/", ",").replace("\\", ",")
+        clean_artists = re.sub(r'\s+&\s+', ',', clean_artists)
+        clean_artists = re.sub(r'\s+and\s+', ',', clean_artists)
+        artists_list = [a.strip() for a in clean_artists.split(",") if a.strip()]
+        if not artists_list:
+            artists_list = ["Unknown Artist"]
+            
+        for art in artists_list:
+            if art not in artists:
+                artists[art] = []
+            artists[art].append(s)
         
         # Group by genre
-        gen = s["genre"]
-        if gen not in genres:
-            genres[gen] = []
-        genres[gen].append(s)
+        gen_string = s.get("genre", "Unknown Genre")
+        clean_genres = gen_string.replace(";", ",").replace("/", ",").replace("\\", ",")
+        genres_list = [g.strip() for g in clean_genres.split(",") if g.strip()]
+        if not genres_list:
+            genres_list = ["Unknown Genre"]
+            
+        for gen in genres_list:
+            if gen not in genres:
+                genres[gen] = []
+            genres[gen].append(s)
         
         # Group by album
-        alb = s["album"]
+        alb = s.get("album", "Unknown Album")
         if alb not in albums:
             albums[alb] = []
         albums[alb].append(s)
@@ -530,10 +635,18 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
                 
     # Also attach whether the file already exists on disk
     download_dir = config.get("download_dir")
-    norm_to_filename = {}
+    additional_dirs = config.get("additional_library_dirs", [])
+    
+    scan_paths = []
     if download_dir:
-        download_path = Path(download_dir)
-        if download_path.exists():
+        scan_paths.append(Path(download_dir))
+    for d in additional_dirs:
+        if d:
+            scan_paths.append(Path(d))
+            
+    norm_to_filename = {}
+    for download_path in scan_paths:
+        if download_path.exists() and download_path.is_dir():
             for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac']:
                 for file in download_path.glob(ext):
                     norm = normalize_name(file.stem)
@@ -547,18 +660,24 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
         norm = normalize_name(t["display_name"])
         local_filename = norm_to_filename.get(norm)
         
-        # Fallback to cache local_filename if it exists on disk or if cache says it is downloaded
+        # Fallback to cache local_filename if it exists in any of the configured paths
         if not local_filename and t.get("local_filename"):
-            if download_dir:
-                cand = Path(download_dir) / t["local_filename"]
+            for download_path in scan_paths:
+                cand = download_path / t["local_filename"]
                 if cand.exists():
                     local_filename = t["local_filename"]
+                    break
                     
-        # Trust JSON cache downloaded flag as final fallback (avoids issues with unmounted paths or naming mismatches)
-        if not local_filename and t.get("downloaded") and t.get("local_filename"):
-            local_filename = t["local_filename"]
-            
-        downloaded = local_filename is not None or t.get("downloaded", False)
+        downloaded = local_filename is not None
+        
+        # Determine thumbnail_url if downloaded
+        thumbnail_url = None
+        if local_filename:
+            for download_path in scan_paths:
+                cand = download_path / local_filename
+                if cand.exists():
+                    thumbnail_url = f"/api/thumbnail?path={urllib.parse.quote(str(cand))}"
+                    break
         
         formatted_tracks.append({
             "id": t["id"],
@@ -570,7 +689,8 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
             "duration": t.get("duration"),
             "enabled": t["id"] not in disabled_ids,
             "downloaded": downloaded,
-            "local_filename": local_filename or t.get("local_filename")
+            "local_filename": local_filename or t.get("local_filename"),
+            "thumbnail_url": thumbnail_url
         })
         
     return {"tracks": formatted_tracks}
