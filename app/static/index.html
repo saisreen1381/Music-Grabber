@@ -145,7 +145,7 @@
                                 </div>
 
                                  <!-- Nested Logs Console -->
-                                 <div class="modal-terminal-wrapper" style="display: flex; flex-direction: column; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-md); overflow: hidden;">
+                                 <div class="modal-terminal-wrapper terminal-card" style="display: flex; flex-direction: column; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-md); overflow: hidden;">
                                      <div id="toggle-logs-header" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.75rem; color: var(--text-dim); font-weight: 600; cursor: pointer; user-select: none;">
                                          <span>Sync Output Logs</span>
                                          <div style="display: flex; gap: 8px; align-items: center;">
@@ -154,6 +154,9 @@
                                              </button>
                                              <button id="clear-logs-btn" class="btn btn-icon" title="Clear Logs" style="padding: 2px;">
                                                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                             </button>
+                                             <button id="maximize-logs-btn" class="btn btn-icon" title="Maximize Logs" style="padding: 2px;">
+                                                 <svg id="maximize-logs-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
                                              </button>
                                              <span id="logs-toggle-arrow" style="font-size: 0.7rem; color: var(--text-dim); transition: transform 0.2s; margin-left: 4px;">▼</span>
                                          </div>

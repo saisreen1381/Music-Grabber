@@ -1027,8 +1027,9 @@ def trigger_manual_sync(username: str):
                 elif line == "SYNC_FINISHED_FAILED":
                     sync_success = False
                 else:
-                    log_lines.append(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {line}")
-                    yield f"data: {line}\n\n"
+                    timestamped = f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {line}"
+                    log_lines.append(timestamped)
+                    yield f"data: {timestamped}\n\n"
             
             # Save final logs to profile directory
             log_file = profile_dir / "last_sync_log.txt"

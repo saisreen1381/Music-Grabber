@@ -956,7 +956,7 @@ syncNowBtn.addEventListener("click", () => {
         if (syncTimer) { clearInterval(syncTimer); syncTimer = null; }
         if (quoteTimer) { clearInterval(quoteTimer); quoteTimer = null; }
         syncModalTitle.innerHTML = titleText;
-        syncModalClose.style.display = "block";
+        if (syncModalClose) syncModalClose.style.display = "none";
     }
     
     // Connect to Server Sent Events
@@ -1043,28 +1043,52 @@ function appendTerminalLine(text) {
     terminalBody.scrollTop = terminalBody.scrollHeight;
 }
 
-clearLogsBtn.addEventListener("click", () => {
+clearLogsBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
     terminalBody.innerHTML = '<span class="system-line">[System] Logs cleared.</span>';
 });
 
-copyLogsBtn.addEventListener("click", () => {
+copyLogsBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
     const text = terminalBody.innerText;
     navigator.clipboard.writeText(text).then(() => {
-        alert("Logs copied to clipboard successfully.");
+        showToast("Logs copied to clipboard successfully.", "success");
     }).catch(e => {
-        alert("Failed to copy logs: " + e.message);
+        showToast("Failed to copy logs: " + e.message, "error");
     });
 });
 
+let terminalPlaceholder = null;
 if (maximizeLogsBtn) {
-    maximizeLogsBtn.addEventListener("click", () => {
+    maximizeLogsBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
         const isMax = terminalCard.classList.toggle("terminal-maximized");
         if (isMax) {
             maximizeLogsBtn.title = "Restore Logs";
             maximizeLogsIcon.innerHTML = `<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>`;
+            // Force terminal body to be visible when maximized
+            if (terminalBody) {
+                terminalBody.style.display = "block";
+            }
+            if (logsToggleArrow) {
+                logsToggleArrow.style.transform = "rotate(180deg)";
+            }
+            
+            // Detach and append to body to bypass parent spec limits (backdrop-filter container)
+            terminalPlaceholder = document.createElement("div");
+            terminalPlaceholder.style.display = "none";
+            terminalCard.parentNode.insertBefore(terminalPlaceholder, terminalCard);
+            document.body.appendChild(terminalCard);
         } else {
             maximizeLogsBtn.title = "Maximize Logs";
             maximizeLogsIcon.innerHTML = `<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>`;
+            
+            // Restore back to its original parent spot
+            if (terminalPlaceholder && terminalPlaceholder.parentNode) {
+                terminalPlaceholder.parentNode.insertBefore(terminalCard, terminalPlaceholder);
+                terminalPlaceholder.remove();
+                terminalPlaceholder = null;
+            }
         }
     });
 }
@@ -1076,6 +1100,10 @@ profileSelect.addEventListener("change", () => {
 
 // Sidebar tabs toggling
 function switchTab(tabId) {
+    // Restore maximized terminal if active
+    if (terminalCard && terminalCard.classList.contains("terminal-maximized") && maximizeLogsBtn) {
+        maximizeLogsBtn.click();
+    }
     // Nav highlight
     navItems.forEach(btn => {
         if (btn.getAttribute("data-tab") === tabId) {
@@ -1928,7 +1956,10 @@ const logsToggleArrow = document.getElementById("logs-toggle-arrow");
 
 if (toggleLogsHeader && terminalBody) {
     toggleLogsHeader.addEventListener("click", (e) => {
-        if (e.target.closest("#copy-logs-btn") || e.target.closest("#clear-logs-btn")) return;
+        if (e.target.closest("#copy-logs-btn") || e.target.closest("#clear-logs-btn") || e.target.closest("#maximize-logs-btn")) return;
+        
+        // If maximized, keep it open (do not toggle collapse)
+        if (terminalCard.classList.contains("terminal-maximized")) return;
         
         const isHidden = terminalBody.style.display === "none";
         terminalBody.style.display = isHidden ? "block" : "none";

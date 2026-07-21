@@ -344,6 +344,13 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp"):
             
             def download_worker(index, track):
                 nonlocal success_count, fail_count
+                
+                # Check pause state inside the worker thread
+                while username in paused_syncs:
+                    time.sleep(0.5)
+                    if username in aborted_syncs:
+                        return
+                        
                 if username in aborted_syncs:
                     return
                 t_name = f"Worker-{index+1}"

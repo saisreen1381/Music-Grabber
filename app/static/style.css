@@ -1408,19 +1408,19 @@ input[type="checkbox"]:checked::before {
 /* Maximized terminal log card container overlay */
 .terminal-card.terminal-maximized {
     position: fixed;
-    top: 24px;
-    left: 24px;
-    right: 24px;
-    bottom: 24px;
-    width: calc(100vw - 48px);
-    height: calc(100vh - 48px);
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
     max-height: none !important;
     z-index: 9999;
     margin: 0;
-    border: 1px solid var(--border-glass);
-    background: rgba(10, 12, 18, 0.98);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
-    border-radius: var(--radius-lg);
+    border: none;
+    background: rgba(10, 12, 18, 0.99);
+    box-shadow: none;
+    border-radius: 0;
     display: flex;
     flex-direction: column;
 }
@@ -1429,6 +1429,7 @@ input[type="checkbox"]:checked::before {
     flex: 1;
     height: calc(100% - 50px) !important;
     max-height: none !important;
+    padding: 16px !important;
 }
 
 /* Hover play indicator in song rows */
