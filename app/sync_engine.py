@@ -158,7 +158,6 @@ def download_track_ytdlp(ytdlp_path, track, download_dir, cookie_file=None, file
         "--audio-quality", "0",
         "--output", os.path.join(download_dir, filename_template),
         "--match-filter", "!is_live",
-        "--remote-components", "ejs:github",
         "--js-runtimes", "deno,node"
     ]
     
@@ -190,7 +189,9 @@ def download_track_ytdlp(ytdlp_path, track, download_dir, cookie_file=None, file
         # Scan output lines for destination path
         downloaded_file_path = None
         for line in output_lines:
-            if "[ExtractAudio] Destination:" in line:
+            if "has already been downloaded" in line:
+                return True, output_lines
+            elif "[ExtractAudio] Destination:" in line:
                 downloaded_file_path = line.split("[ExtractAudio] Destination:")[1].strip()
                 break
             elif "[download] Destination:" in line:
@@ -322,8 +323,25 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
             # 3. Filter out existing tracks
             to_download = []
             for track in all_tracks:
-                norm = normalize_name(track["display_name"])
-                if norm not in existing_songs:
+                norm_title = normalize_name(track.get("title", ""))
+                norm_display = normalize_name(track.get("display_name", ""))
+                
+                is_downloaded = False
+                if norm_title in existing_songs or norm_display in existing_songs:
+                    is_downloaded = True
+                else:
+                    if norm_title and len(norm_title) >= 5:
+                        for fn in existing_songs:
+                            if len(fn) >= 5 and (norm_title in fn or fn in norm_title):
+                                is_downloaded = True
+                                break
+                    if not is_downloaded and norm_display and len(norm_display) >= 5:
+                        for fn in existing_songs:
+                            if len(fn) >= 5 and (fn in norm_display or norm_display in fn):
+                                is_downloaded = True
+                                break
+                                
+                if not is_downloaded:
                     to_download.append(track)
                     
             emit(f"Tracks already downloaded: {len(all_tracks) - len(to_download)}")
@@ -385,15 +403,28 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
                         filename_template, embed_metadata
                     )
                     
+                # Search fallback if video unavailable or URL dead
+                if not success:
+                    search_query = track.get("display_name") or track.get("title") or ""
+                    if search_query:
+                        emit(f"[{t_name}] Direct URL unavailable. Searching YouTube for '{search_query}'...")
+                        search_track = dict(track)
+                        search_track["url"] = f"ytsearch1:{search_query}"
+                        success, output_lines = download_track_ytdlp(
+                            ytdlp_path, search_track, download_dir,
+                            None,
+                            filename_template, embed_metadata
+                        )
+                    
                 with count_lock:
                     if username in aborted_syncs:
                         return
                     if success:
-                        emit(f"[{t_name}] SUCCESS: {track_name}")
+                        emit(f"[{t_name}] SUCCESS: {track_filename}")
                         success_count += 1
                     else:
-                        emit(f"[{t_name}] FAILED: {track_name}")
-                        emit(f"  --- Error Details for {track_name} ---")
+                        emit(f"[{t_name}] FAILED: {track_filename}")
+                        emit(f"  --- Error Details for {track_filename} ---")
                         for line in output_lines[-15:]: # print last 15 lines of yt-dlp error
                             emit(f"    {line}")
                         emit("  --------------------------------------")
