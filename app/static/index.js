@@ -65,6 +65,11 @@ const syncPercentText = document.getElementById("sync-percent-text");
 const syncElapsedTime = document.getElementById("sync-elapsed-time");
 const syncEtaTime = document.getElementById("sync-eta-time");
 const syncModalClose = document.getElementById("sync-modal-close");
+const syncControlsWrapper = document.getElementById("sync-controls-wrapper");
+const syncPauseBtn = document.getElementById("sync-pause-btn");
+const syncPauseText = document.getElementById("sync-pause-text");
+const syncPauseIcon = document.getElementById("sync-pause-icon");
+const syncStopBtn = document.getElementById("sync-stop-btn");
 
 // Settings Tab Elements
 const settingDownloadDir = document.getElementById("setting-download-dir");
@@ -399,6 +404,11 @@ async function refreshStatus() {
             if (syncProgressBarWrapper) syncProgressBarWrapper.style.display = "block";
             if (syncStatsWrapper) syncStatsWrapper.style.display = "flex";
             if (syncTimersWrapper) syncTimersWrapper.style.display = "grid";
+            if (syncControlsWrapper) syncControlsWrapper.style.display = "flex";
+            
+            // Auto expand logs during sync so users see lines stream in
+            if (terminalBody) terminalBody.style.display = "block";
+            if (logsToggleArrow) logsToggleArrow.style.transform = "rotate(180deg)";
         } else {
             syncBadge.className = "badge badge-idle";
             syncBadge.textContent = "Idle";
@@ -409,6 +419,11 @@ async function refreshStatus() {
             if (syncProgressBarWrapper) syncProgressBarWrapper.style.display = "none";
             if (syncStatsWrapper) syncStatsWrapper.style.display = "none";
             if (syncTimersWrapper) syncTimersWrapper.style.display = "none";
+            if (syncControlsWrapper) syncControlsWrapper.style.display = "none";
+            
+            // Reset Pause Button State
+            if (syncPauseText) syncPauseText.textContent = "Pause Sync";
+            if (syncPauseIcon) syncPauseIcon.innerHTML = `<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>`;
         }
         
         // Auto-sync status badge
@@ -883,6 +898,24 @@ syncNowBtn.addEventListener("click", () => {
     syncModalClose.style.display = "none";
     syncModalTitle.innerHTML = '<span class="spinner" style="width: 16px; height: 16px; border-width: 2px; border-top-color: var(--primary); margin: 0;"></span> Syncing Library...';
     syncCurrentSong.textContent = "Scanning local library...";
+
+    // Ensure all stats/meters are visible during manual sync trigger
+    const syncQuoteBox = document.getElementById("sync-quote-box");
+    const syncCurrentSongWrapper = document.getElementById("sync-current-song-wrapper");
+    const syncProgressBarWrapper = document.getElementById("sync-progress-bar-wrapper");
+    const syncStatsWrapper = document.getElementById("sync-stats-wrapper");
+    const syncTimersWrapper = document.getElementById("sync-timers-wrapper");
+
+    if (syncQuoteBox) syncQuoteBox.style.display = "flex";
+    if (syncCurrentSongWrapper) syncCurrentSongWrapper.style.display = "block";
+    if (syncProgressBarWrapper) syncProgressBarWrapper.style.display = "block";
+    if (syncStatsWrapper) syncStatsWrapper.style.display = "flex";
+    if (syncTimersWrapper) syncTimersWrapper.style.display = "grid";
+    if (syncControlsWrapper) syncControlsWrapper.style.display = "flex";
+
+    // Expand the logs console so lines stream in
+    if (terminalBody) terminalBody.style.display = "block";
+    if (logsToggleArrow) logsToggleArrow.style.transform = "rotate(180deg)";
     syncModalProgress.style.width = "0%";
     syncProcessedCount.textContent = "0 / 0 Songs";
     syncPercentText.textContent = "0%";
@@ -1851,6 +1884,43 @@ window.alert = function(message) {
     }
     showToast(message, type);
 };
+
+// Sync Controls: Pause / Stop
+if (syncPauseBtn) {
+    syncPauseBtn.addEventListener("click", async () => {
+        if (!activeProfile) return;
+        try {
+            const res = await fetch(`/api/sync/pause?username=${activeProfile}`, { method: "POST" });
+            const data = await res.json();
+            if (data.paused) {
+                syncPauseText.textContent = "Resume Sync";
+                syncPauseIcon.innerHTML = `<path d="M8 5v14l11-7z"/>`; // Play icon
+                showToast("Synchronization paused.", "info");
+                appendTerminalLine("[System] Synchronization paused by user.");
+            } else {
+                syncPauseText.textContent = "Pause Sync";
+                syncPauseIcon.innerHTML = `<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>`; // Pause icon
+                showToast("Synchronization resumed.", "info");
+                appendTerminalLine("[System] Synchronization resumed.");
+            }
+        } catch (e) {
+            console.error("Failed to pause sync", e);
+        }
+    });
+}
+
+if (syncStopBtn) {
+    syncStopBtn.addEventListener("click", async () => {
+        if (!activeProfile) return;
+        try {
+            await fetch(`/api/sync/stop?username=${activeProfile}`, { method: "POST" });
+            showToast("Stopping synchronization...", "warning");
+            appendTerminalLine("[System] Stop request sent. Aborting remaining downloads...");
+        } catch (e) {
+            console.error("Failed to stop sync", e);
+        }
+    });
+}
 
 // Toggle Logs Header collapse/expand
 const toggleLogsHeader = document.getElementById("toggle-logs-header");

@@ -207,6 +207,9 @@ def download_track_ytdlp(ytdlp_path, track, download_dir, cookie_file=None, file
     except Exception as e:
         return False, [f"Error running subprocess: {e}"]
 
+paused_syncs = set()
+aborted_syncs = set()
+
 # Generator function for streaming sync logs to FastAPI SSE
 def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp"):
     log_queue = queue.Queue()
@@ -215,6 +218,7 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp"):
         log_queue.put(msg)
         
     def worker_thread():
+        username = Path(config_path).parent.name
         try:
             emit("=== Starting Music Synchronization Process ===")
             if not os.path.exists(config_path):
@@ -340,6 +344,8 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp"):
             
             def download_worker(index, track):
                 nonlocal success_count, fail_count
+                if username in aborted_syncs:
+                    return
                 t_name = f"Worker-{index+1}"
                 track_name = track['display_name']
                 emit(f"[{t_name}] Starting download: {track_name}")
@@ -362,6 +368,8 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp"):
                     )
                     
                 with count_lock:
+                    if username in aborted_syncs:
+                        return
                     if success:
                         emit(f"[{t_name}] SUCCESS: {track_name}")
                         success_count += 1
@@ -377,6 +385,15 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp"):
             with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
                 futures = []
                 for i, track in enumerate(to_download):
+                    # Check pause state
+                    while username in paused_syncs:
+                        time.sleep(0.5)
+                        if username in aborted_syncs:
+                            break
+                    # Check stop/abort state
+                    if username in aborted_syncs:
+                        emit("Sync stopped by user.")
+                        break
                     futures.append(executor.submit(download_worker, i % max_concurrent, track))
                 
                 # Wait for all
@@ -389,7 +406,9 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp"):
             emit(f"  Failed:              {fail_count}")
             emit("=======================================================")
             
-            if fail_count == 0:
+            if username in aborted_syncs:
+                emit("SYNC_FINISHED_FAILED")
+            elif fail_count == 0:
                 emit("SYNC_FINISHED_SUCCESS")
             else:
                 emit("SYNC_FINISHED_FAILED")
@@ -397,6 +416,9 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp"):
         except Exception as e:
             emit(f"FATAL ERROR in sync engine: {e}")
             emit("SYNC_FINISHED_FAILED")
+        finally:
+            paused_syncs.discard(username)
+            aborted_syncs.discard(username)
             
     # Launch worker in thread
     thread = threading.Thread(target=worker_thread)

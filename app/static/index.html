@@ -94,11 +94,23 @@
                             </div>
 
                             <!-- Sync Progress Panel (Below System Status) -->
-                            <div id="sync-progress-modal" class="glass-card" style="display: flex; flex-direction: column; gap: 14px; padding: 20px; border: 1px solid var(--border-glass); margin-top: 24px;">
+                            <div id="sync-progress-modal" class="glass-card" style="display: flex; flex-direction: column; gap: 14px; padding: 20px; border: 1px solid var(--border-glass);">
                                 <h3 id="sync-modal-title" style="margin: 0; font-weight: 700; font-size: 1.1rem; color: var(--text-main); display: flex; align-items: center; justify-content: center; gap: 8px;">
                                     <span class="spinner" style="width: 14px; height: 14px; border-width: 2px; border-top-color: var(--primary); margin: 0;"></span>
                                     Syncing Library...
                                 </h3>
+                                
+                                <!-- Sync Controls (Pause / Stop) -->
+                                <div id="sync-controls-wrapper" style="display: none; gap: 8px; justify-content: center; margin-top: 2px;">
+                                    <button id="sync-pause-btn" class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; height: 32px;">
+                                        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" id="sync-pause-icon"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                                        <span id="sync-pause-text">Pause Sync</span>
+                                    </button>
+                                    <button id="sync-stop-btn" class="btn btn-danger" style="padding: 6px 14px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; height: 32px; background: #ef4444; border: none; color: white;">
+                                        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+                                        <span>Stop Sync</span>
+                                    </button>
+                                </div>
                                 
                                 <!-- Rotating quote/tip card -->
                                 <div id="sync-quote-box" class="sync-quote" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-md); padding: 10px; min-height: 50px; display: flex; align-items: center; justify-content: center; font-style: italic; font-size: 0.8rem; color: var(--text-dim); line-height: 1.4;">

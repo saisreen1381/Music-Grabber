@@ -1,33 +1,153 @@
-=== Single Track Download: Desi Girl 2.0 (Varanasi Event) ===
-Deprecated Feature: Support for Python version 3.10 has been deprecated. Please update to Python 3.11 or above
-WARNING: Ignoring unsupported JavaScript runtime(s): deno,node. Supported runtimes: deno, node, bun, quickjs.
-[youtube] Extracting URL: https://www.youtube.com/watch?v=RgFAy_RsVnA
-[youtube] RgFAy_RsVnA: Downloading webpage
-[youtube] RgFAy_RsVnA: Downloading tv downgraded player API JSON
-[youtube] RgFAy_RsVnA: Downloading player dfc3d2b2-main
-[youtube] [jsc:deno] Solving JS challenges using deno
-[youtube] [jsc:deno] Downloading challenge solver lib script from  https://github.com/yt-dlp/ejs/releases/download/0.8.0/yt.solver.lib.min.js
-[youtube] RgFAy_RsVnA: Downloading m3u8 information
-[info] RgFAy_RsVnA: Downloading 1 format(s): 251
-[info] Downloading video thumbnail 44 ...
-[info] Writing video thumbnail 44 to: /musichdd/Desi Girl 2.0 (Varanasi Event).webp
-[download] Destination: /musichdd/Desi Girl 2.0 (Varanasi Event).webm
-
-[download]   0.1% of    1.74MiB at   43.72KiB/s ETA 00:40
-[download]   0.2% of    1.74MiB at  128.47KiB/s ETA 00:13
-[download]   0.4% of    1.74MiB at  292.34KiB/s ETA 00:06
-[download]   0.8% of    1.74MiB at  601.70KiB/s ETA 00:02
-[download]   1.7% of    1.74MiB at  544.63KiB/s ETA 00:03
-[download]   3.5% of    1.74MiB at  874.92KiB/s ETA 00:01
-[download]   7.1% of    1.74MiB at    1.13MiB/s ETA 00:01
-[download]  14.3% of    1.74MiB at    1.29MiB/s ETA 00:01
-[download]  28.7% of    1.74MiB at    1.30MiB/s ETA 00:00
-[download]  57.4% of    1.74MiB at    1.60MiB/s ETA 00:00
-[download] 100.0% of    1.74MiB at    1.82MiB/s ETA 00:00
-[download] 100% of    1.74MiB in 00:00:01 at 1.54MiB/s
-[ExtractAudio] Destination: /musichdd/Desi Girl 2.0 (Varanasi Event).mp3
-Deleting original file /musichdd/Desi Girl 2.0 (Varanasi Event).webm (pass -k to keep)
-[Metadata] Adding metadata to "/musichdd/Desi Girl 2.0 (Varanasi Event).mp3"
-[ThumbnailsConvertor] Converting thumbnail "/musichdd/Desi Girl 2.0 (Varanasi Event).webp" to png
-[EmbedThumbnail] ffmpeg: Adding thumbnail to "/musichdd/Desi Girl 2.0 (Varanasi Event).mp3"
-Result: SUCCESS
+[2026-07-21 20:03:52] === Starting Music Synchronization Process ===
+[2026-07-21 20:03:52] Scanning existing files in '/musichdd'...
+[2026-07-21 20:03:52] Found 68 unique existing tracks in folder.
+[2026-07-21 20:03:52] Processing Source: YouTube Music Liked Songs (youtube_music_playlist)...
+[2026-07-21 20:03:52]   Loaded 34 tracks from cache.
+[2026-07-21 20:03:52] Processing Source: Manual Additions (text_file)...
+[2026-07-21 20:03:52]   Fetching playlist live using yt-dlp...
+[2026-07-21 20:03:52] Processing Source: Favourite Songs (youtube_music_playlist)...
+[2026-07-21 20:03:52]   Loaded 379 tracks from cache.
+[2026-07-21 20:03:52] Total checked unique target tracks: 347
+[2026-07-21 20:03:52] Tracks already downloaded: 6
+[2026-07-21 20:03:52] New tracks to download: 341
+[2026-07-21 20:03:52] Starting downloads with concurrency level: 3
+[2026-07-21 20:03:52] [Worker-1] Starting download: Sun Gemini - JAILER - Kaavaali Lyrical (Telugu) | Superstar Rajinikanth |Sun Pictures |Anirudh |Nelson |Tamannaah
+[2026-07-21 20:03:52] [Worker-2] Starting download: Saregama Telugu - Na Roja Nuvve | Kushi | Vijay Deverakonda | Samantha Ruth Prabhu | Hesham Abdul Wahab | Lyrical
+[2026-07-21 20:03:52] [Worker-3] Starting download: Sonu Nigam - Nanna Nuv Naa Pranam
+[2026-07-21 20:04:02] [Worker-1] SUCCESS: Sun Gemini - JAILER - Kaavaali Lyrical (Telugu) | Superstar Rajinikanth |Sun Pictures |Anirudh |Nelson |Tamannaah
+[2026-07-21 20:04:02] [Worker-1] Starting download: T-Series Telugu - Hi Nanna: Samayama Lyrical Video Song | Nani,Mrunal Thakur | Shouryuv | Hesham Abdul Wahab
+[2026-07-21 20:04:02] [Worker-2] SUCCESS: Saregama Telugu - Na Roja Nuvve | Kushi | Vijay Deverakonda | Samantha Ruth Prabhu | Hesham Abdul Wahab | Lyrical
+[2026-07-21 20:04:02] [Worker-2] Starting download: T-Series Telugu - Hi Nanna: Ammaadi (Lyrical Video) Nani, Mrunal Thakur | Baby Kiara K | Shouryuv | Hesham Abdul Wahab
+[2026-07-21 20:04:02] [Worker-3] SUCCESS: Sonu Nigam - Nanna Nuv Naa Pranam
+[2026-07-21 20:04:02] [Worker-3] Starting download: Hesham Abdul Wahab - Kushi Title Song (From "Kushi") (Telugu)
+[2026-07-21 20:04:10] [Worker-2] SUCCESS: T-Series Telugu - Hi Nanna: Ammaadi (Lyrical Video) Nani, Mrunal Thakur | Baby Kiara K | Shouryuv | Hesham Abdul Wahab
+[2026-07-21 20:04:10] [Worker-1] Starting download: Vishal Chandrashekhar - Inthandham (From "Sita Ramam (Telugu)")
+[2026-07-21 20:04:10] [Worker-1] SUCCESS: T-Series Telugu - Hi Nanna: Samayama Lyrical Video Song | Nani,Mrunal Thakur | Shouryuv | Hesham Abdul Wahab
+[2026-07-21 20:04:10] [Worker-2] Starting download: Yuvan Shankar Raja - Topic - Ee Raathale
+[2026-07-21 20:04:11] [Worker-3] SUCCESS: Hesham Abdul Wahab - Kushi Title Song (From "Kushi") (Telugu)
+[2026-07-21 20:04:11] [Worker-3] Starting download: Dhanunjaya - Topic - Naa Madhi (From "Thiru")
+[2026-07-21 20:04:18] [Worker-2] SUCCESS: Yuvan Shankar Raja - Topic - Ee Raathale
+[2026-07-21 20:04:18] [Worker-1] Starting download: Hesham Abdul Wahab - Na Roja Nuvve
+[2026-07-21 20:04:18] [Worker-3] SUCCESS: Dhanunjaya - Topic - Naa Madhi (From "Thiru")
+[2026-07-21 20:04:18] [Worker-2] Starting download: Rock City - Locked Away
+[2026-07-21 20:04:21] [Worker-1] SUCCESS: Vishal Chandrashekhar - Inthandham (From "Sita Ramam (Telugu)")
+[2026-07-21 20:04:21] [Worker-3] Starting download: Maroon 5 - Animals
+[2026-07-21 20:04:25] [Worker-1] SUCCESS: Hesham Abdul Wahab - Na Roja Nuvve
+[2026-07-21 20:04:25] [Worker-1] Starting download: Passenger - Let Her Go
+[2026-07-21 20:04:26] [Worker-2] SUCCESS: Rock City - Locked Away
+[2026-07-21 20:04:26] [Worker-2] Starting download: Ellie Goulding - Love Me Like You Do (From "Fifty Shades Of Grey")
+[2026-07-21 20:04:28] [Worker-1] Retrying without cookies: Passenger - Let Her Go
+[2026-07-21 20:04:29] [Worker-3] SUCCESS: Maroon 5 - Animals
+[2026-07-21 20:04:29] [Worker-3] Starting download: Charlie Puth - Attention (Acoustic)
+[2026-07-21 20:04:30] [Worker-1] FAILED: Passenger - Let Her Go
+[2026-07-21 20:04:30]   --- Error Details for Passenger - Let Her Go ---
+[2026-07-21 20:04:30]     Deprecated Feature: Support for Python version 3.10 has been deprecated. Please update to Python 3.11 or above
+[2026-07-21 20:04:30]     WARNING: Ignoring unsupported JavaScript runtime(s): deno,node. Supported runtimes: deno, node, bun, quickjs.
+[2026-07-21 20:04:30]     [youtube] Extracting URL: https://www.youtube.com/watch?v=B3EN7Ewwwvs
+[2026-07-21 20:04:30]     [youtube] B3EN7Ewwwvs: Downloading webpage
+[2026-07-21 20:04:30]     [youtube] B3EN7Ewwwvs: Downloading android vr player API JSON
+[2026-07-21 20:04:30]     ERROR: [youtube] B3EN7Ewwwvs: Video unavailable. This video is not available
+[2026-07-21 20:04:30]   --------------------------------------
+[2026-07-21 20:04:30] [Worker-1] Starting download: Ed Sheeran - Shape of You
+[2026-07-21 20:04:34] [Worker-2] SUCCESS: Ellie Goulding - Love Me Like You Do (From "Fifty Shades Of Grey")
+[2026-07-21 20:04:34] [Worker-2] Starting download: OneRepublic - Counting Stars
+[2026-07-21 20:04:36] [Worker-3] SUCCESS: Charlie Puth - Attention (Acoustic)
+[2026-07-21 20:04:36] [Worker-3] Starting download: Ed Sheeran - Perfect
+[2026-07-21 20:04:37] [Worker-1] SUCCESS: Ed Sheeran - Shape of You
+[2026-07-21 20:04:37] [Worker-1] Starting download: Maroon 5 - Sugar
+[2026-07-21 20:04:43] [Worker-3] SUCCESS: Ed Sheeran - Perfect
+[2026-07-21 20:04:43] [Worker-2] Starting download: Charlie Puth - We Don't Talk Anymore (feat. Selena Gomez)
+[2026-07-21 20:04:45] [Worker-1] SUCCESS: Maroon 5 - Sugar
+[2026-07-21 20:04:45] [Worker-3] Starting download: Maroon 5 - Memories
+[2026-07-21 20:04:46] [Worker-2] SUCCESS: OneRepublic - Counting Stars
+[2026-07-21 20:04:46] [Worker-1] Starting download: Lahari Music - Bharat Ane Nenu (The Song Of Bharat) Lyrical Video Song | Mahesh Babu, Devi Sri Prasad,Koratala Siva
+[2026-07-21 20:04:47] [Worker-3] Retrying without cookies: Maroon 5 - Memories
+[2026-07-21 20:04:49] [Worker-3] FAILED: Maroon 5 - Memories
+[2026-07-21 20:04:49]   --- Error Details for Maroon 5 - Memories ---
+[2026-07-21 20:04:49]     Deprecated Feature: Support for Python version 3.10 has been deprecated. Please update to Python 3.11 or above
+[2026-07-21 20:04:49]     WARNING: Ignoring unsupported JavaScript runtime(s): deno,node. Supported runtimes: deno, node, bun, quickjs.
+[2026-07-21 20:04:49]     [youtube] Extracting URL: https://www.youtube.com/watch?v=1w6xKlGRg_c
+[2026-07-21 20:04:49]     [youtube] 1w6xKlGRg_c: Downloading webpage
+[2026-07-21 20:04:49]     [youtube] 1w6xKlGRg_c: Downloading android vr player API JSON
+[2026-07-21 20:04:49]     ERROR: [youtube] 1w6xKlGRg_c: Video unavailable. This video is not available
+[2026-07-21 20:04:49]   --------------------------------------
+[2026-07-21 20:04:49] [Worker-2] Starting download: ImagineDragons - Imagine Dragons - Demons (Official Music Video)
+[2026-07-21 20:04:51] [Worker-2] SUCCESS: Charlie Puth - We Don't Talk Anymore (feat. Selena Gomez)
+[2026-07-21 20:04:51] [Worker-3] Starting download: iamOTHER - Pharrell Williams - Happy (Official Music Video)
+[2026-07-21 20:04:54] [Worker-1] SUCCESS: Lahari Music - Bharat Ane Nenu (The Song Of Bharat) Lyrical Video Song | Mahesh Babu, Devi Sri Prasad,Koratala Siva
+[2026-07-21 20:04:54] [Worker-1] Starting download: EminemMusic - Eminem ft. Rihanna - The Monster (Explicit) [Official Video]
+[2026-07-21 20:04:57] [Worker-2] SUCCESS: ImagineDragons - Imagine Dragons - Demons (Official Music Video)
+[2026-07-21 20:04:57] [Worker-2] Starting download: ImagineDragons - Imagine Dragons - Radioactive
+[2026-07-21 20:05:00] [Worker-3] SUCCESS: iamOTHER - Pharrell Williams - Happy (Official Music Video)
+[2026-07-21 20:05:00] [Worker-3] Starting download: EminemMusic - Eminem - The Monster ft. Rihanna (Audio)
+[2026-07-21 20:05:01] [Worker-1] SUCCESS: EminemMusic - Eminem ft. Rihanna - The Monster (Explicit) [Official Video]
+[2026-07-21 20:05:01] [Worker-1] Starting download: M.M. Keeravaani - Topic - Desi Girl 2.0 (Varanasi Event)
+[2026-07-21 20:05:05] [Worker-2] SUCCESS: ImagineDragons - Imagine Dragons - Radioactive
+[2026-07-21 20:05:05] [Worker-2] Starting download: Sai Abhyankkar - Aasa Kooda (From "Think Indie")
+[2026-07-21 20:05:08] [Worker-3] SUCCESS: EminemMusic - Eminem - The Monster ft. Rihanna (Audio)
+[2026-07-21 20:05:08] [Worker-3] Starting download: Bebhumika - Topic - Boom Boom (From "Dude (Telugu)")
+[2026-07-21 20:05:10] [Worker-1] SUCCESS: M.M. Keeravaani - Topic - Desi Girl 2.0 (Varanasi Event)
+[2026-07-21 20:05:10] [Worker-1] Starting download: Sam C.S. - Topic - Om Namo Bhagavate Vasudevaya
+[2026-07-21 20:05:13] [Worker-2] SUCCESS: Sai Abhyankkar - Aasa Kooda (From "Think Indie")
+[2026-07-21 20:05:13] [Worker-2] Starting download: Shruti Haasan - Globetrotter
+[2026-07-21 20:05:15] [Worker-3] SUCCESS: Bebhumika - Topic - Boom Boom (From "Dude (Telugu)")
+[2026-07-21 20:05:15] [Worker-3] Starting download: Mohit Chauhan - Chikiri Chikiri (Telugu)
+[2026-07-21 20:05:17] [Worker-1] SUCCESS: Sam C.S. - Topic - Om Namo Bhagavate Vasudevaya
+[2026-07-21 20:05:17] [Worker-1] Starting download: Anirudh Ravichander - Chittemma
+[2026-07-21 20:05:41] [Worker-2] SUCCESS: Shruti Haasan - Globetrotter
+[2026-07-21 20:05:41] [Worker-2] Starting download: Sid Sriram - Maate Vinadhuga
+[2026-07-21 20:05:43] [Worker-3] SUCCESS: Mohit Chauhan - Chikiri Chikiri (Telugu)
+[2026-07-21 20:05:43] [Worker-3] Starting download: Anurag Kulkarni - Topic - Singles Anthem
+[2026-07-21 20:05:46] [Worker-1] SUCCESS: Anirudh Ravichander - Chittemma
+[2026-07-21 20:05:46] [Worker-1] Starting download: Amit Trivedi - Manasu Maree
+[2026-07-21 20:05:48] [Worker-2] SUCCESS: Sid Sriram - Maate Vinadhuga
+[2026-07-21 20:05:48] [Worker-2] Starting download: Sivam - Topic - Daakko Daakko Meka
+[2026-07-21 20:05:50] [Worker-3] SUCCESS: Anurag Kulkarni - Topic - Singles Anthem
+[2026-07-21 20:05:50] [Worker-3] Starting download: Release - Topic - Srivalli
+[2026-07-21 20:05:55] [Worker-1] SUCCESS: Amit Trivedi - Manasu Maree
+[2026-07-21 20:05:55] [Worker-1] Starting download: Release - Topic - Leharaayi
+[2026-07-21 20:05:56] [Worker-2] SUCCESS: Sivam - Topic - Daakko Daakko Meka
+[2026-07-21 20:05:56] [Worker-2] Starting download: Release - Topic - Puttene Prema
+[2026-07-21 20:05:58] [Worker-3] SUCCESS: Release - Topic - Srivalli
+[2026-07-21 20:05:58] [Worker-3] Starting download: Anurag Kulkarni - Topic - Baby Oh Baby
+[2026-07-21 20:06:03] [Worker-1] SUCCESS: Release - Topic - Leharaayi
+[2026-07-21 20:06:03] [Worker-1] Starting download: Haricharan Seshadri - Ay Pilla
+[2026-07-21 20:06:04] [Worker-2] SUCCESS: Release - Topic - Puttene Prema
+[2026-07-21 20:06:04] [Worker-2] Starting download: Release - Topic - Evo Evo Kalale
+[2026-07-21 20:06:06] [Worker-3] SUCCESS: Anurag Kulkarni - Topic - Baby Oh Baby
+[2026-07-21 20:06:06] [Worker-3] Starting download: Farhan Akhtar - Topic - Senorita
+[2026-07-21 20:06:10] [Worker-1] SUCCESS: Haricharan Seshadri - Ay Pilla
+[2026-07-21 20:06:10] [Worker-1] Starting download: joi barua - Dil Dhadakne Do
+[2026-07-21 20:06:11] [Worker-2] SUCCESS: Release - Topic - Evo Evo Kalale
+[2026-07-21 20:06:11] [Worker-2] Starting download: Shreya Ghoshal Official - Allasani Vaari
+[2026-07-21 20:06:14] [Worker-3] SUCCESS: Farhan Akhtar - Topic - Senorita
+[2026-07-21 20:06:14] [Worker-3] Starting download: Armaan Malik - Ninnila
+[2026-07-21 20:06:18] [Worker-1] SUCCESS: joi barua - Dil Dhadakne Do
+[2026-07-21 20:06:18] [Worker-1] Starting download: Shakthikanth Karthick - Topic - Oosupodu
+[2026-07-21 20:06:19] [Worker-2] SUCCESS: Shreya Ghoshal Official - Allasani Vaari
+[2026-07-21 20:06:19] [Worker-2] Starting download: Sid Sriram - Emai Poyave
+[2026-07-21 20:06:21] [Worker-3] SUCCESS: Armaan Malik - Ninnila
+[2026-07-21 20:06:21] [Worker-3] Starting download: Sid Sriram - Adiga Adiga
+[2026-07-21 20:06:26] [Worker-1] SUCCESS: Shakthikanth Karthick - Topic - Oosupodu
+[2026-07-21 20:06:26] [Worker-1] Starting download: MF DOOM - ?
+[2026-07-21 20:06:28] [Worker-3] SUCCESS: Sid Sriram - Adiga Adiga
+[2026-07-21 20:06:28] [Worker-2] Starting download: Vivek Sagar - Topic - Arerey Manasa
+[2026-07-21 20:06:35] [Worker-1] SUCCESS: MF DOOM - ?
+[2026-07-21 20:06:35] [Worker-3] Starting download: Anurag Kulkarni - Topic - Pillaa Raa
+[2026-07-21 20:06:36] [Worker-2] SUCCESS: Sid Sriram - Emai Poyave
+[2026-07-21 20:06:36] [Worker-1] Starting download: Release - Topic - Undiporaadhey
+[2026-07-21 20:06:37] [Worker-2] SUCCESS: Vivek Sagar - Topic - Arerey Manasa
+[2026-07-21 20:06:37] [Worker-2] Starting download: Release - Topic - Priyathama Priyathama
+[2026-07-21 20:06:43] [Worker-3] SUCCESS: Anurag Kulkarni - Topic - Pillaa Raa
+[2026-07-21 20:06:43] [Worker-3] Starting download: Release - Topic - Manasa Manasa
+[2026-07-21 20:06:43] [Worker-1] SUCCESS: Release - Topic - Undiporaadhey
+[2026-07-21 20:06:43] [Worker-1] Starting download: Anurag Kulkarni - Topic - Kanne Kanne (From "Arjun Suravaram")
+[2026-07-21 20:06:44] [Worker-2] SUCCESS: Release - Topic - Priyathama Priyathama
+[2026-07-21 20:06:44] [Worker-2] Starting download: Spoorthi Jithender - Topic - Undipova
+[2026-07-21 20:06:50] [Worker-3] SUCCESS: Release - Topic - Manasa Manasa
+[2026-07-21 20:06:50] [Worker-3] Starting download: Release - Topic - Vastunna Vachestunna
+[2026-07-21 20:06:59] =======================================================
+[2026-07-21 20:06:59] SYNCHRONIZATION SUMMARY:
+[2026-07-21 20:06:59]   Successfully Synced: 55
+[2026-07-21 20:06:59]   Failed:              2
+[2026-07-21 20:06:59] =======================================================

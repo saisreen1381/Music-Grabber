@@ -20,7 +20,9 @@ from app.sync_engine import (
     fetch_text_file,
     get_source_id,
     normalize_name,
-    download_track_ytdlp
+    download_track_ytdlp,
+    paused_syncs,
+    aborted_syncs
 )
 from app.scheduler import BackgroundScheduler
 
@@ -997,7 +999,7 @@ def get_sync_status(username: str):
         "last_log": last_log
     }
 
-@app.post("/api/sync/run")
+@app.get("/api/sync/run")
 def trigger_manual_sync(username: str):
     profile_dir = USERS_DIR / username
     if not profile_dir.exists():
@@ -1063,4 +1065,24 @@ def trigger_manual_sync(username: str):
             scheduler.release_sync(username)
             yield "data: SYNC_COMPLETE\n\n"
             
-    return StreamingResponse(sse_log_generator(), media_type="text/event-stream")
+    headers = {
+        "Cache-Control": "no-cache, no-transform",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no"
+    }
+    return StreamingResponse(sse_log_generator(), media_type="text/event-stream", headers=headers)
+
+@app.post("/api/sync/pause")
+def pause_sync_endpoint(username: str):
+    if username in paused_syncs:
+        paused_syncs.discard(username)
+        return {"status": "resumed", "paused": False}
+    else:
+        paused_syncs.add(username)
+        return {"status": "paused", "paused": True}
+
+@app.post("/api/sync/stop")
+def stop_sync_endpoint(username: str):
+    aborted_syncs.add(username)
+    paused_syncs.discard(username)
+    return {"status": "stopping"}
