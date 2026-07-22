@@ -496,6 +496,17 @@
                                     </div>
                                 </label>
                             </div>
+
+                            <!-- Auto-Download Liked Songs Toggle -->
+                            <div class="form-group">
+                                <label class="checkbox-label-wrapper">
+                                    <input type="checkbox" id="setting-auto-download-liked">
+                                    <div class="checkbox-label-content">
+                                        <strong>Auto-Download Liked Songs to Library</strong>
+                                        <p>Automatically download any track as soon as you Like it in the player or YouTube Music.</p>
+                                    </div>
+                                </label>
+                            </div>
                         </div>
 
                         <!-- Cookies Upload Section -->
@@ -847,7 +858,7 @@
     <!-- Spotify-style Bottom Music Player Bar -->
     <div id="music-player-bar" class="music-player-bar" style="display: flex;">
         <!-- Left: Track Info -->
-        <div class="player-track-info" style="display: flex; align-items: center; gap: 12px; width: 30%; min-width: 200px;">
+        <div class="player-track-info" style="display: flex; align-items: center; gap: 10px; width: 30%; min-width: 240px;">
             <div id="player-album-art" class="player-album-art" style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); flex-shrink: 0; position: relative; overflow: hidden;">
                 🎵
             </div>
@@ -855,6 +866,16 @@
             <!-- Fixed-Position Status Icon / Download Button Container -->
             <div id="player-status-container" style="display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px;">
                 <span id="player-source-badge" style="display: none;"></span>
+            </div>
+
+            <!-- Like / Dislike Buttons -->
+            <div class="player-rating-buttons" style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+                <button id="player-like-btn" class="btn btn-icon" title="Like on YouTube Music" style="color: var(--text-dim); padding: 4px; transition: all 0.2s ease;">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                </button>
+                <button id="player-dislike-btn" class="btn btn-icon" title="Dislike on YouTube Music" style="color: var(--text-dim); padding: 4px; transition: all 0.2s ease;">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4.3v6.4a2.31 2.31 0 0 1-2.33 2.3H17"/></svg>
+                </button>
             </div>
 
             <div class="player-metadata" style="display: flex; flex-direction: column; min-width: 0; flex: 1;">

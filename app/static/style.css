@@ -1607,3 +1607,25 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
     color: #ffffff !important;
     box-shadow: 0 0 12px rgba(99, 102, 241, 0.6) !important;
 }
+
+/* Player Rating (Like / Dislike) Buttons */
+#player-like-btn.liked {
+    color: #ef4444 !important;
+    transform: scale(1.15);
+}
+
+#player-like-btn.liked svg {
+    fill: #ef4444 !important;
+    stroke: #ef4444 !important;
+    filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.6));
+}
+
+#player-dislike-btn.disliked {
+    color: #f43f5e !important;
+    transform: scale(1.15);
+}
+
+#player-dislike-btn.disliked svg {
+    fill: #f43f5e !important;
+    stroke: #f43f5e !important;
+}

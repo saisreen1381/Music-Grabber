@@ -2,10 +2,12 @@ import os
 import io
 import time
 import json
+import threading
 import datetime
 import urllib.parse
 import urllib.request
 import hashlib
+import http.cookiejar
 import re
 from pathlib import Path
 from typing import List, Optional
@@ -106,6 +108,7 @@ class ConfigModel(BaseModel):
     seekbar_style: Optional[str] = "solid_envelope"
     eq_preset: Optional[str] = "flat"
     autoplay_launch: Optional[bool] = False
+    auto_download_liked: Optional[bool] = False
     sources: List[SourceModel] = []
 
 class ProfileCreate(BaseModel):
@@ -1533,6 +1536,169 @@ def download_track_direct(payload: DownloadTrackDirectModel):
             raise HTTPException(status_code=500, detail="\n".join(output_lines[-5:] if output_lines else ["Download failed"]))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class RateTrackModel(BaseModel):
+    username: str
+    video_id: Optional[str] = None
+    url: Optional[str] = None
+    rating: str  # "LIKE", "DISLIKE", "INDIFFERENT"
+    title: Optional[str] = None
+    artist: Optional[str] = None
+
+@app.post("/api/ytmusic/rate-track")
+def rate_ytmusic_track(payload: RateTrackModel):
+    profile_dir = USERS_DIR / payload.username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    video_id = payload.video_id
+    if not video_id and payload.url:
+        video_id = get_source_id(payload.url)
+    if not video_id:
+        raise HTTPException(status_code=400, detail="video_id or url is required")
+        
+    cookie_file = None
+    for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
+        potential_cookie = profile_dir / name
+        if potential_cookie.exists():
+            cookie_file = potential_cookie
+            break
+            
+    if not cookie_file:
+        raise HTTPException(status_code=400, detail="No YouTube cookies found. Please upload youtube_cookies.txt in Settings.")
+        
+    # Read Netscape cookies and generate SAPISIDHASH header
+    try:
+        cj = http.cookiejar.MozillaCookieJar(str(cookie_file))
+        cj.load(ignore_discard=True, ignore_expires=True)
+        cookies_dict = {c.name: c.value for c in cj}
+        cookie_str = "; ".join([f"{k}={v}" for k, v in cookies_dict.items()])
+        
+        sapisid = cookies_dict.get("SAPISID") or cookies_dict.get("__Secure-3PAPISID")
+        if not sapisid:
+            raise HTTPException(status_code=400, detail="SAPISID cookie not found in cookie file")
+            
+        cur_time = str(int(time.time()))
+        origin = "https://music.youtube.com"
+        sha1 = hashlib.sha1(f"{cur_time} {sapisid} {origin}".encode("utf-8")).hexdigest()
+        auth_header = f"SAPISIDHASH {cur_time}_{sha1}"
+        
+        endpoint = "like"
+        if payload.rating == "DISLIKE":
+            endpoint = "dislike"
+        elif payload.rating == "INDIFFERENT":
+            endpoint = "removelike"
+            
+        api_url = f"https://music.youtube.com/youtubei/v1/like/{endpoint}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Content-Type": "application/json",
+            "Authorization": auth_header,
+            "X-Origin": origin,
+            "Origin": origin,
+            "Cookie": cookie_str
+        }
+        data = json.dumps({
+            "context": {
+                "client": {
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20240101.01.00"
+                }
+            },
+            "target": {
+                "videoId": video_id
+            }
+        }).encode("utf-8")
+        
+        req = urllib.request.Request(api_url, data=data, headers=headers)
+        resp = urllib.request.urlopen(req)
+        yt_res = json.loads(resp.read().decode("utf-8"))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to rate track on YouTube Music: {str(e)}")
+
+    # Update Local Liked Music Playlist Source if present in user config
+    try:
+        config_file = profile_dir / "sync_config.json"
+        if config_file.exists():
+            with open(config_file, "r", encoding="utf-8") as cf:
+                config = json.load(cf)
+            sources = config.get("sources", [])
+            
+            liked_source_ids = []
+            for src in sources:
+                src_url = src.get("url", "")
+                src_name = src.get("name", "").lower()
+                if "list=LM" in src_url or "list=LL" in src_url or "liked" in src_name:
+                    liked_source_ids.append(src.get("id"))
+                    
+            for src_id in liked_source_ids:
+                cached_file = profile_dir / "playlists" / f"{src_id}_tracks.json"
+                tracks = []
+                if cached_file.exists():
+                    with open(cached_file, "r", encoding="utf-8") as tf:
+                        tracks = json.load(tf)
+                        
+                track_title = payload.title or f"Track {video_id}"
+                track_artist = payload.artist or "YouTube Artist"
+                track_url = payload.url or f"https://www.youtube.com/watch?v={video_id}"
+                
+                if payload.rating == "LIKE":
+                    # Add to cached liked playlist tracks if not present
+                    exists = any(t.get("id") == video_id or t.get("url") == track_url for t in tracks)
+                    if not exists:
+                        new_track = {
+                            "id": video_id,
+                            "title": track_title,
+                            "artist": track_artist,
+                            "url": track_url,
+                            "thumbnail": f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg",
+                            "downloaded": False,
+                            "enabled": True
+                        }
+                        tracks.insert(0, new_track)
+                else:
+                    # Remove from cached liked playlist tracks
+                    tracks = [t for t in tracks if t.get("id") != video_id and t.get("url") != track_url]
+                    
+                os.makedirs(profile_dir / "playlists", exist_ok=True)
+                with open(cached_file, "w", encoding="utf-8") as tf:
+                    json.dump(tracks, tf, indent=2)
+
+            # Auto-Download Liked Song if auto_download_liked is enabled in config
+            if payload.rating == "LIKE" and config.get("auto_download_liked", False):
+                download_dir = config.get("download_dir")
+                if download_dir and os.path.exists(download_dir):
+                    target_track = {
+                        "id": video_id,
+                        "title": payload.title or f"Track {video_id}",
+                        "artist": payload.artist or "YouTube Artist",
+                        "url": payload.url or f"https://www.youtube.com/watch?v={video_id}"
+                    }
+                    def do_bg_download():
+                        try:
+                            download_track_ytdlp(
+                                YTDLP_PATH,
+                                target_track,
+                                download_dir,
+                                str(cookie_file) if cookie_file and os.path.exists(cookie_file) else None,
+                                config.get("filename_template", "%(title)s.%(ext)s"),
+                                True
+                            )
+                        except Exception as ex:
+                            print(f"Auto-download liked song failed: {ex}")
+                            
+                    threading.Thread(target=do_bg_download, daemon=True).start()
+    except Exception as e:
+        print(f"Warning: Failed to update local liked playlist cache / auto-download: {e}")
+
+    return {
+        "status": "success", 
+        "rating": payload.rating, 
+        "video_id": video_id,
+        "message": f"Successfully set rating to {payload.rating}"
+    }
 
 @app.post("/api/ytmusic/add-source")
 def add_ytmusic_source(payload: AddSourceModel):

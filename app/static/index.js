@@ -417,6 +417,10 @@ function populateSettingsForm() {
     if (autoLaunchInput) {
         autoLaunchInput.checked = activeConfig.autoplay_launch === true;
     }
+    const autoDownloadLikedInput = document.getElementById("setting-auto-download-liked");
+    if (autoDownloadLikedInput) {
+        autoDownloadLikedInput.checked = activeConfig.auto_download_liked === true;
+    }
 
     renderAdditionalLibraryDirs();
 }
@@ -1025,6 +1029,15 @@ saveSettingsBtn.addEventListener("click", async () => {
     activeConfig.filename_template = settingFilenamePreset.value;
     activeConfig.embed_metadata = settingEmbedMetadata.checked;
     activeConfig.max_concurrent_downloads = parseInt(settingMaxConcurrent.value);
+
+    if (settingSeekbarStyle) activeConfig.seekbar_style = settingSeekbarStyle.value;
+    if (settingEqPreset) activeConfig.eq_preset = settingEqPreset.value;
+    
+    const autoLaunchInput = document.getElementById("setting-autoplay-launch");
+    if (autoLaunchInput) activeConfig.autoplay_launch = autoLaunchInput.checked;
+
+    const autoDownloadLikedInput = document.getElementById("setting-auto-download-liked");
+    if (autoDownloadLikedInput) activeConfig.auto_download_liked = autoDownloadLikedInput.checked;
     
     const autoSync = settingAutoSync.checked;
     activeConfig.auto_sync = autoSync;
@@ -2046,6 +2059,72 @@ function highlightActivePlayingRows() {
     });
 }
 
+async function rateCurrentTrack(newRating) {
+    if (!currentPlayingTrack || !activeProfile) return;
+    
+    const likeBtn = document.getElementById("player-like-btn");
+    const dislikeBtn = document.getElementById("player-dislike-btn");
+    
+    const trackTitle = cleanMediaExtension(currentPlayingTrack.title || currentPlayingTrack.display_name || currentPlayingTrack.filename || "Unknown Track");
+    const trackArtist = currentPlayingTrack.artist || "YouTube Artist";
+    const trackUrl = currentPlayingTrack.url || "";
+    
+    let videoId = currentPlayingTrack.id || "";
+    if (!videoId && trackUrl) {
+        const match = trackUrl.match(/(?:v=|\/vi\/|\/watch\?v=|\/embed\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
+        if (match) videoId = match[1];
+    }
+    
+    if (!videoId && !trackUrl) {
+        showToast("Cannot rate local files that have no YouTube reference", "warning");
+        return;
+    }
+    
+    currentPlayingTrack.user_rating = newRating;
+    if (likeBtn) {
+        if (newRating === "LIKE") likeBtn.classList.add("liked");
+        else likeBtn.classList.remove("liked");
+    }
+    if (dislikeBtn) {
+        if (newRating === "DISLIKE") dislikeBtn.classList.add("disliked");
+        else dislikeBtn.classList.remove("disliked");
+    }
+    
+    if (newRating === "LIKE") {
+        showToast(`Liked "${trackTitle}" on YouTube Music & added to Liked Music!`, "success");
+    } else if (newRating === "DISLIKE") {
+        showToast(`Disliked "${trackTitle}" on YouTube Music`, "info");
+    } else {
+        showToast(`Removed rating for "${trackTitle}"`, "info");
+    }
+    
+    try {
+        const res = await fetch("/api/ytmusic/rate-track", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                username: activeProfile,
+                video_id: videoId,
+                url: trackUrl,
+                rating: newRating,
+                title: trackTitle,
+                artist: trackArtist
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.detail || "Failed to update rating");
+        }
+        
+        if (typeof loadConfig === "function") {
+            await loadConfig(activeProfile);
+        }
+    } catch (err) {
+        console.error("Error rating track:", err);
+        showToast(`Rating error: ${err.message}`, "danger");
+    }
+}
+
 function updatePlaybackUI() {
     if (!currentPlayingTrack) return;
     
@@ -2055,6 +2134,18 @@ function updatePlaybackUI() {
     playerTrackTitle.textContent = title;
     playerTrackArtist.textContent = artist;
     
+    // Rating Buttons State (Like / Dislike)
+    const likeBtn = document.getElementById("player-like-btn");
+    const dislikeBtn = document.getElementById("player-dislike-btn");
+    if (likeBtn) {
+        if (currentPlayingTrack.user_rating === "LIKE") likeBtn.classList.add("liked");
+        else likeBtn.classList.remove("liked");
+    }
+    if (dislikeBtn) {
+        if (currentPlayingTrack.user_rating === "DISLIKE") dislikeBtn.classList.add("disliked");
+        else dislikeBtn.classList.remove("disliked");
+    }
+
     // Fixed Position Status Container (Green Circle Tick for Local vs Download Button for Streaming)
     const container = document.getElementById("player-status-container");
     if (container) {
@@ -2491,6 +2582,26 @@ playerPrevBtn.addEventListener("click", () => {
         }
     }
 });
+
+// Like & Dislike Buttons Listeners
+const playerLikeBtn = document.getElementById("player-like-btn");
+const playerDislikeBtn = document.getElementById("player-dislike-btn");
+
+if (playerLikeBtn) {
+    playerLikeBtn.addEventListener("click", () => {
+        if (!currentPlayingTrack) return;
+        const targetRating = currentPlayingTrack.user_rating === "LIKE" ? "INDIFFERENT" : "LIKE";
+        rateCurrentTrack(targetRating);
+    });
+}
+
+if (playerDislikeBtn) {
+    playerDislikeBtn.addEventListener("click", () => {
+        if (!currentPlayingTrack) return;
+        const targetRating = currentPlayingTrack.user_rating === "DISLIKE" ? "INDIFFERENT" : "DISLIKE";
+        rateCurrentTrack(targetRating);
+    });
+}
 
 // Shuffle Button Listener
 const playerShuffleBtn = document.getElementById("player-shuffle-btn");
