@@ -111,12 +111,20 @@ class BackgroundScheduler:
         now = datetime.datetime.now()
         
         due = False
-        sync_time_str = config.get("sync_time", "02:00") # Format: "HH:MM"
+        sync_time_str = config.get("sync_time", "") # Format: "HH:MM"
         sync_interval_hours = config.get("sync_interval_hours", 24) # Default 24 hours
         
-        # We support two scheduling modes based on config settings:
-        # 1. Daily at a specific time: sync_time is set and sync_interval_hours is 24 (or sync_time is primary)
-        # 2. Elapsed interval hours
+        # Determine scheduling mode:
+        # - "time": Daily at a specific time (sync_time is used)
+        # - "interval": Every N hours elapsed since last sync
+        # Use explicit schedule_mode field if present, otherwise infer from config
+        schedule_mode = config.get("schedule_mode", "")
+        if not schedule_mode:
+            # Heuristic fallback: if sync_time is set and non-empty, treat as daily-time mode
+            if sync_time_str:
+                schedule_mode = "time"
+            else:
+                schedule_mode = "interval"
         
         if last_sync_str:
             try:
@@ -129,14 +137,15 @@ class BackgroundScheduler:
         if not last_sync:
             # Never synced, run now
             due = True
-        else:
-            # Check interval-based sync
-            if "sync_interval_hours" in config and sync_interval_hours > 0:
+        elif schedule_mode == "interval":
+            # Elapsed interval hours mode
+            if sync_interval_hours > 0:
                 elapsed = now - last_sync
                 if elapsed >= datetime.timedelta(hours=sync_interval_hours):
                     due = True
-            # Check specific daily time
-            elif sync_time_str:
+        else:
+            # Daily at specific time mode
+            if sync_time_str:
                 try:
                     target_h, target_m = map(int, sync_time_str.split(":"))
                     target_time_today = now.replace(hour=target_h, minute=target_m, second=0, microsecond=0)
@@ -171,23 +180,33 @@ class BackgroundScheduler:
             ).start()
 
     def _calculate_next_sync(self, now, last_sync, config):
-        sync_time_str = config.get("sync_time", "02:00")
+        sync_time_str = config.get("sync_time", "")
         sync_interval_hours = config.get("sync_interval_hours", 24)
         
-        # If interval hours is active and not default 24, use that
-        if "sync_interval_hours" in config and sync_interval_hours > 0:
+        # Determine schedule mode consistently with _process_profile_schedule
+        schedule_mode = config.get("schedule_mode", "")
+        if not schedule_mode:
+            if sync_time_str:
+                schedule_mode = "time"
+            else:
+                schedule_mode = "interval"
+        
+        if schedule_mode == "interval" and sync_interval_hours > 0:
             base = last_sync if last_sync else now
             return base + datetime.timedelta(hours=sync_interval_hours)
             
-        # Else use daily specific time
-        try:
-            target_h, target_m = map(int, sync_time_str.split(":"))
-            next_run = now.replace(hour=target_h, minute=target_m, second=0, microsecond=0)
-            if next_run <= now:
-                next_run += datetime.timedelta(days=1)
-            return next_run
-        except Exception:
-            return now + datetime.timedelta(days=1)
+        # Daily at specific time mode
+        if sync_time_str:
+            try:
+                target_h, target_m = map(int, sync_time_str.split(":"))
+                next_run = now.replace(hour=target_h, minute=target_m, second=0, microsecond=0)
+                if next_run <= now:
+                    next_run += datetime.timedelta(days=1)
+                return next_run
+            except Exception:
+                pass
+        
+        return now + datetime.timedelta(days=1)
 
     def _run_auto_sync(self, username, config_file, state_file):
         if self.is_syncing(username):

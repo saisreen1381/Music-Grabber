@@ -1249,6 +1249,7 @@ async function autoSaveConfig() {
     
     if (autoSync) {
         const mode = settingSyncMode ? settingSyncMode.value : "time";
+        activeConfig.schedule_mode = mode;
         if (mode === "interval") {
             activeConfig.sync_interval_hours = settingSyncInterval ? parseInt(settingSyncInterval.value) : 24;
             activeConfig.sync_time = "";
@@ -1257,6 +1258,7 @@ async function autoSaveConfig() {
             activeConfig.sync_time = settingSyncTime ? settingSyncTime.value : "02:00";
         }
     } else {
+        activeConfig.schedule_mode = "";
         activeConfig.sync_interval_hours = 0;
         activeConfig.sync_time = "";
     }
