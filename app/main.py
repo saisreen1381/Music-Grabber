@@ -1648,6 +1648,51 @@ def get_ytmusic_track_rating(username: str, video_id: Optional[str] = None, url:
     rating = fetch_ytmusic_track_rating(username, video_id, url)
     return {"status": "success", "video_id": video_id, "rating": rating}
 
+class BatchRatingsModel(BaseModel):
+    username: str
+    video_ids: List[str]
+
+@app.post("/api/ytmusic/batch-track-ratings")
+def get_batch_ytmusic_track_ratings(payload: BatchRatingsModel):
+    profile_dir = USERS_DIR / payload.username
+    if not profile_dir.exists():
+        return {"status": "success", "ratings": {}}
+        
+    liked_ids_set = set()
+    
+    # Check local Liked Music playlist cache
+    try:
+        config_file = profile_dir / "sync_config.json"
+        if config_file.exists():
+            with open(config_file, "r", encoding="utf-8") as cf:
+                config = json.load(cf)
+            sources = config.get("sources", [])
+            for src in sources:
+                src_url = src.get("url", "")
+                src_name = src.get("name", "").lower()
+                if "list=LM" in src_url or "list=LL" in src_url or "liked" in src_name:
+                    cached_file = profile_dir / "playlists" / f"{src.get('id')}_tracks.json"
+                    if cached_file.exists():
+                        with open(cached_file, "r", encoding="utf-8") as tf:
+                            tracks = json.load(tf)
+                            for t in tracks:
+                                if t.get("id"): liked_ids_set.add(t["id"])
+                                if t.get("video_id"): liked_ids_set.add(t["video_id"])
+                                if t.get("url"):
+                                    vid = get_source_id(t["url"])
+                                    if vid: liked_ids_set.add(vid)
+    except Exception as e:
+        print(f"Batch ratings local cache error: {e}")
+        
+    ratings_map = {}
+    for vid in payload.video_ids:
+        if vid in liked_ids_set:
+            ratings_map[vid] = "LIKE"
+        else:
+            ratings_map[vid] = "INDIFFERENT"
+            
+    return {"status": "success", "ratings": ratings_map}
+
 @app.post("/api/ytmusic/rate-track")
 def rate_ytmusic_track(payload: RateTrackModel):
     profile_dir = USERS_DIR / payload.username

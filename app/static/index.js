@@ -12,6 +12,34 @@ let playerQueue = [];
 let currentQueueIndex = -1;
 let currentPlayingTrack = null;
 let discoverData = null;
+let allLikedTracksSet = new Set();
+
+async function updateLikedTracksSet() {
+    allLikedTracksSet.clear();
+    if (!activeProfile || !activeConfig || !activeConfig.sources) return;
+    
+    const likedSrc = activeConfig.sources.find(s => 
+        (s.url && (s.url.includes("list=LM") || s.url.includes("list=LL"))) || 
+        (s.name && s.name.toLowerCase().includes("liked"))
+    );
+    
+    if (likedSrc) {
+        try {
+            const srcId = likedSrc.id || getSourceId(likedSrc);
+            const res = await fetch(`/api/playlist/tracks?username=${activeProfile}&source_id=${srcId}`);
+            if (res.ok) {
+                const data = await res.json();
+                (data.tracks || []).forEach(t => {
+                    if (t.id) allLikedTracksSet.add(t.id);
+                    if (t.url) allLikedTracksSet.add(t.url);
+                    if (t.title) allLikedTracksSet.add(cleanMediaExtension(t.title).toLowerCase());
+                });
+            }
+        } catch (e) {
+            console.error("Error updating liked tracks set:", e);
+        }
+    }
+}
 
 // DOM Elements
 const profileSelect = document.getElementById("profile-select");
@@ -290,6 +318,7 @@ async function loadConfig(username) {
         populateSettingsForm();
         renderSourcesList();
         await refreshCookiesStatus(username);
+        await updateLikedTracksSet();
     } catch (e) {
         console.error("Failed to load config", e);
     }
@@ -4025,9 +4054,11 @@ function renderYtMusicSongsTable(songs) {
         const trackUrl = s.url || (s.id ? `https://www.youtube.com/watch?v=${s.id}` : "");
         const videoId = s.id || (trackUrl ? getSourceId(trackUrl) : "");
         const isLocal = isLocalTrack(s) || allDownloadedFilenamesSet.has(title.toLowerCase());
+        let isLiked = (videoId && allLikedTracksSet.has(videoId)) || (trackUrl && allLikedTracksSet.has(trackUrl)) || allLikedTracksSet.has(title.toLowerCase());
         
         tr.dataset.title = title;
         tr.dataset.url = trackUrl;
+        if (videoId) tr.dataset.videoid = videoId;
 
         tr.innerHTML = `
             <td style="text-align: center; font-size: 0.8rem; color: var(--text-dim); font-weight: 600;">${idx + 1}</td>
@@ -4055,8 +4086,8 @@ function renderYtMusicSongsTable(songs) {
                     </button>
 
                     <!-- Like Icon Button -->
-                    <button class="btn btn-icon btn-sm like-yt-song-btn" title="Like on YouTube Music" style="width: 30px; height: 30px; border-radius: 50%; color: var(--text-dim); padding: 0; display: inline-flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-glass); cursor: pointer; transition: all 0.2s ease;">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                    <button class="btn btn-icon btn-sm like-yt-song-btn" title="Like on YouTube Music" style="width: 30px; height: 30px; border-radius: 50%; color: ${isLiked ? '#ef4444' : 'var(--text-dim)'}; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-glass); cursor: pointer; transition: all 0.2s ease;">
+                        ${isLiked ? `<svg viewBox="0 0 24 24" width="14" height="14" fill="#ef4444" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>` : `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`}
                     </button>
                 </div>
             </td>
@@ -4134,16 +4165,23 @@ function renderYtMusicSongsTable(songs) {
         // 3. Like Button listener
         const likeBtn = tr.querySelector(".like-yt-song-btn");
         if (likeBtn) {
-            let isLiked = false;
             likeBtn.addEventListener("click", async (e) => {
                 e.stopPropagation();
                 isLiked = !isLiked;
                 const newRating = isLiked ? "LIKE" : "INDIFFERENT";
                 if (isLiked) {
+                    if (videoId) allLikedTracksSet.add(videoId);
+                    if (trackUrl) allLikedTracksSet.add(trackUrl);
+                    allLikedTracksSet.add(title.toLowerCase());
+
                     likeBtn.style.color = "#ef4444";
                     likeBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="#ef4444" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
                     showToast(`Liked "${title}" on YouTube Music & added to Liked Music!`, "success");
                 } else {
+                    if (videoId) allLikedTracksSet.delete(videoId);
+                    if (trackUrl) allLikedTracksSet.delete(trackUrl);
+                    allLikedTracksSet.delete(title.toLowerCase());
+
                     likeBtn.style.color = "var(--text-dim)";
                     likeBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
                     showToast(`Removed rating for "${title}"`, "info");
@@ -4170,6 +4208,43 @@ function renderYtMusicSongsTable(songs) {
         
         songsBody.appendChild(tr);
     });
+
+    // 1 SINGLE BATCH RATING QUERY FOR ALL SONGS IN PLAYLIST
+    if (activeProfile && songs.length > 0) {
+        const videoIdsToFetch = songs
+            .map(item => item.id || (item.url ? getSourceId(item.url) : ""))
+            .filter(id => id && !allLikedTracksSet.has(id));
+            
+        if (videoIdsToFetch.length > 0) {
+            fetch("/api/ytmusic/batch-track-ratings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    username: activeProfile,
+                    video_ids: videoIdsToFetch
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                const ratings = data.ratings || {};
+                Object.keys(ratings).forEach(vId => {
+                    if (ratings[vId] === "LIKE") {
+                        allLikedTracksSet.add(vId);
+                        const trEl = songsBody.querySelector(`tr[data-videoid="${vId}"]`);
+                        if (trEl) {
+                            const likeBtnEl = trEl.querySelector(".like-yt-song-btn");
+                            if (likeBtnEl) {
+                                likeBtnEl.style.color = "#ef4444";
+                                likeBtnEl.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="#ef4444" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+                            }
+                        }
+                    }
+                });
+            })
+            .catch(e => console.error("Batch track ratings fetch error:", e));
+        }
+    }
+
     highlightActivePlayingRows();
 }
 
