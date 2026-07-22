@@ -20,6 +20,7 @@ from app.sync_engine import (
     scan_existing_files_detailed,
     scan_existing_files,
     fetch_ytdlp_playlist,
+    extract_thumbnail,
     fetch_text_file,
     get_source_id,
     normalize_name,
@@ -1564,12 +1565,30 @@ def discover_ytmusic(username: str):
     quick_picks = []
     try:
         quick_picks = fetch_ytdlp_playlist(playlists_to_fetch[0]["url"], cookie_file, YTDLP_PATH)[:12]
+        if quick_picks and len(quick_picks) > 0 and quick_picks[0].get("id"):
+            playlists_to_fetch[0]["thumbnail"] = f"https://i.ytimg.com/vi/{quick_picks[0]['id']}/hqdefault.jpg"
     except Exception:
         pass
         
     trending_songs = []
     try:
         trending_songs = fetch_ytdlp_playlist(playlists_to_fetch[1]["url"], cookie_file, YTDLP_PATH)[:12]
+        if trending_songs and len(trending_songs) > 0 and trending_songs[0].get("id"):
+            playlists_to_fetch[1]["thumbnail"] = f"https://i.ytimg.com/vi/{trending_songs[0]['id']}/hqdefault.jpg"
+    except Exception:
+        pass
+
+    try:
+        iconic_tracks = fetch_ytdlp_playlist(playlists_to_fetch[2]["url"], cookie_file, YTDLP_PATH)[:1]
+        if iconic_tracks and len(iconic_tracks) > 0 and iconic_tracks[0].get("id"):
+            playlists_to_fetch[2]["thumbnail"] = f"https://i.ytimg.com/vi/{iconic_tracks[0]['id']}/hqdefault.jpg"
+    except Exception:
+        pass
+
+    try:
+        global_tracks = fetch_ytdlp_playlist(playlists_to_fetch[3]["url"], cookie_file, YTDLP_PATH)[:1]
+        if global_tracks and len(global_tracks) > 0 and global_tracks[0].get("id"):
+            playlists_to_fetch[3]["thumbnail"] = f"https://i.ytimg.com/vi/{global_tracks[0]['id']}/hqdefault.jpg"
     except Exception:
         pass
         
@@ -1614,21 +1633,33 @@ def search_ytmusic(username: str, query: str):
                 break
                 
     try:
-        # Search YouTube songs
-        song_search_url = f"ytsearch12:{query.strip()}"
+        clean_q = query.strip()
+        # Search YouTube songs (individual tracks)
+        song_search_url = f"ytsearch12:{clean_q}"
         songs = fetch_ytdlp_playlist(song_search_url, cookie_file, YTDLP_PATH)
         
-        # Search YouTube playlists matching query
-        playlist_search_url = f"ytsearch4:{query.strip()} playlist"
-        playlists_raw = fetch_ytdlp_playlist(playlist_search_url, cookie_file, YTDLP_PATH)
+        # Search YouTube Playlists matching query using YouTube Playlist filter URL
+        playlist_search_url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(clean_q)}&sp=EgIQAw%253D%253D"
+        playlists_raw = fetch_ytdlp_playlist(playlist_search_url, cookie_file, YTDLP_PATH)[:8]
         
         playlists = []
         for p in playlists_raw:
-            vid_id = p.get("id") or p.get("video_id")
-            thumb = p.get("thumbnail") or (f"https://i.ytimg.com/vi/{vid_id}/mqdefault.jpg" if vid_id else "")
+            pl_id = str(p.get("id") or p.get("video_id") or "")
+            raw_url = str(p.get("url") or "")
+            
+            if "list=" in raw_url:
+                pl_url = raw_url
+            elif "watch?v=PL" in raw_url or "watch?v=RD" in raw_url or "watch?v=OL" in raw_url:
+                pl_url = raw_url.replace("watch?v=", "playlist?list=")
+            elif pl_id.startswith("PL") or pl_id.startswith("RD") or pl_id.startswith("OL"):
+                pl_url = f"https://www.youtube.com/playlist?list={pl_id}"
+            else:
+                pl_url = raw_url or (f"https://www.youtube.com/playlist?list={pl_id}" if pl_id else "")
+                
+            thumb = extract_thumbnail(p)
             playlists.append({
                 "name": p.get("title") or p.get("display_name") or "YouTube Playlist",
-                "url": p.get("url") or (f"https://www.youtube.com/watch?v={vid_id}" if vid_id else ""),
+                "url": pl_url,
                 "description": f"By {p.get('artist') or 'YouTube Creator'}",
                 "thumbnail": thumb
             })
@@ -1657,6 +1688,13 @@ def get_ytmusic_playlist_preview(username: str, url: str):
             break
             
     target_url = url
+    if "watch?v=PL" in target_url:
+        target_url = target_url.replace("watch?v=", "playlist?list=")
+    elif "watch?v=RD" in target_url:
+        target_url = target_url.replace("watch?v=", "playlist?list=")
+    elif "watch?v=OL" in target_url:
+        target_url = target_url.replace("watch?v=", "playlist?list=")
+        
     if "PL4fGSI1pDJn69F6BvwSk6A_A-o0jHw22A" in target_url:
         target_url = "https://www.youtube.com/playlist?list=PLMC9KNkIncKtPzgY-5rmhvj7fax8fdxoj"
         

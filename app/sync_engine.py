@@ -155,14 +155,44 @@ def run_cmd(args, capture_output=True, text=True):
             args,
             capture_output=capture_output,
             text=text,
-            check=True
+            check=False
         )
+        if result.returncode != 0 and not result.stdout:
+            print(f"Command exited with code {result.returncode}: {' '.join(args)}")
+            if capture_output and result.stderr:
+                print(f"Stderr: {result.stderr[:500]}")
+            return None
         return result.stdout
-    except subprocess.CalledProcessError as e:
+    except Exception as e:
         print(f"Error running command {' '.join(args)}: {e}")
-        if capture_output:
-            print(f"Stderr: {e.stderr}")
         return None
+
+def safe_str(val):
+    if val is None:
+        return ""
+    return str(val).strip()
+
+def extract_thumbnail(item):
+    if not item or not isinstance(item, dict):
+        return ""
+    
+    thumb = item.get("thumbnail")
+    if isinstance(thumb, str) and thumb.strip():
+        return thumb.strip()
+        
+    thumbnails = item.get("thumbnails")
+    if isinstance(thumbnails, list) and len(thumbnails) > 0:
+        for t in reversed(thumbnails):
+            if isinstance(t, dict):
+                url = t.get("url")
+                if isinstance(url, str) and url.strip():
+                    return url.strip()
+                    
+    vid_id = safe_str(item.get("id") or item.get("video_id"))
+    if vid_id and not vid_id.startswith("PL") and not vid_id.startswith("RD") and not vid_id.startswith("OL"):
+        return f"https://i.ytimg.com/vi/{vid_id}/hqdefault.jpg"
+        
+    return ""
 
 def fetch_ytdlp_playlist(url, cookie_file=None, ytdlp_path="yt-dlp"):
     clean_url = str(url)
@@ -177,27 +207,87 @@ def fetch_ytdlp_playlist(url, cookie_file=None, ytdlp_path="yt-dlp"):
     cmd.append(clean_url)
     
     output = run_cmd(cmd)
-    if not output:
+
+    def is_invalid_output(out_str):
+        if not out_str or not out_str.strip():
+            return True
+        return out_str.strip().lower() in ["null", "none", "{}"]
+
+    # 1. Fallback: Retry without cookie_file if cookies output null or empty
+    if is_invalid_output(output) and cookie_file:
+        cmd_nocookie = []
+        skip_next = False
+        for token in cmd:
+            if skip_next:
+                skip_next = False
+                continue
+            if token == "--cookies":
+                skip_next = True
+                continue
+            cmd_nocookie.append(token)
+        output = run_cmd(cmd_nocookie)
+
+    # 2. Fallback: Retry without js-runtimes node parameter
+    if is_invalid_output(output):
+        cmd_fallback = [c for c in cmd if c not in ["--js-runtimes", "node", "--cookies", str(cookie_file)]]
+        output = run_cmd(cmd_fallback)
+
+    if is_invalid_output(output):
         return []
-        
+
     try:
         data = json.loads(output)
+        if not data or not isinstance(data, dict):
+            return []
+
         entries = data.get("entries")
-        if entries is None:
-            if data.get("title"):
+        if entries is None or not isinstance(entries, list):
+            # Check if single video contains chapters (e.g. Jukebox videos)
+            chapters = data.get("chapters")
+            if chapters and isinstance(chapters, list) and len(chapters) > 0:
+                vid_id = safe_str(data.get("id"))
+                vid_uploader = safe_str(data.get("uploader") or data.get("artist") or data.get("channel") or data.get("creator"))
+                vid_thumb = extract_thumbnail(data)
+                chapter_tracks = []
+                for ch in chapters:
+                    if not ch or not isinstance(ch, dict):
+                        continue
+                    ch_title = safe_str(ch.get("title"))
+                    if not ch_title:
+                        continue
+                    ch_start = ch.get("start_time") or 0
+                    ch_end = ch.get("end_time") or 0
+                    ch_dur = (ch_end - ch_start) if (isinstance(ch_end, (int, float)) and isinstance(ch_start, (int, float)) and ch_end > ch_start) else None
+                    chapter_tracks.append({
+                        "id": f"{vid_id}_ch_{int(ch_start or 0)}",
+                        "display_name": ch_title,
+                        "title": ch_title,
+                        "artist": vid_uploader or "YouTube Artist",
+                        "video_id": vid_id,
+                        "duration": ch_dur,
+                        "thumbnail": vid_thumb,
+                        "url": f"https://www.youtube.com/watch?v={vid_id}" if vid_id else None
+                    })
+                if chapter_tracks:
+                    return chapter_tracks
+
+            if safe_str(data.get("title")):
                 entries = [data]
             else:
                 entries = []
+
         tracks = []
         for idx, entry in enumerate(entries):
-            if not entry:
+            if not entry or not isinstance(entry, dict):
                 continue
-            title = entry.get("title", "")
-            if not title or title.strip() in ["[Deleted video]", "[Private video]", "[Unavailable video]"]:
+            title = safe_str(entry.get("title"))
+            if not title or title in ["[Deleted video]", "[Private video]", "[Unavailable video]"]:
                 continue
-            uploader = entry.get("uploader", "")
-            video_id = entry.get("id", "")
+            uploader = safe_str(entry.get("uploader") or entry.get("artist") or entry.get("channel") or entry.get("creator"))
+            video_id = safe_str(entry.get("id") or entry.get("video_id"))
             duration = entry.get("duration")
+            if not isinstance(duration, (int, float)):
+                duration = None
             
             # Combine artist - title if uploader is present and not already in title
             if uploader and uploader.lower() not in title.lower():
@@ -205,15 +295,13 @@ def fetch_ytdlp_playlist(url, cookie_file=None, ytdlp_path="yt-dlp"):
             else:
                 display_name = title
                 
-            thumbnail = entry.get("thumbnail")
-            if not thumbnail and video_id:
-                thumbnail = f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
+            thumbnail = extract_thumbnail(entry)
 
             tracks.append({
-                "id": video_id,
+                "id": video_id or f"track_{idx}",
                 "display_name": display_name,
                 "title": title,
-                "artist": uploader,
+                "artist": uploader or "YouTube Artist",
                 "video_id": video_id,
                 "duration": duration,
                 "thumbnail": thumbnail,

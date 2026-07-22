@@ -1764,17 +1764,33 @@ if (saveSettingsBtn) {
 
 // ==================== Spotify-style Player Logic ====================
 
+function restoreSavedVolume() {
+    try {
+        const savedVol = localStorage.getItem("musicgrabber_volume");
+        if (savedVol !== null && !isNaN(parseFloat(savedVol))) {
+            const vol = Math.max(0, Math.min(1, parseFloat(savedVol)));
+            localAudioElement.volume = vol;
+            if (playerVolumeSlider) {
+                playerVolumeSlider.value = Math.round(vol * 100);
+            }
+        }
+    } catch (e) {}
+}
+
 function restoreLastPlayedTrack() {
     if (!activeProfile) return;
+    restoreSavedVolume();
     try {
         const savedTrackStr = localStorage.getItem(`musicgrabber_last_track_${activeProfile}`);
         const savedQueueStr = localStorage.getItem(`musicgrabber_last_queue_${activeProfile}`);
         const savedIndexStr = localStorage.getItem(`musicgrabber_last_index_${activeProfile}`);
+        const savedTimeStr = localStorage.getItem(`musicgrabber_seek_time_${activeProfile}`);
         
         if (savedTrackStr) {
             const track = JSON.parse(savedTrackStr);
             const queue = savedQueueStr ? JSON.parse(savedQueueStr) : [track];
             const index = savedIndexStr !== null ? parseInt(savedIndexStr, 10) : 0;
+            const targetSeek = savedTimeStr !== null ? parseFloat(savedTimeStr) : 0;
             
             const filename = track.local_filename || track.filename;
             if (filename) {
@@ -1784,6 +1800,18 @@ function restoreLastPlayedTrack() {
                 
                 localAudioElement.src = `/api/stream?username=${activeProfile}&filename=${encodeURIComponent(filename)}`;
                 localAudioElement.load();
+                
+                if (targetSeek > 0) {
+                    const onMeta = () => {
+                        if (localAudioElement.duration && targetSeek < localAudioElement.duration) {
+                            localAudioElement.currentTime = targetSeek;
+                            playerProgressSlider.value = (targetSeek / localAudioElement.duration) * 100;
+                            playerCurrentTime.textContent = formatDuration(targetSeek);
+                        }
+                        localAudioElement.removeEventListener("loadedmetadata", onMeta);
+                    };
+                    localAudioElement.addEventListener("loadedmetadata", onMeta);
+                }
                 
                 musicPlayerBar.style.display = "flex";
                 updatePlaybackUI();
@@ -1823,6 +1851,7 @@ function playTrack(track, queue = [], index = -1) {
             localStorage.setItem(`musicgrabber_last_track_${activeProfile}`, JSON.stringify(track));
             localStorage.setItem(`musicgrabber_last_queue_${activeProfile}`, JSON.stringify(playerQueue));
             localStorage.setItem(`musicgrabber_last_index_${activeProfile}`, currentQueueIndex);
+            localStorage.setItem(`musicgrabber_seek_time_${activeProfile}`, 0);
         }
     } catch (e) {}
     
@@ -2102,6 +2131,11 @@ localAudioElement.addEventListener("timeupdate", () => {
         const dur = localAudioElement.duration;
         playerProgressSlider.value = (cur / dur) * 100;
         playerCurrentTime.textContent = formatDuration(cur);
+        if (activeProfile && cur > 0) {
+            try {
+                localStorage.setItem(`musicgrabber_seek_time_${activeProfile}`, cur);
+            } catch (e) {}
+        }
     }
 });
 
@@ -2302,12 +2336,22 @@ playerPrevBtn.addEventListener("click", () => {
 playerProgressSlider.addEventListener("input", () => {
     if (localAudioElement.duration) {
         const pct = playerProgressSlider.value / 100;
-        localAudioElement.currentTime = pct * localAudioElement.duration;
+        const targetTime = pct * localAudioElement.duration;
+        localAudioElement.currentTime = targetTime;
+        if (activeProfile) {
+            try {
+                localStorage.setItem(`musicgrabber_seek_time_${activeProfile}`, targetTime);
+            } catch (e) {}
+        }
     }
 });
 
 playerVolumeSlider.addEventListener("input", () => {
-    localAudioElement.volume = playerVolumeSlider.value / 100;
+    const vol = playerVolumeSlider.value / 100;
+    localAudioElement.volume = vol;
+    try {
+        localStorage.setItem("musicgrabber_volume", vol);
+    } catch (e) {}
 });
 
 playerCloseBtn.addEventListener("click", () => {
@@ -3216,6 +3260,7 @@ function drawVisualizerBar(ctx, x, y, width, height, radius) {
 
 // Window Load Handler
 window.addEventListener("load", () => {
+    restoreSavedVolume();
     loadProfiles();
     startVisualizerDrawLoop();
 
@@ -3440,12 +3485,13 @@ async function loadYtMusicDiscoverData() {
             playlists.forEach(pl => {
                 const card = document.createElement("div");
                 card.className = "glass-card";
-                card.style.cssText = "display: flex; flex-direction: column; justify-content: space-between; padding: 12px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); background: rgba(255,255,255,0.02); transition: transform 0.2s, border-color 0.2s; cursor: pointer;";
+                card.style.cssText = "width: 200px; min-width: 200px; max-width: 200px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 12px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); background: rgba(255,255,255,0.02); transition: transform 0.2s, border-color 0.2s; cursor: pointer;";
                 const thumbUrl = pl.thumbnail || "";
                 card.innerHTML = `
                     <div>
-                        <div style="width: 100%; aspect-ratio: 1/1; border-radius: var(--radius-sm); overflow: hidden; background: linear-gradient(135deg, var(--primary), var(--secondary)); display: flex; align-items: center; justify-content: center; margin-bottom: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.4); flex-shrink: 0;">
-                            ${thumbUrl ? `<img src="${thumbUrl}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';">` : `<svg viewBox="0 0 24 24" width="48" height="48" fill="white"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`}
+                        <div style="width: 100%; aspect-ratio: 1/1; border-radius: var(--radius-sm); overflow: hidden; background: linear-gradient(135deg, var(--primary), var(--secondary)); display: flex; align-items: center; justify-content: center; margin-bottom: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.4); flex-shrink: 0; position: relative;">
+                            <svg viewBox="0 0 24 24" width="44" height="44" fill="white" style="opacity: 0.9;"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                            ${thumbUrl ? `<img src="${thumbUrl}" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover;" onerror="this.remove();">` : ""}
                         </div>
                         <div style="min-width: 0; margin-bottom: 10px;">
                             <h4 style="margin: 0 0 4px 0; font-size: 0.92rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(pl.name)}">${escapeHtml(pl.name)}</h4>
@@ -3557,12 +3603,13 @@ async function searchYtMusic(query) {
                 playlists.forEach(pl => {
                     const card = document.createElement("div");
                     card.className = "glass-card";
-                    card.style.cssText = "display: flex; flex-direction: column; justify-content: space-between; padding: 12px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); background: rgba(255,255,255,0.02); transition: transform 0.2s, border-color 0.2s; cursor: pointer;";
+                    card.style.cssText = "width: 200px; min-width: 200px; max-width: 200px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 12px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); background: rgba(255,255,255,0.02); transition: transform 0.2s, border-color 0.2s; cursor: pointer;";
                     const thumbUrl = pl.thumbnail || "";
                     card.innerHTML = `
                         <div>
-                            <div style="width: 100%; aspect-ratio: 1/1; border-radius: var(--radius-sm); overflow: hidden; background: linear-gradient(135deg, var(--primary), var(--secondary)); display: flex; align-items: center; justify-content: center; margin-bottom: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.4); flex-shrink: 0;">
-                                ${thumbUrl ? `<img src="${thumbUrl}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';">` : `<svg viewBox="0 0 24 24" width="48" height="48" fill="white"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`}
+                            <div style="width: 100%; aspect-ratio: 1/1; border-radius: var(--radius-sm); overflow: hidden; background: linear-gradient(135deg, var(--primary), var(--secondary)); display: flex; align-items: center; justify-content: center; margin-bottom: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.4); flex-shrink: 0; position: relative;">
+                                <svg viewBox="0 0 24 24" width="44" height="44" fill="white" style="opacity: 0.9;"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                                ${thumbUrl ? `<img src="${thumbUrl}" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover;" onerror="this.remove();">` : ""}
                             </div>
                             <div style="min-width: 0; margin-bottom: 10px;">
                                 <h4 style="margin: 0 0 4px 0; font-size: 0.92rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(pl.name)}">${escapeHtml(pl.name)}</h4>
