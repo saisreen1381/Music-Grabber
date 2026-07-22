@@ -3410,12 +3410,24 @@ async function loadYtMusicDiscoverData() {
     if (!activeProfile) return;
     const playlistsGrid = document.getElementById("ytmusic-playlists-grid");
     const songsBody = document.getElementById("ytmusic-songs-table-body");
-    const artistsGrid = document.getElementById("ytmusic-artists-grid");
     
     if (playlistsGrid) playlistsGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-dim); padding: 24px;"><span class="spinner" style="width:20px; height:20px; border-width:2px; border-top-color:var(--primary); margin-right:8px;"></span> Loading YouTube Music recommendations...</div>`;
     if (songsBody) songsBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-dim); padding: 24px;"><span class="spinner" style="width:20px; height:20px; border-width:2px; border-top-color:var(--primary); margin-right:8px;"></span> Loading recommendations...</td></tr>`;
-    if (artistsGrid) artistsGrid.innerHTML = ``;
     
+    const resetBtn = document.getElementById("ytmusic-reset-songs-btn");
+    if (resetBtn) {
+        resetBtn.onclick = () => {
+            resetBtn.style.display = "none";
+            const titleEl = document.getElementById("ytmusic-songs-section-title");
+            if (titleEl) titleEl.textContent = "Recommended Songs for You";
+            if (window.ytmusicQuickPicksData) {
+                renderYtMusicSongsTable(window.ytmusicQuickPicksData);
+            } else {
+                loadYtMusicDiscoverData();
+            }
+        };
+    }
+
     try {
         const res = await fetch(`/api/ytmusic/discover?username=${activeProfile}`);
         if (!res.ok) throw new Error("Failed to load recommendations");
@@ -3428,25 +3440,20 @@ async function loadYtMusicDiscoverData() {
             playlists.forEach(pl => {
                 const card = document.createElement("div");
                 card.className = "glass-card";
-                card.style.cssText = "display: flex; flex-direction: column; justify-content: space-between; padding: 16px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); background: rgba(255,255,255,0.02); transition: transform 0.2s, border-color 0.2s; cursor: pointer;";
+                card.style.cssText = "display: flex; flex-direction: column; justify-content: space-between; padding: 12px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); background: rgba(255,255,255,0.02); transition: transform 0.2s, border-color 0.2s; cursor: pointer;";
                 const thumbUrl = pl.thumbnail || "";
                 card.innerHTML = `
                     <div>
-                        <div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: center;">
-                            <div style="width: 56px; height: 56px; border-radius: var(--radius-sm); overflow: hidden; background: linear-gradient(135deg, var(--primary), var(--secondary)); display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-                                ${thumbUrl ? `<img src="${thumbUrl}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';">` : `<svg viewBox="0 0 24 24" width="24" height="24" fill="white"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`}
-                            </div>
-                            <div style="min-width: 0; flex: 1;">
-                                <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
-                                    <h4 class="playlist-title-preview" style="margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(pl.name)}</h4>
-                                    <span class="badge badge-secondary" style="font-size: 0.65rem; flex-shrink: 0;">Playlist</span>
-                                </div>
-                                <p style="font-size: 0.78rem; color: var(--text-dim); margin: 4px 0 0 0; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(pl.description)}</p>
-                            </div>
+                        <div style="width: 100%; aspect-ratio: 1/1; border-radius: var(--radius-sm); overflow: hidden; background: linear-gradient(135deg, var(--primary), var(--secondary)); display: flex; align-items: center; justify-content: center; margin-bottom: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.4); flex-shrink: 0;">
+                            ${thumbUrl ? `<img src="${thumbUrl}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';">` : `<svg viewBox="0 0 24 24" width="48" height="48" fill="white"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`}
+                        </div>
+                        <div style="min-width: 0; margin-bottom: 10px;">
+                            <h4 style="margin: 0 0 4px 0; font-size: 0.92rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(pl.name)}">${escapeHtml(pl.name)}</h4>
+                            <p style="font-size: 0.75rem; color: var(--text-dim); margin: 0; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(pl.description)}</p>
                         </div>
                     </div>
-                    <button class="btn btn-primary btn-sm add-yt-playlist-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600;">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                    <button class="btn btn-primary btn-sm add-yt-playlist-btn" style="padding: 5px 12px; font-size: 0.75rem; font-weight: 600; align-self: flex-start; border-radius: 20px; width: auto; display: flex; align-items: center; gap: 5px;">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
                         <span>Add to Library</span>
                     </button>
                 `;
@@ -3457,7 +3464,7 @@ async function loadYtMusicDiscoverData() {
                     addYtMusicPlaylistSource(pl.name, pl.url);
                 });
                 
-                // Clicking card opens preview modal
+                // Clicking card previews tracks on page
                 card.addEventListener("click", () => {
                     previewYtMusicPlaylist(pl.name, pl.url);
                 });
@@ -3467,86 +3474,61 @@ async function loadYtMusicDiscoverData() {
         }
         
         // Render Quick Picks / Recommended Songs
-        if (songsBody) {
-            songsBody.innerHTML = "";
-            const songs = data.quick_picks || data.trending_songs || [];
-            if (songs.length === 0) {
-                songsBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-dim); padding: 20px;">No recommended songs found at this moment.</td></tr>`;
-            } else {
-                songs.forEach((s, idx) => {
-                    const tr = document.createElement("tr");
-                    const title = cleanMediaExtension(s.title || s.display_name || "Unknown Track");
-                    const artist = s.artist || "Recommended Track";
-                    const songThumb = s.thumbnail || (s.id ? `https://i.ytimg.com/vi/${s.id}/mqdefault.jpg` : "");
-                    tr.innerHTML = `
-                        <td style="text-align: center; font-size: 0.8rem; color: var(--text-dim); font-weight: 600;">${idx + 1}</td>
-                        <td>
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <div style="width: 40px; height: 40px; border-radius: 6px; overflow: hidden; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid var(--border-glass);">
-                                    ${songThumb ? `<img src="${songThumb}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';">` : `<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--primary)"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`}
-                                </div>
-                                <div style="min-width: 0;">
-                                    <div style="font-weight: 600; color: var(--text-main); font-size: 0.9rem;">${escapeHtml(title)}</div>
-                                </div>
-                            </div>
-                        </td>
-                        <td style="color: var(--text-dim); font-size: 0.85rem;">${escapeHtml(artist)}</td>
-                        <td style="text-align: right;">
-                            <button class="btn btn-icon btn-sm play-yt-song-btn" title="Play Song" style="width: 32px; height: 32px; border-radius: 50%; color: var(--primary); padding: 0; display: inline-flex; align-items: center; justify-content: center; background: rgba(99, 102, 241, 0.15); border: 1px solid var(--primary);">
-                                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                            </button>
-                        </td>
-                    `;
-                    
-                    tr.querySelector(".play-yt-song-btn").addEventListener("click", () => {
-                        const mockTrack = {
-                            title: title,
-                            artist: artist,
-                            url: s.url,
-                            local_filename: `${title}.mp3`,
-                            filename: `${title}.mp3`
-                        };
-                        playTrack(mockTrack, [mockTrack]);
-                    });
-                    
-                    songsBody.appendChild(tr);
-                });
-            }
-        }
-        
-        // Render Recommended Artists
-        if (artistsGrid) {
-            artistsGrid.innerHTML = "";
-            const artists = data.recommended_artists || [];
-            artists.forEach(a => {
-                const card = document.createElement("div");
-                card.className = "glass-card";
-                card.style.cssText = "display: flex; flex-direction: column; align-items: center; text-align: center; padding: 14px; border-radius: var(--radius-md); background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); cursor: pointer; transition: transform 0.2s;";
-                card.innerHTML = `
-                    <div style="width: 58px; height: 58px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--secondary)); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin-bottom: 8px; box-shadow: 0 6px 16px rgba(99,102,241,0.3); border: 2px solid var(--border-glass);">
-                        🎤
-                    </div>
-                    <div style="font-weight: 600; font-size: 0.88rem; color: var(--text-main);">${escapeHtml(a.name)}</div>
-                    <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 2px;">${escapeHtml(a.genre)}</div>
-                `;
-                
-                card.addEventListener("click", () => {
-                    switchTab("tab-library");
-                    const discoverSearchInput = document.getElementById("discover-search-input");
-                    if (discoverSearchInput) {
-                        discoverSearchInput.value = a.name;
-                        discoverSearchQuery = a.name;
-                        renderDiscoverPage();
-                    }
-                });
-                
-                artistsGrid.appendChild(card);
-            });
-        }
+        const songs = data.quick_picks || data.trending_songs || [];
+        window.ytmusicQuickPicksData = songs;
+        renderYtMusicSongsTable(songs);
     } catch (e) {
         console.error("Error in loadYtMusicDiscoverData:", e);
         if (playlistsGrid) playlistsGrid.innerHTML = `<div style="grid-column: 1/-1; color: var(--danger); padding: 16px;">Failed to load recommendations: ${e.message}</div>`;
     }
+}
+
+function renderYtMusicSongsTable(songs) {
+    const songsBody = document.getElementById("ytmusic-songs-table-body");
+    if (!songsBody) return;
+    songsBody.innerHTML = "";
+    if (!songs || songs.length === 0) {
+        songsBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-dim); padding: 20px;">No songs found at this moment.</td></tr>`;
+        return;
+    }
+    songs.forEach((s, idx) => {
+        const tr = document.createElement("tr");
+        const title = cleanMediaExtension(s.title || s.display_name || "Unknown Track");
+        const artist = s.artist || "YouTube Artist";
+        const songThumb = s.thumbnail || (s.id ? `https://i.ytimg.com/vi/${s.id}/mqdefault.jpg` : "");
+        tr.innerHTML = `
+            <td style="text-align: center; font-size: 0.8rem; color: var(--text-dim); font-weight: 600;">${idx + 1}</td>
+            <td>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; border-radius: 6px; overflow: hidden; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid var(--border-glass);">
+                        ${songThumb ? `<img src="${songThumb}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';">` : `<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--primary)"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`}
+                    </div>
+                    <div style="min-width: 0;">
+                        <div style="font-weight: 600; color: var(--text-main); font-size: 0.9rem;">${escapeHtml(title)}</div>
+                    </div>
+                </div>
+            </td>
+            <td style="color: var(--text-dim); font-size: 0.85rem;">${escapeHtml(artist)}</td>
+            <td style="text-align: right;">
+                <button class="btn btn-icon btn-sm play-yt-song-btn" title="Play Song" style="width: 32px; height: 32px; border-radius: 50%; color: var(--primary); padding: 0; display: inline-flex; align-items: center; justify-content: center; background: rgba(99, 102, 241, 0.15); border: 1px solid var(--primary);">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+            </td>
+        `;
+        
+        tr.querySelector(".play-yt-song-btn").addEventListener("click", () => {
+            const mockTrack = {
+                title: title,
+                artist: artist,
+                url: s.url,
+                local_filename: `${title}.mp3`,
+                filename: `${title}.mp3`
+            };
+            playTrack(mockTrack, [mockTrack]);
+        });
+        
+        songsBody.appendChild(tr);
+    });
 }
 
 async function searchYtMusic(query) {
@@ -3575,25 +3557,20 @@ async function searchYtMusic(query) {
                 playlists.forEach(pl => {
                     const card = document.createElement("div");
                     card.className = "glass-card";
-                    card.style.cssText = "display: flex; flex-direction: column; justify-content: space-between; padding: 16px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); background: rgba(255,255,255,0.02); transition: transform 0.2s, border-color 0.2s; cursor: pointer;";
+                    card.style.cssText = "display: flex; flex-direction: column; justify-content: space-between; padding: 12px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); background: rgba(255,255,255,0.02); transition: transform 0.2s, border-color 0.2s; cursor: pointer;";
                     const thumbUrl = pl.thumbnail || "";
                     card.innerHTML = `
                         <div>
-                            <div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: center;">
-                                <div style="width: 56px; height: 56px; border-radius: var(--radius-sm); overflow: hidden; background: linear-gradient(135deg, var(--primary), var(--secondary)); display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-                                    ${thumbUrl ? `<img src="${thumbUrl}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';">` : `<svg viewBox="0 0 24 24" width="24" height="24" fill="white"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`}
-                                </div>
-                                <div style="min-width: 0; flex: 1;">
-                                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
-                                        <h4 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(pl.name)}</h4>
-                                        <span class="badge badge-secondary" style="font-size: 0.65rem; flex-shrink: 0;">Playlist</span>
-                                    </div>
-                                    <p style="font-size: 0.78rem; color: var(--text-dim); margin: 4px 0 0 0; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(pl.description)}</p>
-                                </div>
+                            <div style="width: 100%; aspect-ratio: 1/1; border-radius: var(--radius-sm); overflow: hidden; background: linear-gradient(135deg, var(--primary), var(--secondary)); display: flex; align-items: center; justify-content: center; margin-bottom: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.4); flex-shrink: 0;">
+                                ${thumbUrl ? `<img src="${thumbUrl}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';">` : `<svg viewBox="0 0 24 24" width="48" height="48" fill="white"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`}
+                            </div>
+                            <div style="min-width: 0; margin-bottom: 10px;">
+                                <h4 style="margin: 0 0 4px 0; font-size: 0.92rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(pl.name)}">${escapeHtml(pl.name)}</h4>
+                                <p style="font-size: 0.75rem; color: var(--text-dim); margin: 0; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(pl.description)}</p>
                             </div>
                         </div>
-                        <button class="btn btn-primary btn-sm add-yt-playlist-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600;">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                        <button class="btn btn-primary btn-sm add-yt-playlist-btn" style="padding: 5px 12px; font-size: 0.75rem; font-weight: 600; align-self: flex-start; border-radius: 20px; width: auto; display: flex; align-items: center; gap: 5px;">
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
                             <span>Add to Library</span>
                         </button>
                     `;
@@ -3610,50 +3587,8 @@ async function searchYtMusic(query) {
         }
         
         // Render Search Songs
-        if (songsBody) {
-            songsBody.innerHTML = "";
-            const songs = data.songs || [];
-            if (songs.length === 0) {
-                songsBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-dim); padding: 20px;">No songs found matching "${escapeHtml(cleanQuery)}".</td></tr>`;
-            } else {
-                songs.forEach((s, idx) => {
-                    const tr = document.createElement("tr");
-                    const title = cleanMediaExtension(s.title || s.display_name || "Unknown Track");
-                    const artist = s.artist || "YouTube Artist";
-                    const songThumb = s.thumbnail || (s.id ? `https://i.ytimg.com/vi/${s.id}/mqdefault.jpg` : "");
-                    tr.innerHTML = `
-                        <td style="text-align: center; font-size: 0.8rem; color: var(--text-dim); font-weight: 600;">${idx + 1}</td>
-                        <td>
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <div style="width: 40px; height: 40px; border-radius: 6px; overflow: hidden; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid var(--border-glass);">
-                                    ${songThumb ? `<img src="${songThumb}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';">` : `<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--primary)"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`}
-                                </div>
-                                <div style="min-width: 0;">
-                                    <div style="font-weight: 600; color: var(--text-main); font-size: 0.9rem;">${escapeHtml(title)}</div>
-                                </div>
-                            </div>
-                        </td>
-                        <td style="color: var(--text-dim); font-size: 0.85rem;">${escapeHtml(artist)}</td>
-                        <td style="text-align: right;">
-                            <button class="btn btn-icon btn-sm play-yt-song-btn" title="Play Song" style="width: 32px; height: 32px; border-radius: 50%; color: var(--primary); padding: 0; display: inline-flex; align-items: center; justify-content: center; background: rgba(99, 102, 241, 0.15); border: 1px solid var(--primary);">
-                                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                            </button>
-                        </td>
-                    `;
-                    tr.querySelector(".play-yt-song-btn").addEventListener("click", () => {
-                        const mockTrack = {
-                            title: title,
-                            artist: artist,
-                            url: s.url,
-                            local_filename: `${title}.mp3`,
-                            filename: `${title}.mp3`
-                        };
-                        playTrack(mockTrack, [mockTrack]);
-                    });
-                    songsBody.appendChild(tr);
-                });
-            }
-        }
+        const songs = data.songs || [];
+        renderYtMusicSongsTable(songs);
     } catch (e) {
         showToast("Error searching YouTube Music: " + e.message, "danger");
     }
@@ -3661,62 +3596,28 @@ async function searchYtMusic(query) {
 
 async function previewYtMusicPlaylist(name, url) {
     if (!activeProfile) return;
-    const modal = document.getElementById("playlist-preview-modal");
-    const nameEl = document.getElementById("preview-playlist-name");
-    const countEl = document.getElementById("preview-playlist-count");
-    const listEl = document.getElementById("preview-playlist-list");
-    const addBtn = document.getElementById("preview-playlist-add-btn");
-    const closeBtn = document.getElementById("preview-playlist-close");
+    const titleEl = document.getElementById("ytmusic-songs-section-title");
+    const resetBtn = document.getElementById("ytmusic-reset-songs-btn");
+    const songsBody = document.getElementById("ytmusic-songs-table-body");
     
-    if (!modal) return;
-    if (nameEl) nameEl.textContent = name;
-    if (countEl) countEl.textContent = "Loading tracks...";
-    if (listEl) listEl.innerHTML = `<div style="text-align:center; padding: 24px; color: var(--text-dim);"><span class="spinner" style="width:20px; height:20px; border-width:2px; border-top-color:var(--primary); margin-right:8px;"></span> Loading playlist tracks...</div>`;
-    modal.style.display = "flex";
+    if (titleEl) titleEl.textContent = `Songs in: ${name}`;
+    if (resetBtn) resetBtn.style.display = "inline-flex";
+    if (songsBody) songsBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-dim); padding: 24px;"><span class="spinner" style="width:20px; height:20px; border-width:2px; border-top-color:var(--primary); margin-right:8px;"></span> Loading tracks for ${escapeHtml(name)}...</td></tr>`;
     
-    if (closeBtn) {
-        closeBtn.onclick = () => modal.style.display = "none";
-    }
-    
-    if (addBtn) {
-        addBtn.onclick = () => {
-            addYtMusicPlaylistSource(name, url);
-        };
-    }
+    // Smooth scroll down to songs section
+    if (titleEl) titleEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     
     try {
         const res = await fetch(`/api/ytmusic/playlist-tracks?username=${activeProfile}&url=${encodeURIComponent(url)}`);
         if (res.ok) {
             const data = await res.json();
             const tracks = data.tracks || [];
-            if (countEl) countEl.textContent = `${tracks.length} songs`;
-            if (listEl) {
-                if (tracks.length === 0) {
-                    listEl.innerHTML = `<div style="text-align:center; padding: 20px; color: var(--text-dim);">No songs found in this playlist.</div>`;
-                } else {
-                    listEl.innerHTML = "";
-                    tracks.forEach((t, idx) => {
-                        const row = document.createElement("div");
-                        row.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: var(--radius-sm); background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04);";
-                        const cleanTitle = cleanMediaExtension(t.title || t.display_name || "Unknown Track");
-                        row.innerHTML = `
-                            <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;">
-                                <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-dim); min-width: 20px;">${idx + 1}</span>
-                                <div style="min-width: 0; flex: 1;">
-                                    <div style="font-weight: 500; font-size: 0.85rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(cleanTitle)}</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(t.artist || "YouTube Track")}</div>
-                                </div>
-                            </div>
-                        `;
-                        listEl.appendChild(row);
-                    });
-                }
-            }
+            renderYtMusicSongsTable(tracks);
         } else {
-            if (listEl) listEl.innerHTML = `<div style="color: var(--danger); padding: 16px; text-align: center;">Unable to load playlist preview. If this is a private/restricted playlist, please upload your youtube_cookies.txt in Settings.</div>`;
+            if (songsBody) songsBody.innerHTML = `<tr><td colspan="4" style="color: var(--danger); padding: 16px; text-align: center;">Unable to load playlist tracks. If this is a private playlist, please upload your youtube_cookies.txt in Settings.</td></tr>`;
         }
     } catch (e) {
-        if (listEl) listEl.innerHTML = `<div style="color: var(--danger); padding: 16px; text-align: center;">Error loading tracks: ${e.message}</div>`;
+        if (songsBody) songsBody.innerHTML = `<tr><td colspan="4" style="color: var(--danger); padding: 16px; text-align: center;">Error loading tracks: ${e.message}</td></tr>`;
     }
 }
 

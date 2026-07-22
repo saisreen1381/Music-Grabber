@@ -182,7 +182,12 @@ def fetch_ytdlp_playlist(url, cookie_file=None, ytdlp_path="yt-dlp"):
         
     try:
         data = json.loads(output)
-        entries = data.get("entries", [])
+        entries = data.get("entries")
+        if entries is None:
+            if data.get("title"):
+                entries = [data]
+            else:
+                entries = []
         tracks = []
         for idx, entry in enumerate(entries):
             if not entry:

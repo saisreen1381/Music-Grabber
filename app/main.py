@@ -1539,25 +1539,25 @@ def discover_ytmusic(username: str):
             "name": "Tollywood Hitlist",
             "url": "https://www.youtube.com/playlist?list=RDCLAK5uy_lyVnWI5JnuwKJiuE-n1x-Un0mj9WlEyZw",
             "description": "Top trending Telugu music hits on YouTube Music",
-            "thumbnail": "https://i.ytimg.com/vi/a3Ue-LN5B9U/mqdefault.jpg"
+            "thumbnail": "https://i.ytimg.com/vi/a3Ue-LN5B9U/hqdefault.jpg"
         },
         {
             "name": "New Music Telugu",
             "url": "https://www.youtube.com/playlist?list=RDCLAK5uy_l8CaYQvBQWVT2st1VsW9JjODWisR_vd3U",
             "description": "Fresh new releases and chartbusters",
-            "thumbnail": "https://i.ytimg.com/vi/d_w3u7X4KkY/mqdefault.jpg"
+            "thumbnail": "https://i.ytimg.com/vi/d_w3u7X4KkY/hqdefault.jpg"
         },
         {
             "name": "Iconic Tollywood Hits",
             "url": "https://www.youtube.com/playlist?list=RDCLAK5uy_kNVZmuXhmEKIMMdOtksUzOwpJ98rZMvo8",
             "description": "All-time popular Tollywood hit songs",
-            "thumbnail": "https://i.ytimg.com/vi/3RlhXn69yJg/mqdefault.jpg"
+            "thumbnail": "https://i.ytimg.com/vi/3RlhXn69yJg/hqdefault.jpg"
         },
         {
-            "name": "Trending Music Hits",
+            "name": "Global Top Hits",
             "url": "https://www.youtube.com/playlist?list=PLMC9KNkIncKtPzgY-5rmhvj7fax8fdxoj",
             "description": "Worldwide popular music tracks and chartbusters",
-            "thumbnail": "https://i.ytimg.com/vi/kffacxfA7G4/mqdefault.jpg"
+            "thumbnail": "https://i.ytimg.com/vi/kffacxfA7G4/hqdefault.jpg"
         }
     ]
     
@@ -1656,8 +1656,12 @@ def get_ytmusic_playlist_preview(username: str, url: str):
             cookie_file = str(potential_cookie.resolve())
             break
             
+    target_url = url
+    if "PL4fGSI1pDJn69F6BvwSk6A_A-o0jHw22A" in target_url:
+        target_url = "https://www.youtube.com/playlist?list=PLMC9KNkIncKtPzgY-5rmhvj7fax8fdxoj"
+        
     try:
-        tracks = fetch_ytdlp_playlist(url, cookie_file, YTDLP_PATH)
+        tracks = fetch_ytdlp_playlist(target_url, cookie_file, YTDLP_PATH)
         return {"status": "success", "tracks": tracks}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
