@@ -165,10 +165,16 @@ def run_cmd(args, capture_output=True, text=True):
         return None
 
 def fetch_ytdlp_playlist(url, cookie_file=None, ytdlp_path="yt-dlp"):
+    clean_url = str(url)
+    if "music.youtube.com/playlist?list=" in clean_url:
+        clean_url = clean_url.replace("music.youtube.com/playlist?list=", "www.youtube.com/playlist?list=")
+    elif "music.youtube.com/watch?" in clean_url:
+        clean_url = clean_url.replace("music.youtube.com/watch?", "www.youtube.com/watch?")
+        
     cmd = [ytdlp_path, "--flat-playlist", "--dump-single-json", "--js-runtimes", "node"]
     if cookie_file and os.path.exists(cookie_file):
         cmd.extend(["--cookies", cookie_file])
-    cmd.append(url)
+    cmd.append(clean_url)
     
     output = run_cmd(cmd)
     if not output:
@@ -194,6 +200,10 @@ def fetch_ytdlp_playlist(url, cookie_file=None, ytdlp_path="yt-dlp"):
             else:
                 display_name = title
                 
+            thumbnail = entry.get("thumbnail")
+            if not thumbnail and video_id:
+                thumbnail = f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
+
             tracks.append({
                 "id": video_id,
                 "display_name": display_name,
@@ -201,6 +211,7 @@ def fetch_ytdlp_playlist(url, cookie_file=None, ytdlp_path="yt-dlp"):
                 "artist": uploader,
                 "video_id": video_id,
                 "duration": duration,
+                "thumbnail": thumbnail,
                 "url": f"https://www.youtube.com/watch?v={video_id}" if video_id else None
             })
         return tracks

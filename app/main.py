@@ -1,4 +1,6 @@
 import os
+import io
+import time
 import json
 import datetime
 import urllib.parse
@@ -1464,4 +1466,283 @@ def get_lyrics(artist: str = "", title: str = ""):
         pass
         
     return lyrics_data
+
+class AddSourceModel(BaseModel):
+    username: str
+    name: str
+    url: str
+    type: Optional[str] = "youtube_music_playlist"
+
+@app.post("/api/ytmusic/add-source")
+def add_ytmusic_source(payload: AddSourceModel):
+    profile_dir = USERS_DIR / payload.username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    config_file = profile_dir / "sync_config.json"
+    if not config_file.exists():
+        raise HTTPException(status_code=404, detail="Config file not found")
+        
+    with open(config_file, "r", encoding="utf-8") as f:
+        config = json.load(f)
+        
+    sources = config.get("sources", [])
+    
+    # Check if already added
+    for src in sources:
+        if src.get("url") == payload.url or src.get("name") == payload.name:
+            return {"status": "exists", "message": "Playlist is already in your sources!"}
+            
+    new_src = {
+        "id": f"src_{int(time.time() * 1000)}",
+        "type": payload.type or "youtube_music_playlist",
+        "name": payload.name,
+        "url": payload.url,
+        "path": "",
+        "disabled_track_ids": []
+    }
+    
+    sources.append(new_src)
+    config["sources"] = sources
+    
+    with open(config_file, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
+        
+    return {"status": "success", "message": f"Added '{payload.name}' to your playlists!", "source": new_src}
+
+@app.get("/api/ytmusic/discover")
+def discover_ytmusic(username: str):
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    cookie_file = None
+    for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
+        potential_cookie = profile_dir / name
+        if potential_cookie.exists():
+            cookie_file = str(potential_cookie.resolve())
+            break
+            
+    # Cache valid for 2 hours
+    cache_file = profile_dir / "ytmusic_discover_cache.json"
+    if cache_file.exists():
+        try:
+            stat = cache_file.stat()
+            if (time.time() - stat.st_mtime) < 7200:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+            
+    playlists_to_fetch = [
+        {
+            "name": "Tollywood Hitlist",
+            "url": "https://www.youtube.com/playlist?list=RDCLAK5uy_lyVnWI5JnuwKJiuE-n1x-Un0mj9WlEyZw",
+            "description": "Top trending Telugu music hits on YouTube Music",
+            "thumbnail": "https://i.ytimg.com/vi/a3Ue-LN5B9U/mqdefault.jpg"
+        },
+        {
+            "name": "New Music Telugu",
+            "url": "https://www.youtube.com/playlist?list=RDCLAK5uy_l8CaYQvBQWVT2st1VsW9JjODWisR_vd3U",
+            "description": "Fresh new releases and chartbusters",
+            "thumbnail": "https://i.ytimg.com/vi/d_w3u7X4KkY/mqdefault.jpg"
+        },
+        {
+            "name": "Iconic Tollywood Hits",
+            "url": "https://www.youtube.com/playlist?list=RDCLAK5uy_kNVZmuXhmEKIMMdOtksUzOwpJ98rZMvo8",
+            "description": "All-time popular Tollywood hit songs",
+            "thumbnail": "https://i.ytimg.com/vi/3RlhXn69yJg/mqdefault.jpg"
+        },
+        {
+            "name": "Trending Music Hits",
+            "url": "https://www.youtube.com/playlist?list=PLMC9KNkIncKtPzgY-5rmhvj7fax8fdxoj",
+            "description": "Worldwide popular music tracks and chartbusters",
+            "thumbnail": "https://i.ytimg.com/vi/kffacxfA7G4/mqdefault.jpg"
+        }
+    ]
+    
+    quick_picks = []
+    try:
+        quick_picks = fetch_ytdlp_playlist(playlists_to_fetch[0]["url"], cookie_file, YTDLP_PATH)[:12]
+    except Exception:
+        pass
+        
+    trending_songs = []
+    try:
+        trending_songs = fetch_ytdlp_playlist(playlists_to_fetch[1]["url"], cookie_file, YTDLP_PATH)[:12]
+    except Exception:
+        pass
+        
+    recommended_artists = [
+        {"name": "Anirudh Ravichander", "genre": "Tamil / EDM"},
+        {"name": "Sid Sriram", "genre": "Indian / Classical"},
+        {"name": "Sai Abhyankkar", "genre": "Indie / Pop"},
+        {"name": "Taylor Swift", "genre": "Pop / Country"},
+        {"name": "A.R. Rahman", "genre": "Soundtrack / World"},
+        {"name": "Justin Bieber", "genre": "Pop / R&B"},
+        {"name": "Bruno Mars", "genre": "Funk / Pop"},
+        {"name": "Charlie Puth", "genre": "Pop / Mainstream"}
+    ]
+    
+    result = {
+        "quick_picks": quick_picks,
+        "trending_songs": trending_songs,
+        "recommended_playlists": playlists_to_fetch,
+        "recommended_artists": recommended_artists
+    }
+    
+    try:
+        with open(cache_file, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2)
+    except Exception:
+        pass
+        
+    return result
+
+@app.get("/api/ytmusic/search")
+def search_ytmusic(username: str, query: str):
+    if not query or not query.strip():
+        raise HTTPException(status_code=400, detail="Query parameter is required")
+        
+    profile_dir = USERS_DIR / username
+    cookie_file = None
+    if profile_dir.exists():
+        for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
+            potential_cookie = profile_dir / name
+            if potential_cookie.exists():
+                cookie_file = str(potential_cookie.resolve())
+                break
+                
+    try:
+        # Search YouTube songs
+        song_search_url = f"ytsearch12:{query.strip()}"
+        songs = fetch_ytdlp_playlist(song_search_url, cookie_file, YTDLP_PATH)
+        
+        # Search YouTube playlists matching query
+        playlist_search_url = f"ytsearch4:{query.strip()} playlist"
+        playlists_raw = fetch_ytdlp_playlist(playlist_search_url, cookie_file, YTDLP_PATH)
+        
+        playlists = []
+        for p in playlists_raw:
+            vid_id = p.get("id") or p.get("video_id")
+            thumb = p.get("thumbnail") or (f"https://i.ytimg.com/vi/{vid_id}/mqdefault.jpg" if vid_id else "")
+            playlists.append({
+                "name": p.get("title") or p.get("display_name") or "YouTube Playlist",
+                "url": p.get("url") or (f"https://www.youtube.com/watch?v={vid_id}" if vid_id else ""),
+                "description": f"By {p.get('artist') or 'YouTube Creator'}",
+                "thumbnail": thumb
+            })
+            
+        return {
+            "status": "success",
+            "query": query,
+            "songs": songs,
+            "playlists": playlists
+        }
+    except Exception as e:
+        print(f"Error in YouTube Music search for '{query}': {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/ytmusic/playlist-tracks")
+def get_ytmusic_playlist_preview(username: str, url: str):
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    cookie_file = None
+    for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
+        potential_cookie = profile_dir / name
+        if potential_cookie.exists():
+            cookie_file = str(potential_cookie.resolve())
+            break
+            
+    try:
+        tracks = fetch_ytdlp_playlist(url, cookie_file, YTDLP_PATH)
+        return {"status": "success", "tracks": tracks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/playlists/export")
+def export_playlists(username: str):
+    profile_dir = USERS_DIR / username
+    config_file = profile_dir / "sync_config.json"
+    if not config_file.exists():
+        raise HTTPException(status_code=404, detail="Config not found")
+    with open(config_file, "r", encoding="utf-8") as f:
+        config = json.load(f)
+    sources = config.get("sources", [])
+    
+    export_data = {
+        "version": "1.0",
+        "exported_at": datetime.datetime.now().isoformat(),
+        "username": username,
+        "sources": sources
+    }
+    
+    headers = {"Content-Disposition": f"attachment; filename={username}_playlists_export.json"}
+    return StreamingResponse(
+        io.BytesIO(json.dumps(export_data, indent=2).encode("utf-8")),
+        media_type="application/json",
+        headers=headers
+    )
+
+class ImportPlaylistsModel(BaseModel):
+    username: str
+    sources: List[dict]
+
+@app.post("/api/playlists/import")
+def import_playlists(payload: ImportPlaylistsModel):
+    profile_dir = USERS_DIR / payload.username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    config_file = profile_dir / "sync_config.json"
+    if not config_file.exists():
+        raise HTTPException(status_code=404, detail="Config file not found")
+        
+    with open(config_file, "r", encoding="utf-8") as f:
+        config = json.load(f)
+        
+    existing_sources = config.get("sources", [])
+    existing_urls = {s.get("url") for s in existing_sources if s.get("url")}
+    existing_names = {s.get("name") for s in existing_sources if s.get("name")}
+    
+    added_count = 0
+    for src in payload.sources:
+        url = src.get("url")
+        name = src.get("name", "Imported Playlist")
+        if (url and url in existing_urls) or (name in existing_names):
+            continue
+            
+        new_src = {
+            "id": f"src_{int(time.time() * 1000) + added_count}",
+            "type": src.get("type", "youtube_music_playlist"),
+            "name": name,
+            "url": url or "",
+            "path": src.get("path", ""),
+            "disabled_track_ids": src.get("disabled_track_ids", [])
+        }
+        existing_sources.append(new_src)
+        added_count += 1
+        
+    config["sources"] = existing_sources
+    with open(config_file, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
+        
+    return {"status": "success", "message": f"Successfully imported {added_count} new playlist(s)!", "added_count": added_count}
+
+@app.get("/api/ytmusic/suggestions")
+def get_ytmusic_suggestions(query: str):
+    if not query or not query.strip():
+        return {"suggestions": []}
+    try:
+        url = f"https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q={urllib.parse.quote(query.strip())}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            if isinstance(data, list) and len(data) > 1 and isinstance(data[1], list):
+                return {"suggestions": data[1][:8]}
+    except Exception as e:
+        print(f"Error fetching suggestions for '{query}': {e}")
+    return {"suggestions": []}
 
