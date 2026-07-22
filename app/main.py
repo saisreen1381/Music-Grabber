@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, UploadFile, File
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, UploadFile, File, Request
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -1765,7 +1765,7 @@ def get_ytmusic_playlist_preview(username: str, url: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/ytmusic/stream")
-def stream_ytmusic_online(username: str, url: str):
+def stream_ytmusic_online(request: Request, username: str, url: str):
     if not url or not url.strip():
         raise HTTPException(status_code=400, detail="URL parameter is required")
         
@@ -1809,19 +1809,24 @@ def stream_ytmusic_online(username: str, url: str):
 
     first_url = stream_url.strip().splitlines()[0]
 
-    # Proxy YouTube audio stream with proper User-Agent headers to prevent YouTube CORS/403 blocks
+    # Forward client headers (specifically Range header for seeking unbuffered stream sections)
+    req_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "Accept-Encoding": "identity"
+    }
+    client_range = request.headers.get("range")
+    if client_range:
+        req_headers["Range"] = client_range
+
     try:
-        req = urllib.request.Request(
-            first_url,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "*/*",
-                "Accept-Encoding": "identity"
-            }
-        )
+        req = urllib.request.Request(first_url, headers=req_headers)
         remote_resp = urllib.request.urlopen(req, timeout=15)
+        
+        status_code = remote_resp.status
         content_type = remote_resp.headers.get("Content-Type", "audio/webm")
         content_length = remote_resp.headers.get("Content-Length")
+        content_range = remote_resp.headers.get("Content-Range")
         
         def iter_stream():
             try:
@@ -1833,14 +1838,21 @@ def stream_ytmusic_online(username: str, url: str):
             finally:
                 remote_resp.close()
 
-        headers = {
+        response_headers = {
             "Accept-Ranges": "bytes",
             "Cache-Control": "no-cache"
         }
         if content_length:
-            headers["Content-Length"] = content_length
+            response_headers["Content-Length"] = content_length
+        if content_range:
+            response_headers["Content-Range"] = content_range
 
-        return StreamingResponse(iter_stream(), media_type=content_type, headers=headers)
+        return StreamingResponse(
+            iter_stream(), 
+            status_code=status_code, 
+            media_type=content_type, 
+            headers=response_headers
+        )
     except Exception as e:
         print(f"Streaming proxy fallback for {first_url[:50]}: {e}")
         return RedirectResponse(url=first_url, status_code=307)

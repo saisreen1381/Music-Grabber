@@ -3230,7 +3230,26 @@ function startVisualizerDrawLoop() {
         canvasCtx.clearRect(0, 0, width, height);
         
         const localAudio = document.getElementById("local-audio-element");
-        const progress = localAudio && localAudio.duration ? (localAudio.currentTime / localAudio.duration) : 0;
+        const duration = (localAudio && localAudio.duration && !isNaN(localAudio.duration)) ? localAudio.duration : 0;
+        const currentTime = (localAudio && localAudio.currentTime) ? localAudio.currentTime : 0;
+        
+        let progress = duration > 0 ? (currentTime / duration) : 0;
+        
+        let bufferedEnd = 0;
+        if (localAudio && localAudio.buffered && localAudio.buffered.length > 0 && duration > 0) {
+            for (let i = 0; i < localAudio.buffered.length; i++) {
+                if (localAudio.buffered.start(i) <= currentTime && currentTime <= localAudio.buffered.end(i)) {
+                    bufferedEnd = localAudio.buffered.end(i);
+                    break;
+                }
+                if (localAudio.buffered.end(i) > bufferedEnd) {
+                    bufferedEnd = localAudio.buffered.end(i);
+                }
+            }
+        }
+        
+        let bufferProgress = duration > 0 ? (bufferedEnd / duration) : 0;
+        if (bufferProgress < progress) bufferProgress = progress;
         
         let freqs = [];
         if (analyser && localAudio && !localAudio.paused) {
@@ -3241,9 +3260,10 @@ function startVisualizerDrawLoop() {
         }
         
         const playedWidth = Math.floor(progress * width);
+        const bufferedWidth = Math.floor(bufferProgress * width);
         
         if (visualizerStyleMode === "solid_envelope") {
-            // MODE 1: Solid Waveform Envelope (Matching User Screenshot!)
+            // MODE 1: Solid Waveform Envelope
             const centerY = height / 2;
             const peaksUpper = new Float32Array(width);
             const peaksLower = new Float32Array(width);
@@ -3267,7 +3287,7 @@ function startVisualizerDrawLoop() {
                 peaksLower[x] = centerY + envH;
             }
             
-            // Draw played section (Golden Amber / Yellow Gradient as in screenshot!)
+            // 1. Played Section (Gradient)
             if (playedWidth > 0) {
                 canvasCtx.beginPath();
                 canvasCtx.moveTo(0, centerY);
@@ -3279,24 +3299,39 @@ function startVisualizerDrawLoop() {
                 }
                 canvasCtx.closePath();
                 const grad = canvasCtx.createLinearGradient(0, 0, playedWidth, 0);
-                grad.addColorStop(0, "#f59e0b");
-                grad.addColorStop(1, "#fbbf24");
+                grad.addColorStop(0, "#6366f1");
+                grad.addColorStop(1, "#06b6d4");
                 canvasCtx.fillStyle = grad;
                 canvasCtx.fill();
             }
             
-            // Draw unplayed section (Translucent Grey Envelope)
-            if (playedWidth < width) {
+            // 2. Buffered Section (Translucent White)
+            if (bufferedWidth > playedWidth) {
                 canvasCtx.beginPath();
                 canvasCtx.moveTo(playedWidth, centerY);
-                for (let x = playedWidth; x < width; x++) {
+                for (let x = playedWidth; x <= bufferedWidth; x++) {
                     canvasCtx.lineTo(x, peaksUpper[x]);
                 }
-                for (let x = width - 1; x >= playedWidth; x--) {
+                for (let x = bufferedWidth; x >= playedWidth; x--) {
                     canvasCtx.lineTo(x, peaksLower[x]);
                 }
                 canvasCtx.closePath();
-                canvasCtx.fillStyle = "rgba(255, 255, 255, 0.22)";
+                canvasCtx.fillStyle = "rgba(255, 255, 255, 0.65)";
+                canvasCtx.fill();
+            }
+            
+            // 3. Unbuffered Section (Dim Translucent Grey Envelope)
+            if (bufferedWidth < width) {
+                canvasCtx.beginPath();
+                canvasCtx.moveTo(bufferedWidth, centerY);
+                for (let x = bufferedWidth; x < width; x++) {
+                    canvasCtx.lineTo(x, peaksUpper[x]);
+                }
+                for (let x = width - 1; x >= bufferedWidth; x--) {
+                    canvasCtx.lineTo(x, peaksLower[x]);
+                }
+                canvasCtx.closePath();
+                canvasCtx.fillStyle = "rgba(255, 255, 255, 0.14)";
                 canvasCtx.fill();
             }
             
@@ -3304,21 +3339,35 @@ function startVisualizerDrawLoop() {
             canvasCtx.beginPath();
             canvasCtx.moveTo(0, centerY);
             canvasCtx.lineTo(playedWidth, centerY);
-            canvasCtx.strokeStyle = "#fbbf24";
+            canvasCtx.strokeStyle = "#06b6d4";
             canvasCtx.lineWidth = 1;
             canvasCtx.stroke();
 
         } else if (visualizerStyleMode === "minimal_line") {
             // MODE 4: Modern Minimal Progress Line
             const centerY = height / 2;
+            
+            // 1. Unbuffered background line
             canvasCtx.beginPath();
             canvasCtx.moveTo(0, centerY);
             canvasCtx.lineTo(width, centerY);
-            canvasCtx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+            canvasCtx.strokeStyle = "rgba(255, 255, 255, 0.14)";
             canvasCtx.lineWidth = 3;
             canvasCtx.lineCap = "round";
             canvasCtx.stroke();
             
+            // 2. Buffered line (Translucent White)
+            if (bufferedWidth > 0) {
+                canvasCtx.beginPath();
+                canvasCtx.moveTo(0, centerY);
+                canvasCtx.lineTo(bufferedWidth, centerY);
+                canvasCtx.strokeStyle = "rgba(255, 255, 255, 0.65)";
+                canvasCtx.lineWidth = 3;
+                canvasCtx.lineCap = "round";
+                canvasCtx.stroke();
+            }
+            
+            // 3. Played line (Cyan)
             if (playedWidth > 0) {
                 canvasCtx.beginPath();
                 canvasCtx.moveTo(0, centerY);
@@ -3328,8 +3377,6 @@ function startVisualizerDrawLoop() {
                 canvasCtx.lineCap = "round";
                 canvasCtx.stroke();
             }
-            
-            // Clean line without thumb dot
             
         } else {
             // MODE 2 & 3: Equalizer / Thin Frequency Bars
@@ -3359,7 +3406,8 @@ function startVisualizerDrawLoop() {
                 
                 const x = i * totalBarWidth;
                 const y = (height - barHeight) / 2;
-                const isPlayed = (x / width) <= progress;
+                const isPlayed = x <= playedWidth;
+                const isBuffered = x <= bufferedWidth;
                 
                 canvasCtx.beginPath();
                 if (isPlayed) {
@@ -3367,6 +3415,8 @@ function startVisualizerDrawLoop() {
                     grad.addColorStop(0, "#6366f1");
                     grad.addColorStop(1, "#06b6d4");
                     canvasCtx.fillStyle = grad;
+                } else if (isBuffered) {
+                    canvasCtx.fillStyle = "rgba(255, 255, 255, 0.75)";
                 } else {
                     canvasCtx.fillStyle = "rgba(255, 255, 255, 0.14)";
                 }
