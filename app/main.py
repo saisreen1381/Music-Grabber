@@ -11,11 +11,12 @@ from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, UploadFile, File
-from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.sync_engine import (
+    run_cmd,
     run_sync_engine_generator, 
     scan_existing_files_detailed,
     scan_existing_files,
@@ -1471,8 +1472,67 @@ def get_lyrics(artist: str = "", title: str = ""):
 class AddSourceModel(BaseModel):
     username: str
     name: str
+class DownloadTrackDirectModel(BaseModel):
+    username: str
     url: str
-    type: Optional[str] = "youtube_music_playlist"
+    title: str
+    artist: Optional[str] = None
+
+@app.post("/api/ytmusic/download-track")
+def download_track_direct(payload: DownloadTrackDirectModel):
+    profile_dir = USERS_DIR / payload.username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    config_file = profile_dir / "sync_config.json"
+    download_dir = None
+    if config_file.exists():
+        with open(config_file, "r", encoding="utf-8") as f:
+            config = json.load(f)
+            download_dir = config.get("download_dir")
+            
+    if not download_dir:
+        download_dir = str((profile_dir / "music").resolve())
+        os.makedirs(download_dir, exist_ok=True)
+        
+    cookie_file = None
+    for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
+        potential_cookie = profile_dir / name
+        if potential_cookie.exists():
+            cookie_file = str(potential_cookie.resolve())
+            break
+
+    target_track = {
+        "title": payload.title,
+        "artist": payload.artist or "YouTube Artist",
+        "url": payload.url,
+        "filename": f"{payload.title}.mp3"
+    }
+
+    try:
+        success, output_lines = download_track_ytdlp(
+            YTDLP_PATH, 
+            target_track, 
+            download_dir, 
+            cookie_file,
+            "%(title)s.%(ext)s",
+            True
+        )
+        if not success and cookie_file:
+            success, output_lines = download_track_ytdlp(
+                YTDLP_PATH, 
+                target_track, 
+                download_dir, 
+                None,
+                "%(title)s.%(ext)s",
+                True
+            )
+        if success:
+            return {"status": "success", "message": f"Successfully downloaded {payload.title}"}
+        else:
+            raise HTTPException(status_code=500, detail="\n".join(output_lines[-5:] if output_lines else ["Download failed"]))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/ytmusic/add-source")
 def add_ytmusic_source(payload: AddSourceModel):
@@ -1703,6 +1763,87 @@ def get_ytmusic_playlist_preview(username: str, url: str):
         return {"status": "success", "tracks": tracks}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/ytmusic/stream")
+def stream_ytmusic_online(username: str, url: str):
+    if not url or not url.strip():
+        raise HTTPException(status_code=400, detail="URL parameter is required")
+        
+    profile_dir = USERS_DIR / username
+    cookie_file = None
+    if profile_dir.exists():
+        for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
+            potential_cookie = profile_dir / name
+            if potential_cookie.exists():
+                cookie_file = str(potential_cookie.resolve())
+                break
+
+    clean_url = url.strip()
+    cmd = [YTDLP_PATH, "-g", "-f", "bestaudio/best", "--js-runtimes", "node"]
+    if cookie_file and os.path.exists(cookie_file):
+        cmd.extend(["--cookies", cookie_file])
+    cmd.append(clean_url)
+    
+    stream_url = run_cmd(cmd)
+
+    def is_invalid(s):
+        return not s or not s.strip() or s.strip().lower() in ["null", "none"]
+
+    # 1. Fallback without cookies if cookies failed
+    if is_invalid(stream_url) and cookie_file:
+        cmd_nocookie = [c for c in cmd]
+        try:
+            c_idx = cmd_nocookie.index("--cookies")
+            del cmd_nocookie[c_idx:c_idx+2]
+        except ValueError:
+            pass
+        stream_url = run_cmd(cmd_nocookie)
+
+    # 2. Fallback without js-runtimes node
+    if is_invalid(stream_url):
+        cmd_fallback = [c for c in cmd if c not in ["--js-runtimes", "node", "--cookies", str(cookie_file)]]
+        stream_url = run_cmd(cmd_fallback)
+
+    if is_invalid(stream_url):
+        raise HTTPException(status_code=404, detail="Failed to extract audio stream URL")
+
+    first_url = stream_url.strip().splitlines()[0]
+
+    # Proxy YouTube audio stream with proper User-Agent headers to prevent YouTube CORS/403 blocks
+    try:
+        req = urllib.request.Request(
+            first_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "*/*",
+                "Accept-Encoding": "identity"
+            }
+        )
+        remote_resp = urllib.request.urlopen(req, timeout=15)
+        content_type = remote_resp.headers.get("Content-Type", "audio/webm")
+        content_length = remote_resp.headers.get("Content-Length")
+        
+        def iter_stream():
+            try:
+                while True:
+                    chunk = remote_resp.read(64 * 1024)
+                    if not chunk:
+                        break
+                    yield chunk
+            finally:
+                remote_resp.close()
+
+        headers = {
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "no-cache"
+        }
+        if content_length:
+            headers["Content-Length"] = content_length
+
+        return StreamingResponse(iter_stream(), media_type=content_type, headers=headers)
+    except Exception as e:
+        print(f"Streaming proxy fallback for {first_url[:50]}: {e}")
+        return RedirectResponse(url=first_url, status_code=307)
 
 @app.get("/api/playlists/export")
 def export_playlists(username: str):

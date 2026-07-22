@@ -847,10 +847,16 @@
     <!-- Spotify-style Bottom Music Player Bar -->
     <div id="music-player-bar" class="music-player-bar" style="display: flex;">
         <!-- Left: Track Info -->
-        <div class="player-track-info" style="display: flex; align-items: center; gap: 12px; width: 30%; min-width: 180px;">
+        <div class="player-track-info" style="display: flex; align-items: center; gap: 12px; width: 30%; min-width: 200px;">
             <div id="player-album-art" class="player-album-art" style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); flex-shrink: 0; position: relative; overflow: hidden;">
                 🎵
             </div>
+
+            <!-- Fixed-Position Status Icon / Download Button Container -->
+            <div id="player-status-container" style="display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px;">
+                <span id="player-source-badge" style="display: none;"></span>
+            </div>
+
             <div class="player-metadata" style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
                 <span id="player-track-title" style="font-weight: 600; font-size: 0.9rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">Select a song to play</span>
                 <span id="player-track-artist" style="font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">No Active Track</span>

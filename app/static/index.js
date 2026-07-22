@@ -149,6 +149,46 @@ const newSourcePath = document.getElementById("new-source-path");
 const sourceModalCancel = document.getElementById("source-modal-cancel");
 const sourceModalSave = document.getElementById("source-modal-save");
 
+let allDownloadedFilenamesSet = new Set();
+
+function updateDownloadedFilesSet(list) {
+    if (!Array.isArray(list)) return;
+    list.forEach(item => {
+        const name = item.name || item.filename || item.local_filename || item.title;
+        if (name) {
+            allDownloadedFilenamesSet.add(name.toLowerCase());
+            allDownloadedFilenamesSet.add(cleanMediaExtension(name).toLowerCase());
+        }
+    });
+}
+
+function isLocalTrack(track) {
+    if (!track) return false;
+    if (track.path || track.is_local) return true;
+    
+    const fn = track.local_filename || track.filename || track.name;
+    const title = track.title || track.display_name;
+    
+    if (fn) {
+        const cleanFn = cleanMediaExtension(fn).toLowerCase();
+        if (allDownloadedFilenamesSet.has(fn.toLowerCase()) || allDownloadedFilenamesSet.has(cleanFn)) {
+            return true;
+        }
+    }
+    if (title) {
+        const cleanTitle = cleanMediaExtension(title).toLowerCase();
+        if (allDownloadedFilenamesSet.has(cleanTitle)) {
+            return true;
+        }
+    }
+    
+    if (fn && Array.isArray(scannedFiles)) {
+        const cleanFn = cleanMediaExtension(fn).toLowerCase();
+        return scannedFiles.some(f => cleanMediaExtension(f.name || "").toLowerCase() === cleanFn || f.name === fn);
+    }
+    return false;
+}
+
 // Helper: Format Bytes
 function formatBytes(bytes, decimals = 2) {
     if (bytes === 0) return '0 Bytes';
@@ -516,6 +556,8 @@ async function loadFiles() {
         const res = await fetch(`/api/scan?username=${activeProfile}&t=${Date.now()}`);
         const data = await res.json();
         allDownloadedFiles = data.files || [];
+        scannedFiles = allDownloadedFiles;
+        updateDownloadedFilesSet(allDownloadedFiles);
         renderFilesList(allDownloadedFiles);
         await loadToDownloadList();
     } catch (e) {
@@ -1859,14 +1901,21 @@ function playTrack(track, queue = [], index = -1) {
         }
     } catch (e) {}
     
-    const filename = track.local_filename || track.filename;
-    if (!filename) {
-        alert("Cannot play song: local filename not found.");
+    const filename = track.local_filename || track.filename || track.name;
+    const isLocal = isLocalTrack(track);
+    currentPlayingTrack.is_local = isLocal;
+
+    if (isLocal && (filename || track.path)) {
+        const playFile = filename || (track.path ? track.path.split(/[\/\\]/).pop() : "");
+        localAudioElement.src = `/api/stream?username=${activeProfile}&filename=${encodeURIComponent(playFile)}`;
+    } else if (track.url) {
+        localAudioElement.src = `/api/ytmusic/stream?username=${activeProfile}&url=${encodeURIComponent(track.url)}`;
+    } else if (filename) {
+        localAudioElement.src = `/api/stream?username=${activeProfile}&filename=${encodeURIComponent(filename)}`;
+    } else {
+        showToast("Cannot play track: No local file or stream URL available.", "danger");
         return;
     }
-    
-    localAudioElement.src = `/api/stream?username=${activeProfile}&filename=${encodeURIComponent(filename)}`;
-    localAudioElement.load();
     
     // Initialize seeker visualizer nodes
     initVisualizer();
@@ -1879,7 +1928,7 @@ function playTrack(track, queue = [], index = -1) {
         updatePlaybackUI();
     }).catch(e => {
         console.error("Audio playback error:", e);
-        alert("Playback failed. Make sure the container finished downloading the file.");
+        showToast("Playback error: Failed to play audio stream.", "danger");
     });
 }
 
@@ -1892,6 +1941,70 @@ function updatePlaybackUI() {
     playerTrackTitle.textContent = title;
     playerTrackArtist.textContent = artist;
     
+    // Fixed Position Status Container (Green Circle Tick for Local vs Download Button for Streaming)
+    const container = document.getElementById("player-status-container");
+    if (container) {
+        const isLocal = isLocalTrack(currentPlayingTrack);
+        if (isLocal) {
+            // Green tick inside a circle icon
+            container.innerHTML = `
+                <div class="status-circle-check" title="Downloaded (Local Library File)" style="width: 24px; height: 24px; border-radius: 50%; background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; display: flex; align-items: center; justify-content: center; color: #10b981; flex-shrink: 0;">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </div>
+            `;
+        } else {
+            // Download button for streaming songs
+            container.innerHTML = `
+                <button id="player-download-btn" class="btn btn-icon" title="Download song to Library" style="width: 26px; height: 26px; border-radius: 50%; background: rgba(139, 92, 246, 0.2); border: 1px solid #8b5cf6; display: flex; align-items: center; justify-content: center; color: #a78bfa; padding: 0; cursor: pointer; transition: all 0.2s ease; flex-shrink: 0;">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                </button>
+            `;
+            
+            const dlBtn = container.querySelector("#player-download-btn");
+            if (dlBtn) {
+                dlBtn.addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    dlBtn.disabled = true;
+                    dlBtn.innerHTML = `<div class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></div>`;
+                    showToast(`Downloading "${title}" to your library...`, "info");
+                    
+                    try {
+                        const res = await fetch("/api/ytmusic/download-track", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                username: activeProfile,
+                                url: currentPlayingTrack.url,
+                                title: title,
+                                artist: artist
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showToast(`Downloaded "${title}" to Library!`, "success");
+                            allDownloadedFilenamesSet.add(title.toLowerCase());
+                            allDownloadedFilenamesSet.add(cleanMediaExtension(title).toLowerCase());
+                            currentPlayingTrack.is_local = true;
+                            updatePlaybackUI();
+                            if (typeof loadFiles === "function") loadFiles();
+                        } else {
+                            throw new Error(data.detail || "Download failed");
+                        }
+                    } catch (err) {
+                        showToast(`Failed to download: ${err.message}`, "danger");
+                        updatePlaybackUI();
+                    }
+                });
+            }
+        }
+    }
+
     // Update player album art
     if (playerAlbumArt) {
         if (currentPlayingTrack.thumbnail_url) {
@@ -2415,6 +2528,9 @@ async function loadDiscoverData() {
         if (!res.ok) throw new Error("API scan failed");
         
         discoverData = await res.json();
+        if (discoverData && discoverData.all_songs) {
+            updateDownloadedFilesSet(discoverData.all_songs);
+        }
         renderDiscoverPage();
     } catch (e) {
         if (!discoverData) {
@@ -3602,14 +3718,27 @@ function renderYtMusicSongsTable(songs) {
         `;
         
         tr.querySelector(".play-yt-song-btn").addEventListener("click", () => {
+            const trackUrl = s.url || (s.id ? `https://www.youtube.com/watch?v=${s.id}` : "");
             const mockTrack = {
                 title: title,
                 artist: artist,
-                url: s.url,
+                url: trackUrl,
                 local_filename: `${title}.mp3`,
-                filename: `${title}.mp3`
+                filename: `${title}.mp3`,
+                thumbnail_url: songThumb
             };
-            playTrack(mockTrack, [mockTrack]);
+            const fullQueue = songs.map(item => {
+                const itemTitle = cleanMediaExtension(item.title || item.display_name || "Unknown Track");
+                return {
+                    title: itemTitle,
+                    artist: item.artist || "YouTube Artist",
+                    url: item.url || (item.id ? `https://www.youtube.com/watch?v=${item.id}` : ""),
+                    local_filename: `${itemTitle}.mp3`,
+                    filename: `${itemTitle}.mp3`,
+                    thumbnail_url: item.thumbnail || (item.id ? `https://i.ytimg.com/vi/${item.id}/mqdefault.jpg` : "")
+                };
+            });
+            playTrack(mockTrack, fullQueue, idx);
         });
         
         songsBody.appendChild(tr);
