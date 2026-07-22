@@ -658,14 +658,14 @@
                                     ← Back to Recommended Picks
                                 </button>
                             </div>
-                            <div class="glass-card table-card" style="padding: 0; overflow: hidden;">
-                                <table class="files-table">
-                                    <thead>
+                            <div class="glass-card table-card" style="padding: 0; overflow-y: auto; max-height: calc(100vh - 300px); position: relative; border-radius: var(--radius-md);">
+                                <table class="files-table" style="width: 100%; border-collapse: separate; border-spacing: 0;">
+                                    <thead style="position: sticky; top: 0; z-index: 10; background: #0f1422; box-shadow: 0 2px 10px rgba(0,0,0,0.5);">
                                         <tr>
                                             <th style="width: 40px; text-align: center;">#</th>
                                             <th>Song Title</th>
                                             <th>Artist</th>
-                                            <th style="text-align: right; width: 140px;">Action</th>
+                                            <th style="text-align: right; width: 140px; padding-right: 16px;">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody id="ytmusic-songs-table-body">

@@ -4023,6 +4023,8 @@ function renderYtMusicSongsTable(songs) {
         const artist = s.artist || "YouTube Artist";
         const songThumb = s.thumbnail || (s.id ? `https://i.ytimg.com/vi/${s.id}/mqdefault.jpg` : "");
         const trackUrl = s.url || (s.id ? `https://www.youtube.com/watch?v=${s.id}` : "");
+        const videoId = s.id || (trackUrl ? getSourceId(trackUrl) : "");
+        const isLocal = isLocalTrack(s) || allDownloadedFilenamesSet.has(title.toLowerCase());
         
         tr.dataset.title = title;
         tr.dataset.url = trackUrl;
@@ -4040,13 +4042,27 @@ function renderYtMusicSongsTable(songs) {
                 </div>
             </td>
             <td style="color: var(--text-dim); font-size: 0.85rem;">${escapeHtml(artist)}</td>
-            <td style="text-align: right;">
-                <button class="btn btn-icon btn-sm play-yt-song-btn" title="Play Song" style="width: 32px; height: 32px; border-radius: 50%; color: var(--primary); padding: 0; display: inline-flex; align-items: center; justify-content: center; background: rgba(99, 102, 241, 0.15); border: 1px solid var(--primary);">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                </button>
+            <td style="text-align: right; padding-right: 12px; white-space: nowrap;">
+                <div style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px;">
+                    <!-- Play Icon Button -->
+                    <button class="btn btn-icon btn-sm play-yt-song-btn" title="Play Song" style="width: 30px; height: 30px; border-radius: 50%; color: var(--primary); padding: 0; display: inline-flex; align-items: center; justify-content: center; background: rgba(99, 102, 241, 0.15); border: 1px solid var(--primary); cursor: pointer; transition: all 0.2s ease;">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+
+                    <!-- Download Icon Button -->
+                    <button class="btn btn-icon btn-sm download-yt-song-btn" title="${isLocal ? 'Downloaded' : 'Download to Library'}" style="width: 30px; height: 30px; border-radius: 50%; color: ${isLocal ? '#10b981' : '#a78bfa'}; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: ${isLocal ? 'rgba(16, 185, 129, 0.15)' : 'rgba(139, 92, 246, 0.15)'}; border: 1px solid ${isLocal ? '#10b981' : '#8b5cf6'}; cursor: pointer; transition: all 0.2s ease;">
+                        ${isLocal ? `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>` : `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`}
+                    </button>
+
+                    <!-- Like Icon Button -->
+                    <button class="btn btn-icon btn-sm like-yt-song-btn" title="Like on YouTube Music" style="width: 30px; height: 30px; border-radius: 50%; color: var(--text-dim); padding: 0; display: inline-flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-glass); cursor: pointer; transition: all 0.2s ease;">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                    </button>
+                </div>
             </td>
         `;
         
+        // 1. Play Button listener
         tr.querySelector(".play-yt-song-btn").addEventListener("click", () => {
             const mockTrack = {
                 title: title,
@@ -4069,6 +4085,88 @@ function renderYtMusicSongsTable(songs) {
             });
             playTrack(mockTrack, fullQueue, idx);
         });
+
+        // 2. Download Button listener
+        const dlBtn = tr.querySelector(".download-yt-song-btn");
+        if (dlBtn) {
+            dlBtn.addEventListener("click", async (e) => {
+                e.stopPropagation();
+                if (allDownloadedFilenamesSet.has(title.toLowerCase())) {
+                    showToast(`"${title}" is already in your library!`, "info");
+                    return;
+                }
+                dlBtn.disabled = true;
+                dlBtn.innerHTML = `<div class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></div>`;
+                showToast(`Downloading "${title}" to your library...`, "info");
+                
+                try {
+                    const res = await fetch("/api/ytmusic/download-track", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            username: activeProfile,
+                            url: trackUrl,
+                            title: title,
+                            artist: artist
+                        })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        showToast(`Downloaded "${title}" to Library!`, "success");
+                        allDownloadedFilenamesSet.add(title.toLowerCase());
+                        allDownloadedFilenamesSet.add(cleanMediaExtension(title).toLowerCase());
+                        dlBtn.style.color = "#10b981";
+                        dlBtn.style.background = "rgba(16, 185, 129, 0.15)";
+                        dlBtn.style.borderColor = "#10b981";
+                        dlBtn.innerHTML = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                        if (typeof loadFiles === "function") loadFiles();
+                    } else {
+                        throw new Error(data.detail || "Download failed");
+                    }
+                } catch (err) {
+                    showToast(`Download failed: ${err.message}`, "danger");
+                    dlBtn.disabled = false;
+                    dlBtn.innerHTML = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
+                }
+            });
+        }
+
+        // 3. Like Button listener
+        const likeBtn = tr.querySelector(".like-yt-song-btn");
+        if (likeBtn) {
+            let isLiked = false;
+            likeBtn.addEventListener("click", async (e) => {
+                e.stopPropagation();
+                isLiked = !isLiked;
+                const newRating = isLiked ? "LIKE" : "INDIFFERENT";
+                if (isLiked) {
+                    likeBtn.style.color = "#ef4444";
+                    likeBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="#ef4444" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+                    showToast(`Liked "${title}" on YouTube Music & added to Liked Music!`, "success");
+                } else {
+                    likeBtn.style.color = "var(--text-dim)";
+                    likeBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+                    showToast(`Removed rating for "${title}"`, "info");
+                }
+                
+                try {
+                    await fetch("/api/ytmusic/rate-track", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            username: activeProfile,
+                            video_id: videoId,
+                            url: trackUrl,
+                            rating: newRating,
+                            title: title,
+                            artist: artist
+                        })
+                    });
+                } catch (err) {
+                    console.error("Error liking song from row:", err);
+                }
+            });
+        }
         
         songsBody.appendChild(tr);
     });
