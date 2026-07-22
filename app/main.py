@@ -1021,12 +1021,12 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
             enabled = not downloaded
         
         formatted_tracks.append({
-            "id": t["id"],
-            "display_name": t["display_name"],
-            "title": t["title"],
-            "artist": t["artist"],
+            "id": t.get("id", ""),
+            "display_name": t.get("display_name", t.get("title", "Unknown Track")),
+            "title": t.get("title", t.get("display_name", "Unknown Track")),
+            "artist": t.get("artist", "YouTube Artist"),
             "video_id": t.get("video_id"),
-            "url": t["url"],
+            "url": t.get("url", ""),
             "duration": t.get("duration"),
             "enabled": enabled,
             "downloaded": downloaded,
@@ -1650,6 +1650,7 @@ def rate_ytmusic_track(payload: RateTrackModel):
                     if not exists:
                         new_track = {
                             "id": video_id,
+                            "display_name": track_title,
                             "title": track_title,
                             "artist": track_artist,
                             "url": track_url,
@@ -1666,7 +1667,7 @@ def rate_ytmusic_track(payload: RateTrackModel):
                 with open(cached_file, "w", encoding="utf-8") as tf:
                     json.dump(tracks, tf, indent=2)
 
-            # Auto-Download Liked Song if auto_download_liked is enabled in config
+            # Auto-Download Liked Song if auto_download_liked is enabled in config (outside source loop)
             if payload.rating == "LIKE" and config.get("auto_download_liked", False):
                 download_dir = config.get("download_dir")
                 if download_dir and os.path.exists(download_dir):
@@ -1678,6 +1679,7 @@ def rate_ytmusic_track(payload: RateTrackModel):
                     }
                     def do_bg_download():
                         try:
+                            print(f"[Auto-Download Liked Song] Downloading {target_track['title']}...")
                             download_track_ytdlp(
                                 YTDLP_PATH,
                                 target_track,
@@ -1686,6 +1688,7 @@ def rate_ytmusic_track(payload: RateTrackModel):
                                 config.get("filename_template", "%(title)s.%(ext)s"),
                                 True
                             )
+                            print(f"[Auto-Download Liked Song] Finished downloading {target_track['title']}!")
                         except Exception as ex:
                             print(f"Auto-download liked song failed: {ex}")
                             

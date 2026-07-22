@@ -2119,6 +2119,28 @@ async function rateCurrentTrack(newRating) {
         if (typeof loadConfig === "function") {
             await loadConfig(activeProfile);
         }
+        
+        // Auto-download liked song if auto_download_liked is enabled in config
+        if (newRating === "LIKE" && activeConfig && activeConfig.auto_download_liked && !isLocalTrack(currentPlayingTrack)) {
+            showToast(`Auto-downloading "${trackTitle}" to your local library...`, "info");
+            fetch("/api/ytmusic/download-track", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    username: activeProfile,
+                    url: trackUrl || (videoId ? `https://www.youtube.com/watch?v=${videoId}` : ""),
+                    title: trackTitle,
+                    artist: trackArtist
+                })
+            }).then(r => r.json()).then(d => {
+                showToast(`Auto-downloaded "${trackTitle}" to Library!`, "success");
+                allDownloadedFilenamesSet.add(trackTitle.toLowerCase());
+                allDownloadedFilenamesSet.add(cleanMediaExtension(trackTitle).toLowerCase());
+                currentPlayingTrack.is_local = true;
+                updatePlaybackUI();
+                if (typeof loadFiles === "function") loadFiles();
+            }).catch(e => console.error("Auto-download error:", e));
+        }
     } catch (err) {
         console.error("Error rating track:", err);
         showToast(`Rating error: ${err.message}`, "danger");
