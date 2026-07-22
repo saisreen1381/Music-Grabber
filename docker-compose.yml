@@ -8,6 +8,7 @@ services:
     ports:
       - "8010:8010"
     volumes:
+      - ./app:/app/app
       - ./users:/app/users
       # Mount the user's music storage path directly inside the container.
       # This allows absolute paths like "/mnt/mypassport/data/media/music" to resolve seamlessly.

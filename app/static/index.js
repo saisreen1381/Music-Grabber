@@ -209,10 +209,24 @@ async function handleProfileChange(username) {
     renderSourcesList();
     loadDiscoverData();
     
-    // Reset playlist details pane
-    noPlaylistSelectedView.style.display = "flex";
-    playlistActiveView.style.display = "none";
-    activePlaylistSourceId = "";
+    // Restore last active playlist tab if saved
+    try {
+        const savedPlaylistId = localStorage.getItem(`musicgrabber_last_playlist_${activeProfile}`);
+        if (savedPlaylistId && activeConfig && activeConfig.sources && activeConfig.sources.some(s => s.id === savedPlaylistId)) {
+            loadPlaylistTracks(savedPlaylistId);
+        } else {
+            noPlaylistSelectedView.style.display = "flex";
+            playlistActiveView.style.display = "none";
+            activePlaylistSourceId = "";
+        }
+    } catch (e) {
+        noPlaylistSelectedView.style.display = "flex";
+        playlistActiveView.style.display = "none";
+        activePlaylistSourceId = "";
+    }
+    
+    // Restore last played track into music player bar
+    restoreLastPlayedTrack();
     
     // Auto switch to sync tab
     switchTab("tab-sync");
@@ -507,6 +521,7 @@ async function loadToDownloadList() {
     if (!activeProfile || !activeConfig || !activeConfig.sources) return;
     
     allToDownloadTracks = [];
+    const seenTrackKeys = new Set();
     
     for (const src of activeConfig.sources) {
         try {
@@ -517,12 +532,16 @@ async function loadToDownloadList() {
                 tracks.forEach(t => {
                     if (!t.downloaded && t.enabled) {
                         const title = cleanMediaExtension(t.title || t.display_name || "Unknown Track");
-                        allToDownloadTracks.push({
-                            ...t,
-                            title: title,
-                            source_name: src.name || "Playlist",
-                            est_path: activeConfig.download_dir ? `${activeConfig.download_dir}/${title}.mp3` : `${title}.mp3`
-                        });
+                        const trackKey = (t.id || title).toLowerCase().trim();
+                        if (!seenTrackKeys.has(trackKey)) {
+                            seenTrackKeys.add(trackKey);
+                            allToDownloadTracks.push({
+                                ...t,
+                                title: title,
+                                source_name: src.name || "Playlist",
+                                est_path: activeConfig.download_dir ? `${activeConfig.download_dir}/${title}.mp3` : `${title}.mp3`
+                            });
+                        }
                     }
                 });
             }
@@ -676,6 +695,11 @@ function renderSourcesList() {
 // Fetch and load tracks of a playlist
 async function loadPlaylistTracks(sourceId, refresh = false) {
     activePlaylistSourceId = sourceId;
+    try {
+        if (activeProfile) {
+            localStorage.setItem(`musicgrabber_last_playlist_${activeProfile}`, sourceId);
+        }
+    } catch (e) {}
     
     // Find active source metadata
     const source = activeConfig.sources.find(s => s.id === sourceId);
@@ -1738,6 +1762,36 @@ if (saveSettingsBtn) {
 
 // ==================== Spotify-style Player Logic ====================
 
+function restoreLastPlayedTrack() {
+    if (!activeProfile) return;
+    try {
+        const savedTrackStr = localStorage.getItem(`musicgrabber_last_track_${activeProfile}`);
+        const savedQueueStr = localStorage.getItem(`musicgrabber_last_queue_${activeProfile}`);
+        const savedIndexStr = localStorage.getItem(`musicgrabber_last_index_${activeProfile}`);
+        
+        if (savedTrackStr) {
+            const track = JSON.parse(savedTrackStr);
+            const queue = savedQueueStr ? JSON.parse(savedQueueStr) : [track];
+            const index = savedIndexStr !== null ? parseInt(savedIndexStr, 10) : 0;
+            
+            const filename = track.local_filename || track.filename;
+            if (filename) {
+                currentPlayingTrack = track;
+                playerQueue = queue;
+                currentQueueIndex = index >= 0 && index < queue.length ? index : 0;
+                
+                localAudioElement.src = `/api/stream?username=${activeProfile}&filename=${encodeURIComponent(filename)}`;
+                localAudioElement.load();
+                
+                musicPlayerBar.style.display = "flex";
+                updatePlaybackUI();
+            }
+        }
+    } catch (e) {
+        console.error("Failed to restore last played track:", e);
+    }
+}
+
 function playTrack(track, queue = [], index = -1) {
     if (!track) return;
     
@@ -1766,6 +1820,7 @@ function playTrack(track, queue = [], index = -1) {
         if (activeProfile) {
             localStorage.setItem(`musicgrabber_last_track_${activeProfile}`, JSON.stringify(track));
             localStorage.setItem(`musicgrabber_last_queue_${activeProfile}`, JSON.stringify(playerQueue));
+            localStorage.setItem(`musicgrabber_last_index_${activeProfile}`, currentQueueIndex);
         }
     } catch (e) {}
     

@@ -8,6 +8,7 @@ services:
     ports:
       - "8010:8010"
     volumes:
+      - ./app:/app/app
       - ./users:/app/users
       # For local run: mount a local directory for music storage.
       # You can change './music' on the left side to any folder on your machine where you want music saved.

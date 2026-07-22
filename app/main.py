@@ -21,6 +21,7 @@ from app.sync_engine import (
     fetch_text_file,
     get_source_id,
     normalize_name,
+    get_scan_paths,
     download_track_ytdlp,
     paused_syncs,
     aborted_syncs
@@ -393,10 +394,8 @@ def scan_directory(username: str):
         return {"files": []}
         
     download_dir = config.get("download_dir")
-    if not download_dir:
-        return {"files": []}
-        
-    files = scan_existing_files_detailed(download_dir)
+    additional_dirs = config.get("additional_library_dirs", [])
+    files = scan_existing_files_detailed(download_dir, additional_dirs, profile_dir)
     return {"files": files}
 
 import subprocess
@@ -858,64 +857,136 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
     # Also attach whether the file already exists on disk
     download_dir = config.get("download_dir")
     additional_dirs = config.get("additional_library_dirs", [])
+    scan_paths = get_scan_paths(download_dir, additional_dirs, profile_dir)
     
-    scan_paths = []
-    if download_dir:
-        scan_paths.append(Path(download_dir))
-    for d in additional_dirs:
-        if d:
-            scan_paths.append(Path(d))
+    # Load metadata cache to guarantee matching against all 395+ downloaded tracks
+    cache_file = profile_dir / "library_metadata_cache.json"
+    cached_disk_files = []
+    if cache_file.exists():
+        try:
+            with open(cache_file, "r", encoding="utf-8") as cf:
+                cache_data = json.load(cf)
+                for file_path, item_data in cache_data.items():
+                    meta = item_data.get("metadata", {})
+                    fn = meta.get("filename") or os.path.basename(file_path)
+                    title_val = meta.get("title") or Path(fn).stem
+                    cached_disk_files.append({
+                        "name": fn,
+                        "path": file_path,
+                        "title": title_val,
+                        "stem": Path(fn).stem
+                    })
+        except Exception:
+            pass
             
     disk_files = []
+    seen_stems = set()
+    
+    # 1. Add tracks from library metadata cache
+    for cdf in cached_disk_files:
+        stem = cdf["stem"]
+        n_stem_full = normalize_name(stem, strip_brackets=False)
+        n_stem_strip = normalize_name(stem, strip_brackets=True)
+        title_full = normalize_name(cdf["title"], strip_brackets=False)
+        title_strip = normalize_name(cdf["title"], strip_brackets=True)
+        if not n_stem_full and not n_stem_strip:
+            continue
+        n_parts_full = [normalize_name(p, strip_brackets=False) for p in stem.split(' - ')] if ' - ' in stem else []
+        n_parts_strip = [normalize_name(p, strip_brackets=True) for p in stem.split(' - ')] if ' - ' in stem else []
+        disk_files.append({
+            "name": cdf["name"],
+            "path": cdf["path"],
+            "n_stem_full": n_stem_full,
+            "n_stem_strip": n_stem_strip,
+            "title_full": title_full,
+            "title_strip": title_strip,
+            "n_parts_full": [p for p in n_parts_full if p],
+            "n_parts_strip": [p for p in n_parts_strip if p]
+        })
+        if n_stem_full:
+            seen_stems.add(n_stem_full)
+
+    # 2. Add tracks from live filesystem scan
     for download_path in scan_paths:
-        if download_path.exists() and download_path.is_dir():
-            for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac']:
-                for file in download_path.rglob(ext):
-                    stem = file.stem
-                    n_stem = normalize_name(stem)
-                    if not n_stem or len(n_stem) < 3:
-                        continue
-                    n_parts = [normalize_name(p) for p in stem.split(' - ')] if ' - ' in stem else []
-                    disk_files.append({
-                        "name": file.name,
-                        "path": file,
-                        "n_stem": n_stem,
-                        "n_parts": [p for p in n_parts if p and len(p) >= 3]
-                    })
+        try:
+            if download_path.exists() and download_path.is_dir():
+                for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac', '*.wav', '*.aac', '*.ogg']:
+                    for file in download_path.rglob(ext):
+                        stem = file.stem
+                        n_stem_full = normalize_name(stem, strip_brackets=False)
+                        if n_stem_full in seen_stems:
+                            continue
+                        n_stem_strip = normalize_name(stem, strip_brackets=True)
+                        if not n_stem_full and not n_stem_strip:
+                            continue
+                        n_parts_full = [normalize_name(p, strip_brackets=False) for p in stem.split(' - ')] if ' - ' in stem else []
+                        n_parts_strip = [normalize_name(p, strip_brackets=True) for p in stem.split(' - ')] if ' - ' in stem else []
+                        disk_files.append({
+                            "name": file.name,
+                            "path": str(file),
+                            "n_stem_full": n_stem_full,
+                            "n_stem_strip": n_stem_strip,
+                            "title_full": n_stem_full,
+                            "title_strip": n_stem_strip,
+                            "n_parts_full": [p for p in n_parts_full if p],
+                            "n_parts_strip": [p for p in n_parts_strip if p]
+                        })
+                        if n_stem_full:
+                            seen_stems.add(n_stem_full)
+        except Exception:
+            pass
                         
     has_custom_disabled_ids = "disabled_track_ids" in source and len(source.get("disabled_track_ids", [])) > 0
     disabled_ids = set(source.get("disabled_track_ids", []))
     
     formatted_tracks = []
     for t in tracks:
-        n_display = normalize_name(t.get("display_name", ""))
-        n_title = normalize_name(t.get("title", ""))
-        n_artist = normalize_name(t.get("artist", ""))
-        n_artist_title = normalize_name(f"{t.get('artist', '')} {t.get('title', '')}")
+        display_name = t.get("display_name", "")
+        title = t.get("title", "")
+        artist = t.get("artist", "")
+        
+        t_display_full = normalize_name(display_name, strip_brackets=False)
+        t_display_strip = normalize_name(display_name, strip_brackets=True)
+        t_title_full = normalize_name(title, strip_brackets=False)
+        t_title_strip = normalize_name(title, strip_brackets=True)
+        
+        artist_title = f"{artist} {title}".strip()
+        t_art_title_full = normalize_name(artist_title, strip_brackets=False)
+        t_art_title_strip = normalize_name(artist_title, strip_brackets=True)
+        
+        target_set = {t_display_full, t_display_strip, t_title_full, t_title_strip, t_art_title_full, t_art_title_strip}
+        target_set.discard("")
         
         matched_file = None
         for df in disk_files:
-            fn = df["n_stem"]
-            if not fn:
-                continue
-                
-            # 1. Exact match with n_display, n_title, or n_artist_title
-            if (n_display and fn == n_display) or (n_title and fn == n_title) or (n_artist_title and fn == n_artist_title):
+            fn_full = df["n_stem_full"]
+            fn_strip = df["n_stem_strip"]
+            t_full = df.get("title_full", "")
+            t_strip = df.get("title_strip", "")
+            
+            # 1. Exact match with any normalized title/display variant
+            if (fn_full and fn_full in target_set) or (fn_strip and fn_strip in target_set) or (t_full and t_full in target_set) or (t_strip and t_strip in target_set):
                 matched_file = df
                 break
                 
             # 2. Check parts match (e.g., "Artist - Title")
-            if df["n_parts"]:
-                if any(p and len(p) >= 3 and (p == n_title or p == n_display) for p in df["n_parts"]):
-                    matched_file = df
-                    break
-                    
-            # 3. Substring containment match (if length >= 5)
-            if n_title and len(n_title) >= 5 and (n_title in fn or fn in n_title):
+            all_df_parts = df["n_parts_full"] + df["n_parts_strip"]
+            if any(p in target_set for p in all_df_parts if p):
                 matched_file = df
                 break
-            if len(fn) >= 5 and n_display and fn in n_display:
-                matched_file = df
+                    
+            # 3. Substring containment match (if length >= 4)
+            matched_sub = False
+            for t_val in [t_title_full, t_title_strip, t_display_full, t_display_strip]:
+                if len(t_val) >= 4:
+                    if (fn_full and len(fn_full) >= 4 and (t_val in fn_full or fn_full in t_val)) or \
+                       (fn_strip and len(fn_strip) >= 4 and (t_val in fn_strip or fn_strip in t_val)) or \
+                       (t_full and len(t_full) >= 4 and (t_val in t_full or t_full in t_val)) or \
+                       (t_strip and len(t_strip) >= 4 and (t_val in t_strip or t_strip in t_val)):
+                        matched_file = df
+                        matched_sub = True
+                        break
+            if matched_sub:
                 break
                 
         local_filename = matched_file["name"] if matched_file else None

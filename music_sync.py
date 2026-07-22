@@ -5,17 +5,17 @@ import re
 import subprocess
 from pathlib import Path
 
-# Normalize strings for comparison (removes all non-alphanumeric chars and spaces)
-def normalize_name(name):
+# Normalize strings for comparison (preserves Unicode letters and digits for all languages like Tamil, English, Hindi, etc.)
+def normalize_name(name, strip_brackets=True):
     if not name:
         return ""
-    # Convert to lowercase
-    name = name.lower()
-    # Strip common suffixes/prefixes like [Official Video], (Lyrics), etc.
-    name = re.sub(r'\[.*?\]', '', name)
-    name = re.sub(r'\(.*?\)', '', name)
-    # Remove non-alphanumeric characters
-    name = re.sub(r'[^a-z0-9]', '', name)
+    name = str(name).lower()
+    if strip_brackets:
+        # Strip common suffixes/prefixes like [Official Video], (Lyrics), (From "..."), etc.
+        name = re.sub(r'\[.*?\]', '', name)
+        name = re.sub(r'\(.*?\)', '', name)
+    # Remove non-word characters while preserving Unicode letters and digits
+    name = re.sub(r'[^\w]', '', name, flags=re.UNICODE)
     return name.strip()
 
 def run_cmd(args, capture_output=True, text=True):
@@ -40,14 +40,16 @@ def scan_existing_files(download_dir):
         return existing_songs
         
     print(f"Scanning existing files in {download_dir}...")
-    # Scan for common audio formats
-    for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm']:
-        for file in download_path.glob(ext):
+    # Scan for common audio formats recursively
+    for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac', '*.wav', '*.aac', '*.ogg']:
+        for file in download_path.rglob(ext):
             base_name = file.stem
-            # Normalize filename
-            norm = normalize_name(base_name)
-            if norm:
-                existing_songs.add(norm)
+            norm_full = normalize_name(base_name, strip_brackets=False)
+            norm_strip = normalize_name(base_name, strip_brackets=True)
+            if norm_full:
+                existing_songs.add(norm_full)
+            if norm_strip:
+                existing_songs.add(norm_strip)
                 
     print(f"Found {len(existing_songs)} unique existing tracks in folder.")
     return existing_songs
@@ -62,6 +64,39 @@ def fetch_ytdlp_playlist(url, cookie_file=None, ytdlp_path="yt-dlp"):
     output = run_cmd(cmd)
     if not output:
         print("Failed to fetch playlist data.")
+        return []
+        
+    try:
+        data = json.loads(output)
+        entries = data.get("entries", [])
+        tracks = []
+        for idx, entry in enumerate(entries):
+            if not entry:
+                continue
+            title = entry.get("title", "")
+            if not title or title.strip() in ["[Deleted video]", "[Private video]", "[Unavailable video]"]:
+                continue
+            # YouTube uploader is often the artist
+            uploader = entry.get("uploader", "")
+            video_id = entry.get("id", "")
+            
+            # Combine artist - title if uploader is present and not already in title
+            if uploader and uploader.lower() not in title.lower():
+                display_name = f"{uploader} - {title}"
+            else:
+                display_name = title
+                
+            tracks.append({
+                "display_name": display_name,
+                "title": title,
+                "artist": uploader,
+                "video_id": video_id,
+                "url": f"https://www.youtube.com/watch?v={video_id}" if video_id else None
+            })
+        print(f"Loaded {len(tracks)} tracks from playlist.")
+        return tracks
+    except Exception as e:
+        print(f"Error parsing playlist JSON: {e}")
         return []
         
     try:
@@ -242,7 +277,7 @@ def sync_user(config_path, ytdlp_path="yt-dlp"):
                 
         # Merge and deduplicate across sources
         for track in tracks:
-            norm = normalize_name(track["display_name"])
+            norm = normalize_name(track.get("display_name", ""), strip_brackets=False) or normalize_name(track.get("display_name", ""), strip_brackets=True)
             if norm not in seen_normalized:
                 seen_normalized.add(norm)
                 track["use_cookies"] = requires_cookies
@@ -253,8 +288,27 @@ def sync_user(config_path, ytdlp_path="yt-dlp"):
     # 3. Filter out existing tracks
     to_download = []
     for track in all_tracks:
-        norm = normalize_name(track["display_name"])
-        if norm not in existing_songs:
+        norm_title_full = normalize_name(track.get("title", ""), strip_brackets=False)
+        norm_title_strip = normalize_name(track.get("title", ""), strip_brackets=True)
+        norm_display_full = normalize_name(track.get("display_name", ""), strip_brackets=False)
+        norm_display_strip = normalize_name(track.get("display_name", ""), strip_brackets=True)
+        
+        track_norms = {norm_title_full, norm_title_strip, norm_display_full, norm_display_strip}
+        track_norms.discard("")
+        
+        is_downloaded = any(tn in existing_songs for tn in track_norms)
+        
+        if not is_downloaded:
+            for tn in track_norms:
+                if len(tn) >= 4:
+                    for fn in existing_songs:
+                        if len(fn) >= 4 and (tn in fn or fn in tn):
+                            is_downloaded = True
+                            break
+                if is_downloaded:
+                    break
+                        
+        if not is_downloaded:
             to_download.append(track)
             
     print(f"Tracks already downloaded: {len(all_tracks) - len(to_download)}")

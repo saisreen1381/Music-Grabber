@@ -10,18 +10,65 @@ import time
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Normalize strings for comparison (removes all non-alphanumeric chars and spaces)
-def normalize_name(name):
+# Normalize strings for comparison (preserves Unicode letters and digits for all languages like Tamil, English, Hindi, etc.)
+def normalize_name(name, strip_brackets=True):
     if not name:
         return ""
-    # Convert to lowercase
-    name = name.lower()
-    # Strip common suffixes/prefixes like [Official Video], (Lyrics), etc.
-    name = re.sub(r'\[.*?\]', '', name)
-    name = re.sub(r'\(.*?\)', '', name)
-    # Remove non-alphanumeric characters
-    name = re.sub(r'[^a-z0-9]', '', name)
+    name = str(name).lower()
+    if strip_brackets:
+        # Strip common suffixes/prefixes like [Official Video], (Lyrics), (From "..."), etc.
+        name = re.sub(r'\[.*?\]', '', name)
+        name = re.sub(r'\(.*?\)', '', name)
+    # Remove non-word characters while preserving Unicode letters and digits
+    name = re.sub(r'[^\w]', '', name, flags=re.UNICODE)
     return name.strip()
+
+def get_scan_paths(download_dir, additional_dirs=None, profile_dir=None):
+    scan_paths = []
+    if download_dir:
+        p = Path(download_dir)
+        if p.exists():
+            scan_paths.append(p)
+        try:
+            p_res = p.resolve()
+            if p_res.exists() and p_res not in scan_paths:
+                scan_paths.append(p_res)
+        except Exception:
+            pass
+        if profile_dir and not p.is_absolute():
+            try:
+                rel_p = (profile_dir / download_dir).resolve()
+                if rel_p.exists() and rel_p not in scan_paths:
+                    scan_paths.append(rel_p)
+            except Exception:
+                pass
+                
+    for d in (additional_dirs or []):
+        if d:
+            dp = Path(d)
+            if dp.exists() and dp not in scan_paths:
+                scan_paths.append(dp)
+            try:
+                dp_res = dp.resolve()
+                if dp_res.exists() and dp_res not in scan_paths:
+                    scan_paths.append(dp_res)
+            except Exception:
+                pass
+                
+    # Always include standard fallback directories if they exist
+    for fallback in [Path("downloads").resolve(), Path("music").resolve()]:
+        if fallback.exists() and fallback not in scan_paths:
+            scan_paths.append(fallback)
+            
+    if profile_dir:
+        try:
+            prof_dl = (profile_dir / "downloads").resolve()
+            if prof_dl.exists() and prof_dl not in scan_paths:
+                scan_paths.append(prof_dl)
+        except Exception:
+            pass
+            
+    return scan_paths
 
 def get_source_id(source):
     if "id" in source:
@@ -30,39 +77,73 @@ def get_source_id(source):
     key = source.get("url") or source.get("path") or source.get("name", "")
     return hashlib.md5(key.encode("utf-8")).hexdigest()
 
-def scan_existing_files(download_dir):
+def scan_existing_files(download_dir, additional_dirs=None, profile_dir=None):
     existing_songs = set()
-    download_path = Path(download_dir)
-    if not download_path.exists():
-        return existing_songs
-        
-    # Scan for common audio formats
-    for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac']:
-        for file in download_path.glob(ext):
-            base_name = file.stem
-            norm = normalize_name(base_name)
-            if norm:
-                existing_songs.add(norm)
-    return existing_songs
-
-def scan_existing_files_detailed(download_dir):
-    files = []
-    download_path = Path(download_dir)
-    if not download_path.exists():
-        return files
-        
-    for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac']:
-        for file in download_path.glob(ext):
+    
+    # 1. Read from library metadata cache if available
+    if profile_dir:
+        cache_file = Path(profile_dir) / "library_metadata_cache.json"
+        if cache_file.exists():
             try:
-                stat = file.stat()
-                files.append({
-                    "name": file.name,
-                    "path": str(file),
-                    "size_bytes": stat.st_size,
-                    "modified_at": stat.st_mtime
-                })
+                with open(cache_file, "r", encoding="utf-8") as cf:
+                    cache_data = json.load(cf)
+                    for file_path, item_data in cache_data.items():
+                        meta = item_data.get("metadata", {})
+                        fn = meta.get("filename") or os.path.basename(file_path)
+                        stem = Path(fn).stem
+                        title = meta.get("title") or stem
+                        norm_full = normalize_name(stem, strip_brackets=False)
+                        norm_strip = normalize_name(stem, strip_brackets=True)
+                        norm_title = normalize_name(title, strip_brackets=False)
+                        if norm_full:
+                            existing_songs.add(norm_full)
+                        if norm_strip:
+                            existing_songs.add(norm_strip)
+                        if norm_title:
+                            existing_songs.add(norm_title)
             except Exception:
                 pass
+
+    # 2. Scan live filesystem paths
+    scan_paths = get_scan_paths(download_dir, additional_dirs, profile_dir)
+    for download_path in scan_paths:
+        try:
+            if download_path.exists() and download_path.is_dir():
+                for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac', '*.wav', '*.aac', '*.ogg']:
+                    for file in download_path.rglob(ext):
+                        base_name = file.stem
+                        norm_full = normalize_name(base_name, strip_brackets=False)
+                        norm_strip = normalize_name(base_name, strip_brackets=True)
+                        if norm_full:
+                            existing_songs.add(norm_full)
+                        if norm_strip:
+                            existing_songs.add(norm_strip)
+        except Exception:
+            pass
+    return existing_songs
+
+def scan_existing_files_detailed(download_dir, additional_dirs=None, profile_dir=None):
+    files = []
+    seen_paths = set()
+    scan_paths = get_scan_paths(download_dir, additional_dirs, profile_dir)
+        
+    for download_path in scan_paths:
+        if download_path.exists() and download_path.is_dir():
+            for ext in ['*.mp3', '*.m4a', '*.opus', '*.webm', '*.flac', '*.wav', '*.aac', '*.ogg']:
+                for file in download_path.rglob(ext):
+                    try:
+                        abs_p = str(file.resolve())
+                        if abs_p not in seen_paths:
+                            seen_paths.add(abs_p)
+                            stat = file.stat()
+                            files.append({
+                                "name": file.name,
+                                "path": str(file),
+                                "size_bytes": stat.st_size,
+                                "modified_at": stat.st_mtime
+                            })
+                    except Exception:
+                        pass
                 
     # Sort files by modified time descending (newest first)
     files.sort(key=lambda x: x["modified_at"], reverse=True)
@@ -101,6 +182,8 @@ def fetch_ytdlp_playlist(url, cookie_file=None, ytdlp_path="yt-dlp"):
             if not entry:
                 continue
             title = entry.get("title", "")
+            if not title or title.strip() in ["[Deleted video]", "[Private video]", "[Unavailable video]"]:
+                continue
             uploader = entry.get("uploader", "")
             video_id = entry.get("id", "")
             duration = entry.get("duration")
@@ -308,7 +391,7 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
                             
                 # Merge and deduplicate
                 for track in tracks:
-                    norm = normalize_name(track["display_name"])
+                    norm = normalize_name(track.get("display_name", ""), strip_brackets=False) or normalize_name(track.get("display_name", ""), strip_brackets=True)
                     if norm not in seen_normalized:
                         # Skip if this track was unchecked by user
                         if track.get("id") in disabled_ids:
@@ -323,23 +406,25 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
             # 3. Filter out existing tracks
             to_download = []
             for track in all_tracks:
-                norm_title = normalize_name(track.get("title", ""))
-                norm_display = normalize_name(track.get("display_name", ""))
+                norm_title_full = normalize_name(track.get("title", ""), strip_brackets=False)
+                norm_title_strip = normalize_name(track.get("title", ""), strip_brackets=True)
+                norm_display_full = normalize_name(track.get("display_name", ""), strip_brackets=False)
+                norm_display_strip = normalize_name(track.get("display_name", ""), strip_brackets=True)
                 
-                is_downloaded = False
-                if norm_title in existing_songs or norm_display in existing_songs:
-                    is_downloaded = True
-                else:
-                    if norm_title and len(norm_title) >= 5:
-                        for fn in existing_songs:
-                            if len(fn) >= 5 and (norm_title in fn or fn in norm_title):
-                                is_downloaded = True
-                                break
-                    if not is_downloaded and norm_display and len(norm_display) >= 5:
-                        for fn in existing_songs:
-                            if len(fn) >= 5 and (fn in norm_display or norm_display in fn):
-                                is_downloaded = True
-                                break
+                track_norms = {norm_title_full, norm_title_strip, norm_display_full, norm_display_strip}
+                track_norms.discard("")
+                
+                is_downloaded = any(tn in existing_songs for tn in track_norms)
+                
+                if not is_downloaded:
+                    for tn in track_norms:
+                        if len(tn) >= 4:
+                            for fn in existing_songs:
+                                if len(fn) >= 4 and (tn in fn or fn in tn):
+                                    is_downloaded = True
+                                    break
+                        if is_downloaded:
+                            break
                                 
                 if not is_downloaded:
                     to_download.append(track)
