@@ -39,7 +39,7 @@ app = FastAPI(title="Music Grabber UI")
 @app.middleware("http")
 async def add_no_cache_headers(request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith("/static") or request.url.path == "/":
+    if request.url.path.startswith("/static") or request.url.path.startswith("/api") or request.url.path == "/":
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
@@ -135,13 +135,94 @@ class DownloadSingleTrackModel(BaseModel):
 @app.get("/api/profiles")
 def get_profiles():
     if not USERS_DIR.exists():
-        return []
-    profiles = [p.name for p in USERS_DIR.iterdir() if p.is_dir()]
+        return {"profiles": []}
+    ignored = {"cover_cache", "lyrics_cache", "__pycache__"}
+    profiles = [
+        p.name for p in USERS_DIR.iterdir() 
+        if p.is_dir() and p.name not in ignored and not p.name.startswith(".") and not p.name.endswith("_cache")
+    ]
     # Return sorted list, ensuring "saisreen" is first if it exists
     if "saisreen" in profiles:
         profiles.remove("saisreen")
         profiles.insert(0, "saisreen")
     return {"profiles": profiles}
+
+@app.delete("/api/profiles/{username}")
+def delete_profile(username: str):
+    username = username.strip().lower()
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists() or not profile_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Profile not found.")
+    
+    import shutil
+    try:
+        shutil.rmtree(profile_dir)
+        return {"status": "success", "message": f"Profile '{username}' deleted successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete profile: {str(e)}")
+
+@app.get("/api/cookies/status")
+def get_cookies_status(username: str):
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    possible_files = ["youtube_cookies.txt", "cookies.txt", "cookie.txt"]
+    for fname in possible_files:
+        cookie_path = profile_dir / fname
+        if cookie_path.exists() and cookie_path.stat().st_size > 0:
+            return {
+                "status": "loaded",
+                "filename": fname,
+                "size": cookie_path.stat().st_size
+            }
+            
+    return {"status": "missing"}
+
+@app.post("/api/cookies/upload")
+async def upload_cookies(username: str, file: UploadFile = File(...)):
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+        
+    cookie_path = profile_dir / "youtube_cookies.txt"
+    try:
+        with open(cookie_path, "wb") as f:
+            f.write(content)
+        return {
+            "status": "success",
+            "message": "Cookies uploaded successfully.",
+            "filename": "youtube_cookies.txt",
+            "size": len(content)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save cookies file: {e}")
+
+@app.delete("/api/cookies")
+def delete_cookies(username: str):
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    possible_files = ["youtube_cookies.txt", "cookies.txt", "cookie.txt"]
+    deleted = False
+    for fname in possible_files:
+        cookie_path = profile_dir / fname
+        if cookie_path.exists():
+            try:
+                os.remove(cookie_path)
+                deleted = True
+            except Exception:
+                pass
+                
+    if deleted:
+        return {"status": "success", "message": "Cookies deleted successfully."}
+    else:
+        return {"status": "success", "message": "No cookie files found to delete."}
 
 @app.post("/api/profiles")
 def create_profile(profile: ProfileCreate):

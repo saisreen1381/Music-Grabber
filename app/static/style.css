@@ -735,18 +735,19 @@ input[type="checkbox"]:checked::before {
     color: var(--text-main);
 }
 
-.form-group input[type="text"], .form-group input[type="number"] {
-    background: rgba(0, 0, 0, 0.15);
+.form-group input[type="text"], .form-group input[type="number"], .form-group input[type="time"] {
+    background: #121621;
     border: 1px solid var(--border-glass);
     border-radius: var(--radius-md);
     color: var(--text-main);
     padding: 10px 16px;
     font-family: var(--font-sans);
     font-size: 0.9rem;
+    color-scheme: dark;
     transition: var(--transition);
 }
 
-.form-group input[type="text"]:focus, .form-group input[type="number"]:focus {
+.form-group input[type="text"]:focus, .form-group input[type="number"]:focus, .form-group input[type="time"]:focus {
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 2px var(--primary-glow);
@@ -792,6 +793,12 @@ input[type="checkbox"]:checked::before {
 
 .select-wrapper select:focus {
     border-color: var(--primary);
+}
+
+select option {
+    background-color: #0f1422 !important;
+    color: #f8fafc !important;
+    padding: 8px 12px;
 }
 
 .select-wrapper::after {

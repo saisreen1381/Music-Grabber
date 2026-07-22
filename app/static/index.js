@@ -13,6 +13,8 @@ let currentQueueIndex = -1;
 let currentPlayingTrack = null;
 let discoverData = null;
 let allLikedTracksSet = new Set();
+let visualizerStyleMode = localStorage.getItem("musicgrabber_seekbar_style") || "solid_envelope";
+let discoverSearchQuery = "";
 
 async function updateLikedTracksSet() {
     allLikedTracksSet.clear();
@@ -42,11 +44,21 @@ async function updateLikedTracksSet() {
 }
 
 // DOM Elements
-const profileSelect = document.getElementById("profile-select");
-const addProfileBtn = document.getElementById("add-profile-btn");
-const profileWarning = document.getElementById("profile-warning");
+let profileSelect = document.getElementById("profile-select");
+let addProfileBtn = document.getElementById("add-profile-btn");
+let profileWarning = document.getElementById("profile-warning");
 const tabPanes = document.querySelectorAll(".tab-pane");
 const navItems = document.querySelectorAll(".nav-item");
+
+function getProfileSelect() {
+    if (!profileSelect) profileSelect = document.getElementById("profile-select");
+    return profileSelect;
+}
+
+function getProfileWarning() {
+    if (!profileWarning) profileWarning = document.getElementById("profile-warning");
+    return profileWarning;
+}
 
 // Sync Tab Elements
 const syncNowBtn = document.getElementById("sync-now-btn");
@@ -112,7 +124,8 @@ const scheduleTimeField = document.getElementById("schedule-time-field");
 const scheduleIntervalField = document.getElementById("schedule-interval-field");
 const settingSyncTime = document.getElementById("setting-sync-time");
 const settingSyncInterval = document.getElementById("setting-sync-interval");
-const saveSettingsBtn = document.getElementById("save-settings-btn");
+const settingSeekbarStyle = document.getElementById("setting-seekbar-style");
+const settingEqPreset = document.getElementById("setting-eq-preset");
 const addLibraryDirInput = document.getElementById("add-library-dir-input");
 const browseLibraryDirBtn = document.getElementById("browse-library-dir-btn");
 const addLibraryDirBtn = document.getElementById("add-library-dir-btn");
@@ -123,6 +136,8 @@ const settingCookiesFile = document.getElementById("setting-cookies-file");
 const triggerCookiesUploadBtn = document.getElementById("trigger-cookies-upload-btn");
 const selectedCookiesFilename = document.getElementById("selected-cookies-filename");
 const uploadCookiesBtn = document.getElementById("upload-cookies-btn");
+const saveSettingsBtn = document.getElementById("save-settings-btn");
+let activeDirectoryTargetInput = null;
 
 // Discover Page & Bottom Audio Player Elements
 const tabDiscover = document.getElementById("tab-discover");
@@ -235,47 +250,163 @@ function formatDuration(secs) {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
-// Fetch available profiles
-async function loadProfiles() {
+// Fetch available profiles (Guarded against concurrent wipes)
+let isProfilesLoading = false;
+let hasProfilesLoaded = false;
+
+async function loadProfiles(forceRefresh = false) {
+    if (isProfilesLoading && !forceRefresh) return;
+    isProfilesLoading = true;
+    
+    const sel = getProfileSelect();
+    const warn = getProfileWarning();
+    
     try {
-        const res = await fetch("/api/profiles?t=" + Date.now());
+        const res = await fetch("/api/profiles?t=" + Date.now(), {
+            headers: { "Cache-Control": "no-cache" }
+        });
         const data = await res.json();
-        profiles = data.profiles || [];
+        profiles = Array.isArray(data) ? data : (data.profiles || []);
         
         // Populate select
-        profileSelect.innerHTML = '<option value="" disabled selected>Select Profile</option>';
-        profiles.forEach(p => {
-            const opt = document.createElement("option");
-            opt.value = p;
-            opt.textContent = p;
-            profileSelect.appendChild(opt);
-        });
-
-        // Autoselect first profile if available
-        if (profiles.length > 0) {
-            profileSelect.value = profiles[0];
-            handleProfileChange(profiles[0]);
+        if (sel) {
+            sel.innerHTML = '<option value="" disabled>Select Profile</option>';
+            profiles.forEach(p => {
+                const opt = document.createElement("option");
+                opt.value = p;
+                opt.textContent = p;
+                sel.appendChild(opt);
+            });
         }
+
+        // Restore last used profile or select first available profile
+        let savedProfile = null;
+        try { savedProfile = localStorage.getItem("musicgrabber_active_profile"); } catch (e) {}
+        let targetProfile = (savedProfile && profiles.includes(savedProfile)) ? savedProfile : (activeProfile && profiles.includes(activeProfile) ? activeProfile : (profiles.length > 0 ? profiles[0] : null));
+        
+        if (targetProfile) {
+            if (sel) sel.value = targetProfile;
+            try {
+                await handleProfileChange(targetProfile);
+            } catch (err) {
+                console.error("Error loading initial profile:", err);
+            }
+        } else {
+            if (warn) {
+                warn.classList.add("active-pane");
+                warn.style.display = "block";
+            }
+        }
+        hasProfilesLoaded = true;
     } catch (e) {
         console.error("Failed to load profiles", e);
+    } finally {
+        isProfilesLoading = false;
     }
 }
 
+// Profile Dropdown Change Listener
+const selForListener = getProfileSelect();
+if (selForListener) {
+    selForListener.addEventListener("change", (e) => {
+        const val = e.target.value;
+        if (val) {
+            handleProfileChange(val);
+        }
+    });
+}
+
+// Switch Workspace Tabs
+function switchTab(targetTab) {
+    if (!targetTab) targetTab = "tab-sync";
+    if (!targetTab.startsWith("tab-")) {
+        targetTab = "tab-" + targetTab;
+    }
+    
+    // Hide profile warning overlay
+    const warn = getProfileWarning();
+    if (warn) {
+        warn.classList.remove("active-pane");
+        warn.classList.remove("active");
+        warn.style.display = "none";
+    }
+    
+    // Hide all tab panes
+    document.querySelectorAll(".tab-pane").forEach(pane => {
+        if (pane.id !== "profile-warning") {
+            pane.classList.remove("active-pane");
+            pane.classList.remove("active");
+            pane.style.display = "none";
+        }
+    });
+    
+    // Show target tab pane
+    const targetPane = document.getElementById(targetTab);
+    if (targetPane) {
+        targetPane.classList.add("active-pane");
+        targetPane.classList.add("active");
+        targetPane.style.display = "block";
+    }
+    
+    // Update sidebar nav button active states
+    document.querySelectorAll(".nav-item").forEach(nav => {
+        const tabAttr = nav.getAttribute("data-tab");
+        if (tabAttr === targetTab || "tab-" + tabAttr === targetTab) {
+            nav.classList.add("active");
+        } else {
+            nav.classList.remove("active");
+        }
+    });
+    
+    // Persist active tab
+    if (activeProfile) {
+        try { localStorage.setItem(`musicgrabber_active_tab_${activeProfile}`, targetTab); } catch (e) {}
+    }
+    try { localStorage.setItem("musicgrabber_active_tab", targetTab); } catch (e) {}
+}
+
+// Attach Sidebar Nav Click Handlers
+document.querySelectorAll(".nav-item[data-tab]").forEach(nav => {
+    nav.addEventListener("click", () => {
+        const targetTab = nav.getAttribute("data-tab");
+        if (targetTab) {
+            switchTab(targetTab);
+            if (targetTab === "tab-discover" || targetTab === "discover") {
+                loadYtMusicDiscoverData();
+            } else if (targetTab === "tab-library" || targetTab === "library") {
+                loadDiscoverData();
+            }
+        }
+    });
+});
+
 // Handle Profile Change
 async function handleProfileChange(username) {
+    if (!username) return;
     activeProfile = username;
     
-    // Hide warning and show active pane
-    profileWarning.classList.remove("active-pane");
+    // 1. Immediately store active profile & update select dropdown
+    try { localStorage.setItem("musicgrabber_active_profile", username); } catch (e) {}
+    const sel = getProfileSelect();
+    if (sel) sel.value = username;
     
-    // Load config
-    await loadConfig(username);
+    // 2. Immediately switch tab away from profile warning overlay
+    const savedTab = (username ? localStorage.getItem(`musicgrabber_active_tab_${username}`) : null) || localStorage.getItem("musicgrabber_active_tab") || "tab-sync";
+    switchTab(savedTab);
     
-    // Refresh status, downloaded files, discover data, and source sidebar
-    refreshStatus();
-    loadFiles();
-    renderSourcesList();
-    loadDiscoverData();
+    // 3. Load config safely
+    try {
+        await loadConfig(username);
+    } catch (e) {
+        console.error("Error loading config for profile:", username, e);
+    }
+    
+    // 4. Trigger individual subview updates safely without blocking
+    try { refreshStatus(); } catch (e) { console.error(e); }
+    try { loadFiles(); } catch (e) { console.error(e); }
+    try { renderSourcesList(); } catch (e) { console.error(e); }
+    try { loadDiscoverData(); } catch (e) { console.error(e); }
+    try { restoreLastPlayedTrack(); } catch (e) { console.error(e); }
     
     // Restore last active playlist tab if saved
     try {
@@ -283,26 +414,20 @@ async function handleProfileChange(username) {
         if (savedPlaylistId && activeConfig && activeConfig.sources && activeConfig.sources.some(s => s.id === savedPlaylistId)) {
             loadPlaylistTracks(savedPlaylistId);
         } else {
-            noPlaylistSelectedView.style.display = "flex";
-            playlistActiveView.style.display = "none";
+            if (noPlaylistSelectedView) noPlaylistSelectedView.style.display = "flex";
+            if (playlistActiveView) playlistActiveView.style.display = "none";
             activePlaylistSourceId = "";
         }
     } catch (e) {
-        noPlaylistSelectedView.style.display = "flex";
-        playlistActiveView.style.display = "none";
+        if (noPlaylistSelectedView) noPlaylistSelectedView.style.display = "flex";
+        if (playlistActiveView) playlistActiveView.style.display = "none";
         activePlaylistSourceId = "";
     }
     
-    // Restore last played track into music player bar
-    restoreLastPlayedTrack();
-    
-    // Restore saved active tab for this profile (default to tab-sync)
-    const savedTab = (activeProfile ? localStorage.getItem(`musicgrabber_active_tab_${activeProfile}`) : null) || localStorage.getItem("musicgrabber_active_tab") || "tab-sync";
-    switchTab(savedTab);
-    if (savedTab === "tab-discover") {
-        loadYtMusicDiscoverData();
-    } else if (savedTab === "tab-library") {
-        loadDiscoverData();
+    if (savedTab === "tab-discover" || savedTab === "discover") {
+        try { loadYtMusicDiscoverData(); } catch (e) {}
+    } else if (savedTab === "tab-library" || savedTab === "library") {
+        try { loadDiscoverData(); } catch (e) {}
     }
 }
 
@@ -329,75 +454,129 @@ async function refreshCookiesStatus(username) {
     if (!username) return;
     
     // Reset file input and display
-    settingCookiesFile.value = "";
-    selectedCookiesFilename.textContent = "No file selected";
-    uploadCookiesBtn.style.display = "none";
+    if (settingCookiesFile) settingCookiesFile.value = "";
+    if (selectedCookiesFilename) selectedCookiesFilename.textContent = "No file selected";
+    if (uploadCookiesBtn) uploadCookiesBtn.style.display = "none";
     
     try {
         const res = await fetch(`/api/cookies/status?username=${username}&t=${Date.now()}`);
         const data = await res.json();
         
-        if (data.status === "loaded") {
-            cookiesStatusBadge.className = "badge badge-success";
-            cookiesStatusBadge.textContent = `Cookies Active (${data.filename})`;
-            deleteCookiesBtn.style.display = "inline-block";
-        } else {
-            cookiesStatusBadge.className = "badge badge-danger";
-            cookiesStatusBadge.textContent = "Cookies Missing";
-            deleteCookiesBtn.style.display = "none";
+        if (cookiesStatusBadge) {
+            if (data.status === "loaded") {
+                cookiesStatusBadge.className = "badge badge-success";
+                cookiesStatusBadge.textContent = `Cookies Active (${data.filename})`;
+                if (deleteCookiesBtn) deleteCookiesBtn.style.display = "inline-block";
+            } else {
+                cookiesStatusBadge.className = "badge badge-danger";
+                cookiesStatusBadge.textContent = "Cookies Missing";
+                if (deleteCookiesBtn) deleteCookiesBtn.style.display = "none";
+            }
         }
     } catch (e) {
         console.error("Failed to load cookies status", e);
-        cookiesStatusBadge.className = "badge badge-warning";
-        cookiesStatusBadge.textContent = "Status Unknown";
-        deleteCookiesBtn.style.display = "none";
+        if (cookiesStatusBadge) {
+            cookiesStatusBadge.className = "badge badge-warning";
+            cookiesStatusBadge.textContent = "Status Unknown";
+        }
+        if (deleteCookiesBtn) deleteCookiesBtn.style.display = "none";
     }
 }
 
-// Directory Browser Navigation
+// Directory Browser Navigation & Control
 async function fetchDirectory(path) {
-    dirBrowserList.innerHTML = '<div class="spinner-container" style="padding: 20px;"><div class="spinner"></div></div>';
+    if (!dirBrowserList) return;
+    dirBrowserList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-dim);"><span class="spinner" style="width:16px; height:16px; border-width:2px; border-top-color:var(--primary); margin-right:8px;"></span> Loading directory...</div>';
     
     try {
-        const res = await fetch(`/api/browse?path=${encodeURIComponent(path)}&t=${Date.now()}`);
+        const res = await fetch(`/api/browse?path=${encodeURIComponent(path || "/")}&t=${Date.now()}`);
         if (!res.ok) throw new Error("Failed to list directory");
         const data = await res.json();
         
-        currentBrowserPath = data.current_path;
+        currentBrowserPath = data.current_path || "/";
         parentBrowserPath = data.parent_path;
         
-        dirBrowserPath.textContent = currentBrowserPath;
+        if (dirBrowserPath) dirBrowserPath.textContent = currentBrowserPath;
         
-        // Show/hide up button
-        if (parentBrowserPath) {
-            dirBrowserUpBtn.style.display = "inline-flex";
-        } else {
-            dirBrowserUpBtn.style.display = "none";
+        if (dirBrowserUpBtn) {
+            dirBrowserUpBtn.style.display = (parentBrowserPath || (currentBrowserPath && currentBrowserPath !== "/")) ? "inline-flex" : "none";
         }
         
-        // Render subdirectories
         dirBrowserList.innerHTML = "";
-        if (data.subdirectories.length === 0) {
-            dirBrowserList.innerHTML = '<div class="empty-sources" style="padding: 16px 0;">No subdirectories found.</div>';
+        if (!data.subdirectories || data.subdirectories.length === 0) {
+            dirBrowserList.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-dim); font-style: italic;">No subdirectories found.</div>';
             return;
         }
         
         data.subdirectories.forEach(sub => {
             const item = document.createElement("div");
             item.className = "dir-item";
+            item.style.cssText = "display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--radius-sm); cursor: pointer; transition: background 0.15s; background: rgba(255,255,255,0.02); margin-bottom: 4px; border: 1px solid rgba(255,255,255,0.04);";
             item.innerHTML = `
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                <span>${escapeHtml(sub)}</span>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span style="font-size: 0.88rem; color: var(--text-main); font-weight: 500;">${escapeHtml(sub)}</span>
             `;
+            item.addEventListener("mouseenter", () => item.style.background = "rgba(99, 102, 241, 0.18)");
+            item.addEventListener("mouseleave", () => item.style.background = "rgba(255,255,255,0.02)");
             item.addEventListener("click", () => {
-                const slash = currentBrowserPath.endsWith("/") ? "" : "/";
+                const slash = (currentBrowserPath.endsWith("/") || currentBrowserPath.endsWith("\\")) ? "" : "/";
                 fetchDirectory(currentBrowserPath + slash + sub);
             });
             dirBrowserList.appendChild(item);
         });
     } catch (e) {
-        dirBrowserList.innerHTML = `<div class="empty-sources" style="color: var(--danger); padding: 16px 0;">Error: ${e.message}</div>`;
+        if (dirBrowserList) dirBrowserList.innerHTML = `<div style="color: var(--danger); padding: 16px; text-align: center;">Error listing folders: ${e.message}</div>`;
     }
+}
+
+// Attach Directory Browser Listeners
+if (dirBrowserUpBtn) {
+    dirBrowserUpBtn.addEventListener("click", () => {
+        if (parentBrowserPath) {
+            fetchDirectory(parentBrowserPath);
+        } else if (currentBrowserPath && currentBrowserPath !== "/") {
+            const parts = currentBrowserPath.replace(/[/\\]+$/, "").split(/[/\\]/);
+            parts.pop();
+            const parent = parts.join("/") || "/";
+            fetchDirectory(parent);
+        }
+    });
+}
+
+if (browseDirBtn) {
+    browseDirBtn.addEventListener("click", () => {
+        activeDirectoryTargetInput = settingDownloadDir;
+        if (dirBrowserModal) dirBrowserModal.style.display = "flex";
+        const initial = (settingDownloadDir && settingDownloadDir.value.trim()) ? settingDownloadDir.value.trim() : "/";
+        fetchDirectory(initial);
+    });
+}
+
+if (browseLibraryDirBtn) {
+    browseLibraryDirBtn.addEventListener("click", () => {
+        activeDirectoryTargetInput = addLibraryDirInput;
+        if (dirBrowserModal) dirBrowserModal.style.display = "flex";
+        const initial = (addLibraryDirInput && addLibraryDirInput.value.trim()) ? addLibraryDirInput.value.trim() : "/";
+        fetchDirectory(initial);
+    });
+}
+
+if (dirBrowserCancel) {
+    dirBrowserCancel.addEventListener("click", () => {
+        if (dirBrowserModal) dirBrowserModal.style.display = "none";
+    });
+}
+
+if (dirBrowserSelect) {
+    dirBrowserSelect.addEventListener("click", () => {
+        if (activeDirectoryTargetInput) {
+            activeDirectoryTargetInput.value = currentBrowserPath;
+            activeDirectoryTargetInput.dispatchEvent(new Event("input", { bubbles: true }));
+            activeDirectoryTargetInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        if (dirBrowserModal) dirBrowserModal.style.display = "none";
+        showToast(`Selected directory: ${currentBrowserPath}`, "success");
+    });
 }
 
 // Populate Settings Form from activeConfig
@@ -408,30 +587,25 @@ function populateSettingsForm() {
         activeConfig.additional_library_dirs = [];
     }
     
-    settingDownloadDir.value = activeConfig.download_dir || "";
-    settingFilenamePreset.value = activeConfig.filename_template || "%(title)s.%(ext)s";
-    settingEmbedMetadata.checked = activeConfig.embed_metadata !== false;
+    if (settingDownloadDir) settingDownloadDir.value = activeConfig.download_dir || "";
+    if (settingFilenamePreset) settingFilenamePreset.value = activeConfig.filename_template || "%(title)s.%(ext)s";
+    if (settingEmbedMetadata) settingEmbedMetadata.checked = activeConfig.embed_metadata !== false;
     
     const maxConc = activeConfig.max_concurrent_downloads || 3;
-    settingMaxConcurrent.value = maxConc;
-    rangeValueDisplay.textContent = maxConc;
+    if (settingMaxConcurrent) settingMaxConcurrent.value = maxConc;
+    if (rangeValueDisplay) rangeValueDisplay.textContent = maxConc;
     
     const autoSync = activeConfig.auto_sync === true;
-    settingAutoSync.checked = autoSync;
-    schedulerOptions.style.display = autoSync ? "block" : "none";
+    if (settingAutoSync) settingAutoSync.checked = autoSync;
+    if (schedulerOptions) schedulerOptions.style.display = autoSync ? "block" : "none";
     
     // Detect schedule mode based on config
-    if (activeConfig.sync_interval_hours && activeConfig.sync_interval_hours !== 24) {
-        settingSyncMode.value = "interval";
-        settingSyncInterval.value = activeConfig.sync_interval_hours;
-        scheduleIntervalField.style.display = "block";
-        scheduleTimeField.style.display = "none";
-    } else {
-        settingSyncMode.value = "time";
-        settingSyncTime.value = activeConfig.sync_time || "02:00";
-        scheduleIntervalField.style.display = "none";
-        scheduleTimeField.style.display = "block";
-    }
+    const isInterval = activeConfig.sync_interval_hours && activeConfig.sync_interval_hours !== 24;
+    if (settingSyncMode) settingSyncMode.value = isInterval ? "interval" : "time";
+    if (settingSyncInterval) settingSyncInterval.value = activeConfig.sync_interval_hours || 24;
+    if (settingSyncTime) settingSyncTime.value = activeConfig.sync_time || "02:00";
+    if (scheduleIntervalField) scheduleIntervalField.style.display = isInterval ? "block" : "none";
+    if (scheduleTimeField) scheduleTimeField.style.display = isInterval ? "none" : "block";
     
     // Populate UI Customizations from activeConfig
     if (activeConfig.seekbar_style) {
@@ -1050,15 +1224,17 @@ deleteSourceBtn.addEventListener("click", async () => {
     }
 });
 
-// Save Settings Button
-saveSettingsBtn.addEventListener("click", async () => {
+// Auto Save Configuration Helper
+let autoSaveTimeout = null;
+
+async function autoSaveConfig() {
     if (!activeProfile || !activeConfig) return;
     
-    activeConfig.download_dir = settingDownloadDir.value.trim();
-    activeConfig.filename_template = settingFilenamePreset.value;
-    activeConfig.embed_metadata = settingEmbedMetadata.checked;
-    activeConfig.max_concurrent_downloads = parseInt(settingMaxConcurrent.value);
-
+    activeConfig.download_dir = settingDownloadDir ? settingDownloadDir.value.trim() : (activeConfig.download_dir || "");
+    activeConfig.filename_template = settingFilenamePreset ? settingFilenamePreset.value : (activeConfig.filename_template || "%(title)s.%(ext)s");
+    activeConfig.embed_metadata = settingEmbedMetadata ? settingEmbedMetadata.checked : true;
+    activeConfig.max_concurrent_downloads = settingMaxConcurrent ? parseInt(settingMaxConcurrent.value) : 3;
+    
     if (settingSeekbarStyle) activeConfig.seekbar_style = settingSeekbarStyle.value;
     if (settingEqPreset) activeConfig.eq_preset = settingEqPreset.value;
     
@@ -1068,49 +1244,65 @@ saveSettingsBtn.addEventListener("click", async () => {
     const autoDownloadLikedInput = document.getElementById("setting-auto-download-liked");
     if (autoDownloadLikedInput) activeConfig.auto_download_liked = autoDownloadLikedInput.checked;
     
-    const autoSync = settingAutoSync.checked;
+    const autoSync = settingAutoSync ? settingAutoSync.checked : false;
     activeConfig.auto_sync = autoSync;
     
     if (autoSync) {
-        const mode = settingSyncMode.value;
+        const mode = settingSyncMode ? settingSyncMode.value : "time";
         if (mode === "interval") {
-            activeConfig.sync_interval_hours = parseInt(settingSyncInterval.value);
+            activeConfig.sync_interval_hours = settingSyncInterval ? parseInt(settingSyncInterval.value) : 24;
             activeConfig.sync_time = "";
         } else {
             activeConfig.sync_interval_hours = 24;
-            activeConfig.sync_time = settingSyncTime.value;
+            activeConfig.sync_time = settingSyncTime ? settingSyncTime.value : "02:00";
         }
     } else {
         activeConfig.sync_interval_hours = 0;
         activeConfig.sync_time = "";
     }
     
-    saveSettingsBtn.disabled = true;
-    saveSettingsBtn.textContent = "Saving...";
+    // Auto save status pill indicator
+    const indicator = document.getElementById("auto-save-indicator");
+    if (indicator) {
+        indicator.style.opacity = "1";
+        setTimeout(() => { indicator.style.opacity = "0"; }, 2500);
+    }
     
     try {
-        const res = await fetch(`/api/config?username=${activeProfile}`, {
+        await fetch(`/api/config?username=${activeProfile}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(activeConfig)
         });
-        if (res.ok) {
-            const data = await res.json();
-            alert(data.message || "Settings saved successfully.");
-            await loadConfig(activeProfile);
-            refreshStatus();
-            loadFiles();
-        } else {
-            const err = await res.json();
-            alert(`Error saving settings: ${err.detail}`);
-        }
     } catch (e) {
-        alert(`Failed to save configuration: ${e.message}`);
-    } finally {
-        saveSettingsBtn.disabled = false;
-        saveSettingsBtn.textContent = "Save Settings";
+        console.error("Auto-save error:", e);
     }
-});
+}
+
+function triggerDebouncedAutoSave() {
+    if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+    autoSaveTimeout = setTimeout(() => {
+        autoSaveConfig();
+    }, 400);
+}
+
+// Attach Auto-Save Event Listeners to all Settings inputs
+if (settingAutoSync) settingAutoSync.addEventListener("change", () => autoSaveConfig());
+if (settingSyncMode) settingSyncMode.addEventListener("change", () => autoSaveConfig());
+if (settingSyncTime) settingSyncTime.addEventListener("change", () => autoSaveConfig());
+if (settingSyncInterval) settingSyncInterval.addEventListener("input", triggerDebouncedAutoSave);
+if (settingDownloadDir) settingDownloadDir.addEventListener("input", triggerDebouncedAutoSave);
+if (settingFilenamePreset) settingFilenamePreset.addEventListener("change", () => autoSaveConfig());
+if (settingEmbedMetadata) settingEmbedMetadata.addEventListener("change", () => autoSaveConfig());
+if (settingMaxConcurrent) settingMaxConcurrent.addEventListener("input", triggerDebouncedAutoSave);
+if (settingSeekbarStyle) settingSeekbarStyle.addEventListener("change", () => autoSaveConfig());
+if (settingEqPreset) settingEqPreset.addEventListener("change", () => autoSaveConfig());
+
+const autoLaunchInput = document.getElementById("setting-autoplay-launch");
+if (autoLaunchInput) autoLaunchInput.addEventListener("change", () => autoSaveConfig());
+
+const autoDownloadLikedInput = document.getElementById("setting-auto-download-liked");
+if (autoDownloadLikedInput) autoDownloadLikedInput.addEventListener("change", () => autoSaveConfig());
 
 // Manual Sync Triggers (SSE Logs)
 const syncQuotes = [
@@ -1496,7 +1688,8 @@ profileModalSave.addEventListener("click", async () => {
             profileModal.style.display = "none";
             await loadProfiles();
             // Select newly created profile
-            profileSelect.value = val.toLowerCase();
+            const sel = getProfileSelect();
+            if (sel) sel.value = val.toLowerCase();
             handleProfileChange(val.toLowerCase());
         } else {
             const err = await res.json();
@@ -1506,6 +1699,123 @@ profileModalSave.addEventListener("click", async () => {
         alert("Failed to create profile: " + e.message);
     }
 });
+
+// Profile Deletion Modal Event Handlers
+const deleteProfileBtn = document.getElementById("delete-profile-btn");
+const deleteProfileModal = document.getElementById("delete-profile-modal");
+const deleteProfileTargetName = document.getElementById("delete-profile-target-name");
+const deleteProfileCancelBtn = document.getElementById("delete-profile-modal-cancel");
+const deleteProfileConfirmBtn = document.getElementById("delete-profile-modal-confirm");
+
+if (deleteProfileBtn) {
+    deleteProfileBtn.addEventListener("click", () => {
+        if (!activeProfile) {
+            alert("Please select a profile to delete.");
+            return;
+        }
+        if (deleteProfileTargetName) deleteProfileTargetName.textContent = activeProfile;
+        if (deleteProfileModal) deleteProfileModal.style.display = "flex";
+    });
+}
+
+if (deleteProfileCancelBtn) {
+    deleteProfileCancelBtn.addEventListener("click", () => {
+        if (deleteProfileModal) deleteProfileModal.style.display = "none";
+    });
+}
+
+if (deleteProfileConfirmBtn) {
+    deleteProfileConfirmBtn.addEventListener("click", async () => {
+        if (!activeProfile) return;
+        const targetToDelete = activeProfile;
+        try {
+            const res = await fetch(`/api/profiles/${encodeURIComponent(targetToDelete)}`, {
+                method: "DELETE"
+            });
+            const data = await res.json();
+            if (res.ok) {
+                if (deleteProfileModal) deleteProfileModal.style.display = "none";
+                showToast(`Profile "${targetToDelete}" deleted successfully.`, "success");
+                try { localStorage.removeItem("musicgrabber_active_profile"); } catch (e) {}
+                activeProfile = "";
+                await loadProfiles();
+            } else {
+                alert(`Failed to delete profile: ${data.detail || "Error"}`);
+            }
+        } catch (e) {
+            alert("Error deleting profile: " + e.message);
+        }
+    });
+}
+
+// YouTube Cookies File Event Listeners
+if (triggerCookiesUploadBtn && settingCookiesFile) {
+    triggerCookiesUploadBtn.addEventListener("click", () => {
+        settingCookiesFile.click();
+    });
+}
+
+if (settingCookiesFile) {
+    settingCookiesFile.addEventListener("change", () => {
+        if (settingCookiesFile.files && settingCookiesFile.files.length > 0) {
+            const file = settingCookiesFile.files[0];
+            if (selectedCookiesFilename) selectedCookiesFilename.textContent = file.name;
+            if (uploadCookiesBtn) uploadCookiesBtn.style.display = "inline-block";
+        } else {
+            if (selectedCookiesFilename) selectedCookiesFilename.textContent = "No file selected";
+            if (uploadCookiesBtn) uploadCookiesBtn.style.display = "none";
+        }
+    });
+}
+
+if (uploadCookiesBtn) {
+    uploadCookiesBtn.addEventListener("click", async () => {
+        if (!activeProfile || !settingCookiesFile.files || settingCookiesFile.files.length === 0) return;
+        const file = settingCookiesFile.files[0];
+        const formData = new FormData();
+        formData.append("file", file);
+        
+        try {
+            uploadCookiesBtn.disabled = true;
+            uploadCookiesBtn.textContent = "Uploading...";
+            const res = await fetch(`/api/cookies/upload?username=${activeProfile}`, {
+                method: "POST",
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast("YouTube authentication cookies uploaded successfully!", "success");
+                await refreshCookiesStatus(activeProfile);
+                await updateLikedTracksSet();
+            } else {
+                showToast("Failed to upload cookies: " + (data.detail || "Error"), "danger");
+            }
+        } catch (e) {
+            showToast("Error uploading cookies: " + e.message, "danger");
+        } finally {
+            uploadCookiesBtn.disabled = false;
+            uploadCookiesBtn.textContent = "Upload File";
+        }
+    });
+}
+
+if (deleteCookiesBtn) {
+    deleteCookiesBtn.addEventListener("click", async () => {
+        if (!activeProfile) return;
+        try {
+            const res = await fetch(`/api/cookies?username=${activeProfile}`, {
+                method: "DELETE"
+            });
+            if (res.ok) {
+                showToast("Cookies file deleted.", "info");
+                await refreshCookiesStatus(activeProfile);
+                await updateLikedTracksSet();
+            }
+        } catch (e) {
+            console.error("Failed to delete cookies:", e);
+        }
+    });
+}
 
 // Add playlist source
 newSourceBtn.addEventListener("click", () => {
@@ -2544,7 +2854,7 @@ localAudioElement.addEventListener("loadedmetadata", () => {
 // Playback State Variables
 let isShuffleActive = false;
 let repeatMode = "off"; // "off", "all", "one"
-let visualizerStyleMode = localStorage.getItem("musicgrabber_seekbar_style") || "solid_envelope";
+// visualizerStyleMode is declared at the top of the file with other state variables
 
 localAudioElement.addEventListener("ended", () => {
     // 1. Repeat One Track Mode
@@ -2970,7 +3280,7 @@ function toggleInlineExpander(cardElement, gridContainer, title, type, tracks) {
     drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-let discoverSearchQuery = "";
+// discoverSearchQuery is declared at the top of the file with other state variables
 
 function renderDiscoverPage() {
     if (!discoverData) return;
@@ -3441,7 +3751,6 @@ document.querySelectorAll("#tab-settings input, #tab-settings select").forEach(i
 });
 
 // Settings Seekbar Style Dropdown Listener
-const settingSeekbarStyle = document.getElementById("setting-seekbar-style");
 if (settingSeekbarStyle) {
     settingSeekbarStyle.value = visualizerStyleMode;
     settingSeekbarStyle.addEventListener("change", () => {
@@ -3451,7 +3760,6 @@ if (settingSeekbarStyle) {
 }
 
 // Settings Equalizer Preset Dropdown Listener
-const settingEqPreset = document.getElementById("setting-eq-preset");
 if (settingEqPreset) {
     settingEqPreset.addEventListener("change", () => {
         applyEqualizerPreset(settingEqPreset.value);
@@ -4367,4 +4675,13 @@ async function addYtMusicPlaylistSource(name, url) {
     } catch (e) {
         showToast("Error adding playlist: " + e.message, "danger");
     }
+}
+
+// Initial Application Load - Clean Guarded Single Trigger
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => {
+        if (!hasProfilesLoaded) loadProfiles();
+    });
+} else {
+    loadProfiles();
 }
