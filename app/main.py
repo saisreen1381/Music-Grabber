@@ -1764,50 +1764,62 @@ def get_ytmusic_playlist_preview(username: str, url: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+stream_url_cache = {}  # { url: (googlevideo_url, timestamp) }
+
 @app.get("/api/ytmusic/stream")
 def stream_ytmusic_online(request: Request, username: str, url: str):
     if not url or not url.strip():
         raise HTTPException(status_code=400, detail="URL parameter is required")
         
-    profile_dir = USERS_DIR / username
-    cookie_file = None
-    if profile_dir.exists():
-        for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
-            potential_cookie = profile_dir / name
-            if potential_cookie.exists():
-                cookie_file = str(potential_cookie.resolve())
-                break
-
     clean_url = url.strip()
-    cmd = [YTDLP_PATH, "-g", "-f", "bestaudio/best", "--js-runtimes", "node"]
-    if cookie_file and os.path.exists(cookie_file):
-        cmd.extend(["--cookies", cookie_file])
-    cmd.append(clean_url)
-    
-    stream_url = run_cmd(cmd)
+    now = time.time()
+    first_url = None
 
-    def is_invalid(s):
-        return not s or not s.strip() or s.strip().lower() in ["null", "none"]
+    if clean_url in stream_url_cache:
+        cached_url, ts = stream_url_cache[clean_url]
+        if now - ts < 3600:
+            first_url = cached_url
 
-    # 1. Fallback without cookies if cookies failed
-    if is_invalid(stream_url) and cookie_file:
-        cmd_nocookie = [c for c in cmd]
-        try:
-            c_idx = cmd_nocookie.index("--cookies")
-            del cmd_nocookie[c_idx:c_idx+2]
-        except ValueError:
-            pass
-        stream_url = run_cmd(cmd_nocookie)
+    if not first_url:
+        profile_dir = USERS_DIR / username
+        cookie_file = None
+        if profile_dir.exists():
+            for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
+                potential_cookie = profile_dir / name
+                if potential_cookie.exists():
+                    cookie_file = str(potential_cookie.resolve())
+                    break
 
-    # 2. Fallback without js-runtimes node
-    if is_invalid(stream_url):
-        cmd_fallback = [c for c in cmd if c not in ["--js-runtimes", "node", "--cookies", str(cookie_file)]]
-        stream_url = run_cmd(cmd_fallback)
+        cmd = [YTDLP_PATH, "-g", "-f", "bestaudio/best", "--no-warnings", "--js-runtimes", "node"]
+        if cookie_file and os.path.exists(cookie_file):
+            cmd.extend(["--cookies", cookie_file])
+        cmd.append(clean_url)
+        
+        stream_url = run_cmd(cmd)
 
-    if is_invalid(stream_url):
-        raise HTTPException(status_code=404, detail="Failed to extract audio stream URL")
+        def is_invalid(s):
+            return not s or not s.strip() or s.strip().lower() in ["null", "none"]
 
-    first_url = stream_url.strip().splitlines()[0]
+        # 1. Fallback without cookies if cookies failed
+        if is_invalid(stream_url) and cookie_file:
+            cmd_nocookie = [c for c in cmd]
+            try:
+                c_idx = cmd_nocookie.index("--cookies")
+                del cmd_nocookie[c_idx:c_idx+2]
+            except ValueError:
+                pass
+            stream_url = run_cmd(cmd_nocookie)
+
+        # 2. Fallback without js-runtimes node
+        if is_invalid(stream_url):
+            cmd_fallback = [c for c in cmd if c not in ["--js-runtimes", "node", "--cookies", str(cookie_file)]]
+            stream_url = run_cmd(cmd_fallback)
+
+        if is_invalid(stream_url):
+            raise HTTPException(status_code=404, detail="Failed to extract audio stream URL")
+
+        first_url = stream_url.strip().splitlines()[0]
+        stream_url_cache[clean_url] = (first_url, now)
 
     # Forward client headers (specifically Range header for seeking unbuffered stream sections)
     req_headers = {
@@ -1821,9 +1833,15 @@ def stream_ytmusic_online(request: Request, username: str, url: str):
 
     try:
         req = urllib.request.Request(first_url, headers=req_headers)
-        remote_resp = urllib.request.urlopen(req, timeout=15)
+        try:
+            remote_resp = urllib.request.urlopen(req, timeout=15)
+        except urllib.error.HTTPError as he:
+            if he.code in (200, 206):
+                remote_resp = he
+            else:
+                raise he
         
-        status_code = remote_resp.status
+        status_code = getattr(remote_resp, "status", getattr(remote_resp, "code", 200))
         content_type = remote_resp.headers.get("Content-Type", "audio/webm")
         content_length = remote_resp.headers.get("Content-Length")
         content_range = remote_resp.headers.get("Content-Range")

@@ -1932,6 +1932,120 @@ function playTrack(track, queue = [], index = -1) {
     });
 }
 
+function highlightActivePlayingRows() {
+    if (!currentPlayingTrack) return;
+    
+    const curTitle = cleanMediaExtension(currentPlayingTrack.title || currentPlayingTrack.display_name || currentPlayingTrack.filename || "").toLowerCase();
+    const curUrl = currentPlayingTrack.url || "";
+    const curPath = currentPlayingTrack.path || "";
+    const curFilename = (currentPlayingTrack.local_filename || currentPlayingTrack.filename || "").toLowerCase();
+
+    function isMatch(title, url, path, filename) {
+        if (curUrl && url && curUrl === url) return true;
+        if (curPath && path && curPath === path) return true;
+        
+        if (filename && curFilename && cleanMediaExtension(filename).toLowerCase() === cleanMediaExtension(curFilename).toLowerCase()) {
+            return true;
+        }
+        
+        if (title && curTitle) {
+            const cleanT = cleanMediaExtension(title).toLowerCase();
+            if (cleanT === curTitle || cleanT.includes(curTitle) || curTitle.includes(cleanT)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // 1. Discover Tab Playlists Table (#ytmusic-songs-table-body)
+    const ytSongsBody = document.getElementById("ytmusic-songs-table-body");
+    if (ytSongsBody) {
+        Array.from(ytSongsBody.querySelectorAll("tr")).forEach(tr => {
+            const rowTitle = tr.dataset.title || "";
+            const rowUrl = tr.dataset.url || "";
+            if (isMatch(rowTitle, rowUrl)) {
+                tr.classList.add("playing-row");
+                const playBtn = tr.querySelector(".play-yt-song-btn");
+                if (playBtn) {
+                    playBtn.title = "Currently Playing";
+                    playBtn.style.background = "var(--primary)";
+                    playBtn.style.color = "#ffffff";
+                }
+            } else {
+                tr.classList.remove("playing-row");
+                const playBtn = tr.querySelector(".play-yt-song-btn");
+                if (playBtn) {
+                    playBtn.title = "Play Song";
+                    playBtn.style.background = "rgba(99, 102, 241, 0.15)";
+                    playBtn.style.color = "var(--primary)";
+                }
+            }
+        });
+    }
+
+    // 2. Discover / Local Library Songs Table (#discover-songs-table-body)
+    const libSongsBody = document.getElementById("discover-songs-table-body");
+    if (libSongsBody) {
+        Array.from(libSongsBody.querySelectorAll("tr.discover-song-row")).forEach(tr => {
+            const rowTitle = tr.dataset.title || "";
+            const rowPath = tr.dataset.path || "";
+            const rowFilename = tr.dataset.filename || "";
+            if (isMatch(rowTitle, "", rowPath, rowFilename)) {
+                tr.classList.add("playing-row");
+                const rowIdx = tr.querySelector(".row-index");
+                const rowIcon = tr.querySelector(".row-play-icon");
+                if (rowIdx) rowIdx.style.display = "none";
+                if (rowIcon) rowIcon.style.display = "inline-block";
+            } else {
+                tr.classList.remove("playing-row");
+                const rowIdx = tr.querySelector(".row-index");
+                const rowIcon = tr.querySelector(".row-play-icon");
+                if (rowIdx) rowIdx.style.display = "inline-block";
+                if (rowIcon) rowIcon.style.display = "none";
+            }
+        });
+    }
+
+    // 3. Playlists Tab Tracks Table (#playlist-tracks-body)
+    const plTracksBody = document.getElementById("playlist-tracks-body");
+    if (plTracksBody) {
+        Array.from(plTracksBody.querySelectorAll("tr")).forEach(tr => {
+            const rowTitle = tr.dataset.title || "";
+            const rowUrl = tr.dataset.url || "";
+            if (isMatch(rowTitle, rowUrl)) {
+                tr.classList.add("playing-row");
+            } else {
+                tr.classList.remove("playing-row");
+            }
+        });
+    }
+
+    // 4. Downloaded Files List (#files-list-body)
+    const filesBody = document.getElementById("files-list-body");
+    if (filesBody) {
+        Array.from(filesBody.querySelectorAll("tr")).forEach(tr => {
+            const rowName = tr.dataset.filename || tr.dataset.name || "";
+            if (isMatch(rowName, "", "", rowName)) {
+                tr.classList.add("playing-row");
+            } else {
+                tr.classList.remove("playing-row");
+            }
+        });
+    }
+
+    // 5. Drawer Modals & Expander Lists (.discover-modal-song-row)
+    document.querySelectorAll(".discover-modal-song-row, .inline-expander-song-row").forEach(row => {
+        const rowTitle = row.dataset.title || "";
+        const rowUrl = row.dataset.url || "";
+        const rowPath = row.dataset.path || "";
+        if (isMatch(rowTitle, rowUrl, rowPath)) {
+            row.classList.add("playing-row");
+        } else {
+            row.classList.remove("playing-row");
+        }
+    });
+}
+
 function updatePlaybackUI() {
     if (!currentPlayingTrack) return;
     
@@ -2024,6 +2138,9 @@ function updatePlaybackUI() {
     
     updatePipCanvas(title, artist);
     document.body.style.background = "#0a0d14";
+
+    // Highlight active playing track row in all tables
+    highlightActivePlayingRows();
     
     // Refresh queue modal if visible
     const queueModal = document.getElementById("queue-drawer-modal");
@@ -2810,6 +2927,9 @@ function renderDiscoverSongsTable(query = "") {
             const tr = document.createElement("tr");
             tr.style.cursor = "pointer";
             tr.className = "discover-song-row";
+            tr.dataset.title = s.title;
+            tr.dataset.path = s.path || "";
+            tr.dataset.filename = s.filename || s.name || "";
             
             const trackThumb = s.thumbnail_url || "";
             
@@ -2854,6 +2974,7 @@ function renderDiscoverSongsTable(query = "") {
             });
             discoverSongsTableBody.appendChild(tr);
         });
+        highlightActivePlayingRows();
     }
 }
 
@@ -3747,6 +3868,11 @@ function renderYtMusicSongsTable(songs) {
         const title = cleanMediaExtension(s.title || s.display_name || "Unknown Track");
         const artist = s.artist || "YouTube Artist";
         const songThumb = s.thumbnail || (s.id ? `https://i.ytimg.com/vi/${s.id}/mqdefault.jpg` : "");
+        const trackUrl = s.url || (s.id ? `https://www.youtube.com/watch?v=${s.id}` : "");
+        
+        tr.dataset.title = title;
+        tr.dataset.url = trackUrl;
+
         tr.innerHTML = `
             <td style="text-align: center; font-size: 0.8rem; color: var(--text-dim); font-weight: 600;">${idx + 1}</td>
             <td>
@@ -3768,7 +3894,6 @@ function renderYtMusicSongsTable(songs) {
         `;
         
         tr.querySelector(".play-yt-song-btn").addEventListener("click", () => {
-            const trackUrl = s.url || (s.id ? `https://www.youtube.com/watch?v=${s.id}` : "");
             const mockTrack = {
                 title: title,
                 artist: artist,
@@ -3793,6 +3918,7 @@ function renderYtMusicSongsTable(songs) {
         
         songsBody.appendChild(tr);
     });
+    highlightActivePlayingRows();
 }
 
 async function searchYtMusic(query) {

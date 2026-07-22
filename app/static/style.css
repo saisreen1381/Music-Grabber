@@ -1580,3 +1580,30 @@ input[type="checkbox"]:checked::before {
     color: #a78bfa;
     border: 1px solid rgba(139, 92, 246, 0.4);
 }
+
+/* Active Playing Song Row Highlight */
+tr.playing-row, .dir-item.playing-row, div.playing-row {
+    background: rgba(99, 102, 241, 0.14) !important;
+    border-left: 3px solid var(--primary) !important;
+    transition: all 0.2s ease;
+}
+
+tr.playing-row td {
+    color: #c7d2fe !important;
+}
+
+tr.playing-row td strong, tr.playing-row .song-title {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+}
+
+tr.playing-row .row-index, tr.playing-row .song-index {
+    color: var(--primary) !important;
+    font-weight: 800 !important;
+}
+
+tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
+    background: var(--primary) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.6) !important;
+}
