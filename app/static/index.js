@@ -228,8 +228,14 @@ async function handleProfileChange(username) {
     // Restore last played track into music player bar
     restoreLastPlayedTrack();
     
-    // Auto switch to sync tab
-    switchTab("tab-sync");
+    // Restore saved active tab for this profile (default to tab-sync)
+    const savedTab = (activeProfile ? localStorage.getItem(`musicgrabber_active_tab_${activeProfile}`) : null) || localStorage.getItem("musicgrabber_active_tab") || "tab-sync";
+    switchTab(savedTab);
+    if (savedTab === "tab-discover") {
+        loadYtMusicDiscoverData();
+    } else if (savedTab === "tab-library") {
+        loadDiscoverData();
+    }
 }
 
 // Load Configuration from server
@@ -558,12 +564,9 @@ function renderToDownloadTable(tracks) {
     if (!tbody) return;
     
     if (tracks.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="empty-table" style="padding: 40px; text-align: center; color: var(--text-muted);">🎉 All playlist songs are downloaded and up-to-date!</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" class="empty-table" style="padding: 40px; text-align: center; color: var(--text-muted);">🎉 All playlist songs are downloaded and up-to-date!</td></tr>`;
         return;
     }
-    
-    const showPaths = document.getElementById("toggle-file-paths-checkbox")?.checked;
-    const pathDisplay = showPaths ? "table-cell" : "none";
     
     tbody.innerHTML = "";
     tracks.forEach((t, idx) => {
@@ -577,7 +580,6 @@ function renderToDownloadTable(tracks) {
             </td>
             <td style="font-weight: 500;">${escapeHtml(cleanTitle)}</td>
             <td style="color: var(--text-muted); font-size: 0.8rem;">${escapeHtml(t.source_name)}</td>
-            <td class="file-path-cell" style="display: ${pathDisplay};">${escapeHtml(t.est_path)}</td>
         `;
         
         tr.querySelector(".play-queued-track-btn").addEventListener("click", () => {
@@ -594,12 +596,9 @@ function renderFilesList(files) {
     if (!filesTableBody) return;
     
     if (files.length === 0) {
-        filesTableBody.innerHTML = `<tr><td colspan="4" class="empty-table" style="padding: 40px; text-align: center; color: var(--text-muted);">No audio files found in library directories.</td></tr>`;
+        filesTableBody.innerHTML = `<tr><td colspan="3" class="empty-table" style="padding: 40px; text-align: center; color: var(--text-muted);">No audio files found in library directories.</td></tr>`;
         return;
     }
-    
-    const showPaths = document.getElementById("toggle-file-paths-checkbox")?.checked;
-    const pathDisplay = showPaths ? "table-cell" : "none";
     
     filesTableBody.innerHTML = "";
     files.forEach((f, idx) => {
@@ -621,7 +620,6 @@ function renderFilesList(files) {
             </td>
             <td style="font-weight: 500;">${escapeHtml(cleanName)}</td>
             <td style="white-space: nowrap; color: var(--text-muted); text-align: right; font-size: 0.8rem;">${formatBytes(f.size_bytes)}</td>
-            <td class="file-path-cell" style="display: ${pathDisplay};">${escapeHtml(f.path)}</td>
         `;
         
         tr.querySelector(".play-downloaded-file-btn").addEventListener("click", () => {
@@ -1323,6 +1321,7 @@ profileSelect.addEventListener("change", () => {
 
 // Sidebar tabs toggling
 function switchTab(tabId) {
+    if (!tabId) return;
     // Restore maximized terminal if active
     if (terminalCard && terminalCard.classList.contains("terminal-maximized") && maximizeLogsBtn) {
         maximizeLogsBtn.click();
@@ -1344,6 +1343,11 @@ function switchTab(tabId) {
             pane.classList.remove("active-pane");
         }
     });
+
+    if (activeProfile) {
+        localStorage.setItem(`musicgrabber_active_tab_${activeProfile}`, tabId);
+    }
+    localStorage.setItem("musicgrabber_active_tab", tabId);
 }
 
 navItems.forEach(item => {
@@ -2372,12 +2376,31 @@ document.querySelectorAll(".discover-tab-btn").forEach(btn => {
         
         const subtabId = btn.getAttribute("data-subtab");
         document.querySelectorAll(".discover-subtab-pane").forEach(p => p.style.display = "none");
-        document.getElementById(subtabId).style.display = "block";
+        const pane = document.getElementById(subtabId);
+        if (pane) pane.style.display = "block";
+        if (activeProfile && subtabId) {
+            localStorage.setItem(`musicgrabber_library_subtab_${activeProfile}`, subtabId);
+        }
     });
 });
 
 async function loadDiscoverData() {
     if (!activeProfile) return;
+
+    // Restore saved library subtab
+    try {
+        const savedSubtab = localStorage.getItem(`musicgrabber_library_subtab_${activeProfile}`);
+        if (savedSubtab) {
+            const btn = document.querySelector(`.discover-tab-btn[data-subtab="${savedSubtab}"]`);
+            if (btn) {
+                document.querySelectorAll(".discover-tab-btn").forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                document.querySelectorAll(".discover-subtab-pane").forEach(p => p.style.display = "none");
+                const pane = document.getElementById(savedSubtab);
+                if (pane) pane.style.display = "block";
+            }
+        }
+    } catch(e) {}
     
     // Render existing data immediately if already loaded
     if (discoverData) {
@@ -3276,6 +3299,9 @@ window.addEventListener("load", () => {
             subtabDownloadedBtn.classList.remove("active");
             paneToDownload.style.display = "block";
             paneDownloadedFiles.style.display = "none";
+            if (activeProfile) {
+                localStorage.setItem(`musicgrabber_sync_subtab_${activeProfile}`, "to-download");
+            }
         });
         
         subtabDownloadedBtn.addEventListener("click", () => {
@@ -3283,19 +3309,32 @@ window.addEventListener("load", () => {
             subtabToDownloadBtn.classList.remove("active");
             paneDownloadedFiles.style.display = "block";
             paneToDownload.style.display = "none";
+            if (activeProfile) {
+                localStorage.setItem(`musicgrabber_sync_subtab_${activeProfile}`, "downloaded");
+            }
         });
+
+        // Restore saved sync subtab
+        try {
+            const savedSyncSubtab = activeProfile ? localStorage.getItem(`musicgrabber_sync_subtab_${activeProfile}`) : "to-download";
+            if (savedSyncSubtab === "downloaded") {
+                subtabDownloadedBtn.classList.add("active");
+                subtabToDownloadBtn.classList.remove("active");
+                paneDownloadedFiles.style.display = "block";
+                paneToDownload.style.display = "none";
+            }
+        } catch(e) {}
     }
 
-    // Path Column Toggle Handler
-    const toggleFilePathsCheckbox = document.getElementById("toggle-file-paths-checkbox");
-    if (toggleFilePathsCheckbox) {
-        toggleFilePathsCheckbox.addEventListener("change", () => {
-            const isChecked = toggleFilePathsCheckbox.checked;
-            document.querySelectorAll(".file-path-col, .file-path-cell").forEach(el => {
-                el.style.display = isChecked ? "table-cell" : "none";
-            });
-        });
-    }
+    // Multi-tab Storage Event Listener for Cross-Tab Sync
+    window.addEventListener("storage", (e) => {
+        if (e.key === "musicgrabber_volume" && e.newValue) {
+            restoreSavedVolume();
+        }
+        if (activeProfile && e.key === `musicgrabber_active_tab_${activeProfile}` && e.newValue) {
+            switchTab(e.newValue);
+        }
+    });
 
     // Discover Search Input Handler
     const discoverSearchInput = document.getElementById("discover-search-input");

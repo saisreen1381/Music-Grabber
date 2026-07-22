@@ -203,11 +203,6 @@
                                         </button>
                                     </div>
                                     <div style="display: flex; gap: 8px; align-items: center;">
-                                        <!-- Path Column Toggle -->
-                                        <label style="font-size: 0.75rem; color: var(--text-dim); display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;">
-                                            <input type="checkbox" id="toggle-file-paths-checkbox" style="cursor: pointer; accent-color: var(--primary);">
-                                            <span>Show Paths</span>
-                                        </label>
                                         <!-- Manual Refresh Button -->
                                         <button id="refresh-files-btn" class="btn btn-secondary btn-sm" title="Refresh files list" style="padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px;">
                                             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -228,12 +223,11 @@
                                                 <th style="width: 40px; text-align: center;">Play</th>
                                                 <th>Title</th>
                                                 <th>Source Playlist</th>
-                                                <th class="file-path-col" style="display: none;">Path</th>
                                             </tr>
                                         </thead>
                                         <tbody id="to-download-table-body">
                                             <tr>
-                                                <td colspan="4" class="empty-table">Click "Launch Library Sync" or refresh to inspect pending downloads.</td>
+                                                <td colspan="3" class="empty-table">Click "Launch Library Sync" or refresh to inspect pending downloads.</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -247,12 +241,11 @@
                                                 <th style="width: 40px; text-align: center;">Play</th>
                                                 <th>Filename</th>
                                                 <th>Size</th>
-                                                <th class="file-path-col" style="display: none;">Path</th>
                                             </tr>
                                         </thead>
                                         <tbody id="files-table-body">
                                             <tr>
-                                                <td colspan="4" class="empty-table">No files scanned yet. Select save path in settings.</td>
+                                                <td colspan="3" class="empty-table">No files scanned yet. Select save path in settings.</td>
                                             </tr>
                                         </tbody>
                                     </table>

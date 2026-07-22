@@ -1554,10 +1554,3 @@ input[type="checkbox"]:checked::before {
     color: white;
     border-color: var(--primary);
 }
-
-.file-path-col, .file-path-cell {
-    font-family: monospace;
-    font-size: 0.75rem;
-    color: var(--text-dim);
-    word-break: break-all;
-}
