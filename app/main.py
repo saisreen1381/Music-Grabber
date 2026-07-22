@@ -1545,6 +1545,109 @@ class RateTrackModel(BaseModel):
     title: Optional[str] = None
     artist: Optional[str] = None
 
+def fetch_ytmusic_track_rating(username: str, video_id: str, url: Optional[str] = None) -> str:
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists():
+        return "INDIFFERENT"
+        
+    if not video_id and url:
+        video_id = get_source_id(url)
+        
+    if not video_id:
+        return "INDIFFERENT"
+        
+    # 1. Quick check in local Liked Music playlist cache
+    try:
+        config_file = profile_dir / "sync_config.json"
+        if config_file.exists():
+            with open(config_file, "r", encoding="utf-8") as cf:
+                config = json.load(cf)
+            sources = config.get("sources", [])
+            for src in sources:
+                src_url = src.get("url", "")
+                src_name = src.get("name", "").lower()
+                if "list=LM" in src_url or "list=LL" in src_url or "liked" in src_name:
+                    cached_file = profile_dir / "playlists" / f"{src.get('id')}_tracks.json"
+                    if cached_file.exists():
+                        with open(cached_file, "r", encoding="utf-8") as tf:
+                            tracks = json.load(tf)
+                            if any(t.get("id") == video_id or video_id in (t.get("url") or "") for t in tracks):
+                                return "LIKE"
+    except Exception:
+        pass
+        
+    # 2. InnerTube API check using user's cookies
+    cookie_file = None
+    for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
+        potential_cookie = profile_dir / name
+        if potential_cookie.exists():
+            cookie_file = potential_cookie
+            break
+            
+    if not cookie_file:
+        return "INDIFFERENT"
+        
+    try:
+        cj = http.cookiejar.MozillaCookieJar(str(cookie_file))
+        cj.load(ignore_discard=True, ignore_expires=True)
+        cookies_dict = {c.name: c.value for c in cj}
+        cookie_str = "; ".join([f"{k}={v}" for k, v in cookies_dict.items()])
+        
+        sapisid = cookies_dict.get("SAPISID") or cookies_dict.get("__Secure-3PAPISID")
+        if not sapisid:
+            return "INDIFFERENT"
+            
+        cur_time = str(int(time.time()))
+        origin = "https://music.youtube.com"
+        sha1 = hashlib.sha1(f"{cur_time} {sapisid} {origin}".encode("utf-8")).hexdigest()
+        auth_header = f"SAPISIDHASH {cur_time}_{sha1}"
+        
+        api_url = "https://music.youtube.com/youtubei/v1/next"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Content-Type": "application/json",
+            "Authorization": auth_header,
+            "X-Origin": origin,
+            "Origin": origin,
+            "Cookie": cookie_str
+        }
+        data = json.dumps({
+            "context": {
+                "client": {
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20240101.01.00"
+                }
+            },
+            "videoId": video_id
+        }).encode("utf-8")
+        
+        req = urllib.request.Request(api_url, data=data, headers=headers)
+        resp = urllib.request.urlopen(req, timeout=5)
+        res = json.loads(resp.read().decode("utf-8"))
+        
+        overlay = res.get("playerOverlays", {}).get("playerOverlayRenderer", {})
+        actions = overlay.get("actions", [])
+        for a in actions:
+            like_btn = a.get("likeButtonRenderer", {})
+            if like_btn:
+                return like_btn.get("likeStatus", "INDIFFERENT")
+    except Exception as e:
+        print(f"Error fetching track rating for {video_id}: {e}")
+        
+    return "INDIFFERENT"
+
+@app.get("/api/ytmusic/track-rating")
+def get_ytmusic_track_rating(username: str, video_id: Optional[str] = None, url: Optional[str] = None):
+    if not username:
+        raise HTTPException(status_code=400, detail="username parameter is required")
+    if not video_id and url:
+        video_id = get_source_id(url)
+    if not video_id:
+        return {"status": "success", "rating": "INDIFFERENT"}
+        
+    rating = fetch_ytmusic_track_rating(username, video_id, url)
+    return {"status": "success", "video_id": video_id, "rating": rating}
+
 @app.post("/api/ytmusic/rate-track")
 def rate_ytmusic_track(payload: RateTrackModel):
     profile_dir = USERS_DIR / payload.username

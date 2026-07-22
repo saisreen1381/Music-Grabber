@@ -1936,6 +1936,27 @@ function playTrack(track, queue = [], index = -1) {
         audioCtx.resume();
     }
     
+    // Fetch track rating asynchronously for active song
+    if (activeProfile && track) {
+        let vId = track.id || "";
+        const trackUrl = track.url || "";
+        if (!vId && trackUrl) {
+            const match = trackUrl.match(/(?:v=|\/vi\/|\/watch\?v=|\/embed\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
+            if (match) vId = match[1];
+        }
+        if (vId || trackUrl) {
+            fetch(`/api/ytmusic/track-rating?username=${activeProfile}&video_id=${encodeURIComponent(vId)}&url=${encodeURIComponent(trackUrl)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.rating && currentPlayingTrack === track) {
+                        currentPlayingTrack.user_rating = data.rating;
+                        updatePlaybackUI();
+                    }
+                })
+                .catch(e => console.error("Failed to fetch track rating", e));
+        }
+    }
+
     localAudioElement.play().then(() => {
         musicPlayerBar.style.display = "flex";
         updatePlaybackUI();
