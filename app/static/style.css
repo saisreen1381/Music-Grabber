@@ -490,6 +490,33 @@ body {
     font-size: 1rem;
 }
 
+.source-header-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 4px 12px;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 20px;
+    height: 28px;
+    line-height: 1;
+    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-glass);
+    color: var(--text-main);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.source-header-action-btn:hover {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: var(--primary);
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
 .sources-list {
     margin-top: 12px;
     display: flex;
@@ -756,6 +783,10 @@ input[type="checkbox"]:checked::before {
 .help-text {
     font-size: 0.75rem;
     color: var(--text-dim);
+    display: block;
+    width: 100%;
+    margin-top: 4px;
+    line-height: 1.4;
 }
 
 .form-divider {

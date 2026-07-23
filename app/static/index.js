@@ -193,41 +193,128 @@ const sourceModalCancel = document.getElementById("source-modal-cancel");
 const sourceModalSave = document.getElementById("source-modal-save");
 
 let allDownloadedFilenamesSet = new Set();
+let allDownloadedNormalizedSet = new Set();
+let scannedFiles = [];
+
+let sourceTitleFetchTimer = null;
+if (newSourceUrl && newSourceName) {
+    const handleUrlInput = () => {
+        const urlVal = newSourceUrl.value.trim();
+        const autoStatus = document.getElementById("source-name-auto-status");
+        if (!urlVal) {
+            if (autoStatus) autoStatus.style.display = "none";
+            return;
+        }
+        
+        clearTimeout(sourceTitleFetchTimer);
+        sourceTitleFetchTimer = setTimeout(async () => {
+            if (autoStatus) autoStatus.style.display = "inline-block";
+            try {
+                const res = await fetch(`/api/ytmusic/fetch-playlist-title?username=${encodeURIComponent(activeProfile || '')}&url=${encodeURIComponent(urlVal)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.title && data.status === "success") {
+                        newSourceName.value = data.title;
+                    }
+                }
+            } catch (err) {
+                console.error("Error auto-fetching playlist title:", err);
+            } finally {
+                if (autoStatus) autoStatus.style.display = "none";
+            }
+        }, 400);
+    };
+
+    newSourceUrl.addEventListener("input", handleUrlInput);
+    newSourceUrl.addEventListener("paste", () => setTimeout(handleUrlInput, 50));
+    newSourceUrl.addEventListener("change", handleUrlInput);
+}
+
+function cleanMediaExtension(str) {
+    if (!str) return "";
+    return str.replace(/\.(mp3|flac|m4a|wav|opus|webm|aac|ogg)$/i, "");
+}
+
+function normalizeTrackName(name, stripBrackets = true) {
+    if (!name) return "";
+    let s = String(name).toLowerCase();
+    if (stripBrackets) {
+        s = s.replace(/\[.*?\]/g, "").replace(/\(.*?\)/g, "");
+    }
+    s = cleanMediaExtension(s);
+    // Standardize unicode fullwidth symbols (pipe, dash, colon)
+    s = s.replace(/｜/g, "|").replace(/—/g, "-").replace(/：/g, ":");
+    let cleaned = s.replace(/[^\p{L}\p{N}]/gu, "");
+    if (!cleaned) return s.trim();
+    return cleaned.trim();
+}
 
 function updateDownloadedFilesSet(list) {
     if (!Array.isArray(list)) return;
     list.forEach(item => {
         const name = item.name || item.filename || item.local_filename || item.title;
         if (name) {
-            allDownloadedFilenamesSet.add(name.toLowerCase());
-            allDownloadedFilenamesSet.add(cleanMediaExtension(name).toLowerCase());
+            const rawLower = name.toLowerCase();
+            const cleanLower = cleanMediaExtension(name).toLowerCase();
+            const normFull = normalizeTrackName(name, false);
+            const normStrip = normalizeTrackName(name, true);
+
+            allDownloadedFilenamesSet.add(rawLower);
+            allDownloadedFilenamesSet.add(cleanLower);
+            if (normFull) allDownloadedNormalizedSet.add(normFull);
+            if (normStrip) allDownloadedNormalizedSet.add(normStrip);
         }
     });
 }
 
 function isLocalTrack(track) {
     if (!track) return false;
-    if (track.path || track.is_local) return true;
+    if (track.path || track.is_local || track.downloaded) return true;
     
-    const fn = track.local_filename || track.filename || track.name;
-    const title = track.title || track.display_name;
+    const fn = track.local_filename || track.filename || track.name || "";
+    const title = track.title || track.display_name || "";
     
-    if (fn) {
-        const cleanFn = cleanMediaExtension(fn).toLowerCase();
-        if (allDownloadedFilenamesSet.has(fn.toLowerCase()) || allDownloadedFilenamesSet.has(cleanFn)) {
+    const rawFn = fn ? fn.toLowerCase() : "";
+    const cleanFn = fn ? cleanMediaExtension(fn).toLowerCase() : "";
+    const rawTitle = title ? title.toLowerCase() : "";
+    const cleanTitle = title ? cleanMediaExtension(title).toLowerCase() : "";
+
+    const normFnFull = normalizeTrackName(fn, false);
+    const normFnStrip = normalizeTrackName(fn, true);
+    const normTitleFull = normalizeTrackName(title, false);
+    const normTitleStrip = normalizeTrackName(title, true);
+
+    const candidates = [
+        rawFn, cleanFn, rawTitle, cleanTitle,
+        normFnFull, normFnStrip, normTitleFull, normTitleStrip
+    ];
+
+    for (const cand of candidates) {
+        if (!cand) continue;
+        if (allDownloadedFilenamesSet.has(cand) || allDownloadedNormalizedSet.has(cand)) {
             return true;
         }
     }
-    if (title) {
-        const cleanTitle = cleanMediaExtension(title).toLowerCase();
-        if (allDownloadedFilenamesSet.has(cleanTitle)) {
-            return true;
+    
+    // Containment / partial matching check for longer titles (length >= 5)
+    const normTargets = [normTitleFull, normTitleStrip, normFnFull, normFnStrip].filter(n => n && n.length >= 5);
+    for (const target of normTargets) {
+        for (const downloadedNorm of allDownloadedNormalizedSet) {
+            if (downloadedNorm.length >= 5 && (target.includes(downloadedNorm) || downloadedNorm.includes(target))) {
+                return true;
+            }
         }
     }
-    
-    if (fn && Array.isArray(scannedFiles)) {
-        const cleanFn = cleanMediaExtension(fn).toLowerCase();
-        return scannedFiles.some(f => cleanMediaExtension(f.name || "").toLowerCase() === cleanFn || f.name === fn);
+
+    if (typeof scannedFiles !== "undefined" && Array.isArray(scannedFiles)) {
+        for (const f of scannedFiles) {
+            const fName = f.name || f.filename || "";
+            const fNormFull = normalizeTrackName(fName, false);
+            const fNormStrip = normalizeTrackName(fName, true);
+            if (fNormFull && (normTargets.includes(fNormFull) || normTargets.includes(fNormStrip))) {
+                return true;
+            }
+        }
     }
     return false;
 }
@@ -248,6 +335,23 @@ function formatDuration(secs) {
     const minutes = Math.floor(secs / 60);
     const seconds = Math.floor(secs % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function extractVideoId(trackOrUrl) {
+    if (!trackOrUrl) return "";
+    if (typeof trackOrUrl === "object") {
+        if (trackOrUrl.id && trackOrUrl.id.length === 11 && !trackOrUrl.id.startsWith("src_")) {
+            return trackOrUrl.id;
+        }
+        if (trackOrUrl.video_id) return trackOrUrl.video_id;
+        trackOrUrl = trackOrUrl.url || "";
+    }
+    const str = String(trackOrUrl).trim();
+    if (str.length === 11 && /^[a-zA-Z0-9_-]{11}$/.test(str)) {
+        return str;
+    }
+    const match = str.match(/(?:v=|\/vi\/|\/watch\?v=|\/embed\/|\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    return match ? match[1] : "";
 }
 
 // Fetch available profiles (Guarded against concurrent wipes)
@@ -2431,11 +2535,7 @@ async function rateCurrentTrack(newRating) {
     const trackArtist = currentPlayingTrack.artist || "YouTube Artist";
     const trackUrl = currentPlayingTrack.url || "";
     
-    let videoId = currentPlayingTrack.id || "";
-    if (!videoId && trackUrl) {
-        const match = trackUrl.match(/(?:v=|\/vi\/|\/watch\?v=|\/embed\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
-        if (match) videoId = match[1];
-    }
+    let videoId = extractVideoId(currentPlayingTrack);
     
     if (!videoId && !trackUrl) {
         showToast("Cannot rate local files that have no YouTube reference", "warning");
@@ -4363,7 +4463,7 @@ function renderYtMusicSongsTable(songs) {
         const songThumb = s.thumbnail || (s.id ? `https://i.ytimg.com/vi/${s.id}/mqdefault.jpg` : "");
         const trackUrl = s.url || (s.id ? `https://www.youtube.com/watch?v=${s.id}` : "");
         const videoId = s.id || (trackUrl ? getSourceId(trackUrl) : "");
-        const isLocal = isLocalTrack(s) || allDownloadedFilenamesSet.has(title.toLowerCase());
+        const isLocal = isLocalTrack(s);
         let isLiked = (videoId && allLikedTracksSet.has(videoId)) || (trackUrl && allLikedTracksSet.has(trackUrl)) || allLikedTracksSet.has(title.toLowerCase());
         
         tr.dataset.title = title;
@@ -4432,7 +4532,7 @@ function renderYtMusicSongsTable(songs) {
         if (dlBtn) {
             dlBtn.addEventListener("click", async (e) => {
                 e.stopPropagation();
-                if (allDownloadedFilenamesSet.has(title.toLowerCase())) {
+                if (isLocalTrack(s)) {
                     showToast(`"${title}" is already in your library!`, "info");
                     return;
                 }
@@ -4454,8 +4554,7 @@ function renderYtMusicSongsTable(songs) {
                     const data = await res.json();
                     if (res.ok) {
                         showToast(`Downloaded "${title}" to Library!`, "success");
-                        allDownloadedFilenamesSet.add(title.toLowerCase());
-                        allDownloadedFilenamesSet.add(cleanMediaExtension(title).toLowerCase());
+                        updateDownloadedFilesSet([{ name: title }]);
                         dlBtn.style.color = "#10b981";
                         dlBtn.style.background = "rgba(16, 185, 129, 0.15)";
                         dlBtn.style.borderColor = "#10b981";

@@ -27,6 +27,11 @@ from app.sync_engine import (
     fetch_text_file,
     get_source_id,
     normalize_name,
+    is_track_downloaded,
+    get_user_cookie_file,
+    get_user_config,
+    save_user_config,
+    extract_youtube_video_id,
     get_scan_paths,
     download_track_ytdlp,
     paused_syncs,
@@ -471,16 +476,7 @@ def scan_directory(username: str):
     if not profile_dir.exists():
         raise HTTPException(status_code=404, detail="Profile not found")
         
-    config_file = profile_dir / "sync_config.json"
-    if not config_file.exists():
-        return {"files": []}
-        
-    try:
-        with open(config_file, "r") as f:
-            config = json.load(f)
-    except Exception:
-        return {"files": []}
-        
+    config = get_user_config(profile_dir) or {}
     download_dir = config.get("download_dir")
     additional_dirs = config.get("additional_library_dirs", [])
     files = scan_existing_files_detailed(download_dir, additional_dirs, profile_dir)
@@ -839,12 +835,9 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
     if not profile_dir.exists():
         raise HTTPException(status_code=404, detail="Profile not found")
         
-    config_file = profile_dir / "sync_config.json"
-    if not config_file.exists():
+    config = get_user_config(profile_dir)
+    if not config:
         raise HTTPException(status_code=404, detail="Config not found")
-        
-    with open(config_file, "r") as f:
-        config = json.load(f)
         
     sources_list = config.get("sources", [])
     modified_config = False
@@ -853,11 +846,7 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
             src["id"] = get_source_id(src)
             modified_config = True
     if modified_config:
-        try:
-            with open(config_file, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-        except Exception:
-            pass
+        save_user_config(profile_dir, config)
             
     source = None
     for src in sources_list:
@@ -895,13 +884,7 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
         # Load live
         src_type = source.get("type")
         url = source.get("url", "")
-        
-        cookie_file = None
-        for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
-            potential_cookie = user_dir / name
-            if potential_cookie.exists():
-                cookie_file = str(potential_cookie.resolve())
-                break
+        cookie_file = get_user_cookie_file(user_dir)
                 
         if src_type in ("youtube_music_playlist", "youtube_playlist"):
             if not url:
@@ -1568,23 +1551,10 @@ def download_track_direct(payload: DownloadTrackDirectModel):
     if not profile_dir.exists():
         raise HTTPException(status_code=404, detail="Profile not found")
         
-    config_file = profile_dir / "sync_config.json"
-    download_dir = None
-    if config_file.exists():
-        with open(config_file, "r", encoding="utf-8") as f:
-            config = json.load(f)
-            download_dir = config.get("download_dir")
-            
-    if not download_dir:
-        download_dir = str((profile_dir / "music").resolve())
-        os.makedirs(download_dir, exist_ok=True)
-        
-    cookie_file = None
-    for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
-        potential_cookie = profile_dir / name
-        if potential_cookie.exists():
-            cookie_file = str(potential_cookie.resolve())
-            break
+    config = get_user_config(profile_dir) or {}
+    download_dir = config.get("download_dir") or str((profile_dir / "music").resolve())
+    os.makedirs(download_dir, exist_ok=True)
+    cookie_file = get_user_cookie_file(profile_dir)
 
     target_track = {
         "title": payload.title,
@@ -1631,18 +1601,14 @@ def fetch_ytmusic_track_rating(username: str, video_id: str, url: Optional[str] 
     if not profile_dir.exists():
         return "INDIFFERENT"
         
-    if not video_id and url:
-        video_id = get_source_id(url)
-        
+    video_id = extract_youtube_video_id(video_id or url)
     if not video_id:
         return "INDIFFERENT"
         
     # 1. Quick check in local Liked Music playlist cache
     try:
-        config_file = profile_dir / "sync_config.json"
-        if config_file.exists():
-            with open(config_file, "r", encoding="utf-8") as cf:
-                config = json.load(cf)
+        config = get_user_config(profile_dir)
+        if config:
             sources = config.get("sources", [])
             for src in sources:
                 src_url = src.get("url", "")
@@ -1658,13 +1624,7 @@ def fetch_ytmusic_track_rating(username: str, video_id: str, url: Optional[str] 
         pass
         
     # 2. InnerTube API check using user's cookies
-    cookie_file = None
-    for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
-        potential_cookie = profile_dir / name
-        if potential_cookie.exists():
-            cookie_file = potential_cookie
-            break
-            
+    cookie_file = get_user_cookie_file(profile_dir)
     if not cookie_file:
         return "INDIFFERENT"
         
@@ -1975,12 +1935,7 @@ def discover_ytmusic(username: str):
     if not profile_dir.exists():
         raise HTTPException(status_code=404, detail="Profile not found")
         
-    cookie_file = None
-    for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
-        potential_cookie = profile_dir / name
-        if potential_cookie.exists():
-            cookie_file = str(potential_cookie.resolve())
-            break
+    cookie_file = get_user_cookie_file(profile_dir)
             
     # Cache valid for 2 hours
     cache_file = profile_dir / "ytmusic_discover_cache.json"
@@ -2138,12 +2093,7 @@ def get_ytmusic_playlist_preview(username: str, url: str):
     if not profile_dir.exists():
         raise HTTPException(status_code=404, detail="Profile not found")
         
-    cookie_file = None
-    for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
-        potential_cookie = profile_dir / name
-        if potential_cookie.exists():
-            cookie_file = str(potential_cookie.resolve())
-            break
+    cookie_file = get_user_cookie_file(profile_dir)
             
     target_url = url
     if "watch?v=PL" in target_url:
@@ -2161,6 +2111,46 @@ def get_ytmusic_playlist_preview(username: str, url: str):
         return {"status": "success", "tracks": tracks}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/ytmusic/fetch-playlist-title")
+def fetch_playlist_title(username: str, url: str):
+    if not url or not url.strip():
+        raise HTTPException(status_code=400, detail="URL parameter is required")
+        
+    clean_url = url.strip()
+    if "music.youtube.com/playlist?list=" in clean_url:
+        clean_url = clean_url.replace("music.youtube.com/playlist?list=", "www.youtube.com/playlist?list=")
+    elif "music.youtube.com/watch?" in clean_url:
+        clean_url = clean_url.replace("music.youtube.com/watch?", "www.youtube.com/watch?")
+        
+    profile_dir = USERS_DIR / username if username else None
+    cookie_file = get_user_cookie_file(profile_dir) if profile_dir else None
+    
+    if "list=LM" in clean_url or "list=LL" in clean_url:
+        return {"status": "success", "title": "Liked Songs"}
+        
+    cmd = [YTDLP_PATH, "--flat-playlist", "--dump-single-json", "--playlist-end", "1", "--js-runtimes", "node"]
+    if cookie_file and os.path.exists(cookie_file):
+        cmd.extend(["--cookies", cookie_file])
+    cmd.append(clean_url)
+    
+    out = run_cmd(cmd)
+    if not out and cookie_file:
+        cmd_nocookie = [c for c in cmd if c not in ["--cookies", str(cookie_file)]]
+        out = run_cmd(cmd_nocookie)
+        
+    if out:
+        try:
+            data = json.loads(out)
+            title = data.get("title") or data.get("playlist_title") or data.get("album")
+            if title and str(title).strip():
+                clean_t = str(title).strip()
+                clean_t = re.sub(r'^(Playlist\s*-\s*|Album\s*-\s*)', '', clean_t, flags=re.I)
+                return {"status": "success", "title": clean_t}
+        except Exception:
+            pass
+            
+    return {"status": "failed", "title": ""}
 
 stream_url_cache = {}  # { url: (googlevideo_url, timestamp) }
 
@@ -2180,13 +2170,7 @@ def stream_ytmusic_online(request: Request, username: str, url: str):
 
     if not first_url:
         profile_dir = USERS_DIR / username
-        cookie_file = None
-        if profile_dir.exists():
-            for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
-                potential_cookie = profile_dir / name
-                if potential_cookie.exists():
-                    cookie_file = str(potential_cookie.resolve())
-                    break
+        cookie_file = get_user_cookie_file(profile_dir) if profile_dir.exists() else None
 
         cmd = [YTDLP_PATH, "-g", "-f", "bestaudio/best", "--no-warnings", "--js-runtimes", "node"]
         if cookie_file and os.path.exists(cookie_file):

@@ -19,11 +19,108 @@ def normalize_name(name, strip_brackets=True):
         # Strip common suffixes/prefixes like [Official Video], (Lyrics), (From "..."), etc.
         name = re.sub(r'\[.*?\]', '', name)
         name = re.sub(r'\(.*?\)', '', name)
+    # Convert fullwidth/unicode characters to standard equivalents
+    name = name.replace('｜', '|').replace('—', '-').replace('：', ':')
     # Remove non-word characters while preserving Unicode letters and digits
     cleaned = re.sub(r'[^\w]', '', name, flags=re.UNICODE)
     if not cleaned:
         return name.strip()
     return cleaned.strip()
+
+def is_track_downloaded(track, existing_songs):
+    """
+    Global canonical backend helper to determine if a track is downloaded on disk,
+    given a set of normalized existing filenames or scan items.
+    """
+    if not track or not existing_songs:
+        return False
+
+    title = track.get("title") or ""
+    display_name = track.get("display_name") or ""
+    local_filename = track.get("local_filename") or track.get("filename") or ""
+
+    norm_title_full = normalize_name(title, strip_brackets=False)
+    norm_title_strip = normalize_name(title, strip_brackets=True)
+    norm_disp_full = normalize_name(display_name, strip_brackets=False)
+    norm_disp_strip = normalize_name(display_name, strip_brackets=True)
+    norm_fn_full = normalize_name(local_filename, strip_brackets=False)
+    norm_fn_strip = normalize_name(local_filename, strip_brackets=True)
+
+    norms = {norm_title_full, norm_title_strip, norm_disp_full, norm_disp_strip, norm_fn_full, norm_fn_strip}
+    norms.discard("")
+
+    if any(n in existing_songs for n in norms):
+        return True
+
+    # Substring containment match for strings length >= 4
+    for n in norms:
+        if len(n) >= 4:
+            for fn in existing_songs:
+                if len(fn) >= 4 and (n in fn or fn in n):
+                    return True
+
+    return False
+
+def get_user_cookie_file(profile_dir):
+    """
+    Global helper to discover and return the active cookies file path for a user profile.
+    """
+    if not profile_dir:
+        return None
+    p_dir = Path(profile_dir)
+    if not p_dir.exists():
+        return None
+    for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt", "cookies.txt"]:
+        potential = p_dir / name
+        if potential.exists():
+            return str(potential.resolve())
+    return None
+
+def get_user_config(profile_dir):
+    """
+    Global helper to load user sync config dictionary from profile directory.
+    """
+    if not profile_dir:
+        return None
+    config_file = Path(profile_dir) / "sync_config.json"
+    if not config_file.exists():
+        return None
+    try:
+        with open(config_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading config from {config_file}: {e}")
+        return None
+
+def save_user_config(profile_dir, config):
+    """
+    Global helper to safely save user sync config to profile directory.
+    """
+    if not profile_dir or not isinstance(config, dict):
+        return False
+    config_file = Path(profile_dir) / "sync_config.json"
+    try:
+        os.makedirs(Path(profile_dir), exist_ok=True)
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error saving config to {config_file}: {e}")
+        return False
+
+def extract_youtube_video_id(val):
+    """
+    Global helper to extract an 11-character YouTube Video ID from a URL or string.
+    """
+    if not val:
+        return ""
+    val_str = str(val).strip()
+    if len(val_str) == 11 and re.match(r'^[a-zA-Z0-9_-]{11}$', val_str):
+        return val_str
+    match = re.search(r'(?:v=|\/vi\/|\/watch\?v=|\/embed\/|\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})', val_str)
+    if match:
+        return match.group(1)
+    return ""
 
 def get_scan_paths(download_dir, additional_dirs=None, profile_dir=None):
     scan_paths = []
@@ -450,13 +547,7 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
             seen_normalized = set()
             
             user_dir = os.path.dirname(config_path)
-            
-            cookie_file = None
-            for name in ["youtube_cookies.txt", "music.youtube.com_cookies.txt"]:
-                potential_cookie = os.path.join(user_dir, name)
-                if os.path.exists(potential_cookie):
-                    cookie_file = potential_cookie
-                    break
+            cookie_file = get_user_cookie_file(user_dir)
                     
             for source in sources:
                 src_type = source.get("type")
@@ -519,27 +610,7 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
             # 3. Filter out existing tracks
             to_download = []
             for track in all_tracks:
-                norm_title_full = normalize_name(track.get("title", ""), strip_brackets=False)
-                norm_title_strip = normalize_name(track.get("title", ""), strip_brackets=True)
-                norm_display_full = normalize_name(track.get("display_name", ""), strip_brackets=False)
-                norm_display_strip = normalize_name(track.get("display_name", ""), strip_brackets=True)
-                
-                track_norms = {norm_title_full, norm_title_strip, norm_display_full, norm_display_strip}
-                track_norms.discard("")
-                
-                is_downloaded = any(tn in existing_songs for tn in track_norms)
-                
-                if not is_downloaded:
-                    for tn in track_norms:
-                        if len(tn) >= 4:
-                            for fn in existing_songs:
-                                if len(fn) >= 4 and (tn in fn or fn in tn):
-                                    is_downloaded = True
-                                    break
-                        if is_downloaded:
-                            break
-                                
-                if not is_downloaded:
+                if not is_track_downloaded(track, existing_songs):
                     to_download.append(track)
                     
             emit(f"Tracks already downloaded: {len(all_tracks) - len(to_download)}")

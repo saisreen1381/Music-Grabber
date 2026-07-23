@@ -12,3 +12,7 @@
 ## Icon Consistency Rules
 - Keep UI icons consistent across all pages and components. Standard action icons (e.g. Play, Pause, Add, Refresh, Delete, Settings) must use identical SVG representations and styling across all views (Sync, Playlists, Library, Discover, and Bottom Audio Player).
 
+## Code & Logic Consistency Rules
+- Prefer using centralized global utility functions (e.g. `isLocalTrack()` on the frontend, `is_track_downloaded()` and `normalize_name()` on the backend) for core domain logic across all pages, components, and API handlers, rather than implementing ad-hoc or duplicated inline checks in separate modules.
+
+
