@@ -1500,54 +1500,178 @@ def stop_sync_endpoint(username: str):
     paused_syncs.discard(username)
     return {"status": "stopping"}
 
+def clean_song_title(title: str) -> str:
+    if not title:
+        return ""
+    t = re.sub(r"\.(mp3|flac|m4a|wav|opus|webm|aac|ogg)$", "", title, flags=re.IGNORECASE).strip()
+    t = re.sub(r"[\(\[\{](official|lyrics|video|audio|hd|4k|remix|from|soundtrack|version|live|feat\.|ft\.)[^\)\]\}]*[\)\]\}]", "", t, flags=re.IGNORECASE)
+    t = re.sub(r"\b(feat\.|ft\.)\s+[\w\s]+", "", t, flags=re.IGNORECASE)
+    t = re.sub(r"\s*-\s*(telugu|hindi|tamil|punjabi|english|kannada|malayalam|song|lrc|video)\s*$", "", t, flags=re.IGNORECASE)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
 @app.get("/api/lyrics")
 def get_lyrics(artist: str = "", title: str = ""):
     if not title:
         raise HTTPException(status_code=400, detail="Title parameter is required")
         
-    clean_title = re.sub(r"\.(mp3|flac|m4a|wav|opus|webm|aac|ogg)$", "", title, flags=re.IGNORECASE).strip()
-    clean_artist = artist.strip() if artist and artist.lower() not in ["unknown artist", "downloaded track"] else ""
+    raw_title = title.strip()
+    raw_artist = artist.strip() if artist and artist.lower() not in ["unknown artist", "downloaded track"] else ""
+    
+    clean_t = clean_song_title(raw_title)
+    clean_a = re.sub(r"\s+-\s+Topic$", "", raw_artist, flags=re.IGNORECASE).strip()
     
     cache_dir = USERS_DIR / "lyrics_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    cache_key = f"{clean_artist}_{clean_title}".lower()
+    cache_key = f"{clean_a}_{clean_t}".lower()
     cache_filename = hashlib.md5(cache_key.encode("utf-8")).hexdigest() + ".json"
     cache_path = cache_dir / cache_filename
     
     if cache_path.exists():
         try:
             with open(cache_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                if data.get("syncedLyrics") or (data.get("plainLyrics") and "not found" not in data.get("plainLyrics", "").lower()):
+                    return data
         except Exception:
             pass
-            
-    lyrics_data = {"syncedLyrics": None, "plainLyrics": "Lyrics not found for this track.", "artist": clean_artist, "title": clean_title}
+
+    found = None
+
+    # Step 1: LRCLIB /api/get exact
     try:
-        url = f"https://lrclib.net/api/get?track_name={urllib.parse.quote(clean_title)}"
-        if clean_artist:
-            url += f"&artist_name={urllib.parse.quote(clean_artist)}"
-            
+        url = f"https://lrclib.net/api/get?track_name={urllib.parse.quote(clean_t)}"
+        if clean_a:
+            url += f"&artist_name={urllib.parse.quote(clean_a)}"
         req = urllib.request.Request(url, headers={"User-Agent": "MusicGrabber/1.0"})
-        with urllib.request.urlopen(req, timeout=6) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             if resp.status == 200:
-                data = json.loads(resp.read().decode("utf-8"))
-                lyrics_data = {
-                    "syncedLyrics": data.get("syncedLyrics"),
-                    "plainLyrics": data.get("plainLyrics") or "No plain text lyrics available for this song.",
-                    "artist": data.get("artistName") or clean_artist,
-                    "title": data.get("trackName") or clean_title,
-                    "album": data.get("albumName")
-                }
+                res = json.loads(resp.read().decode("utf-8"))
+                if res.get("syncedLyrics") or res.get("plainLyrics"):
+                    found = {
+                        "syncedLyrics": res.get("syncedLyrics"),
+                        "plainLyrics": res.get("plainLyrics"),
+                        "artist": res.get("artistName") or clean_a,
+                        "title": res.get("trackName") or clean_t,
+                        "album": res.get("albumName"),
+                        "source": "LRCLIB"
+                    }
     except Exception as e:
-        logger.warning(f"Failed to fetch lyrics for {clean_title}: {e}")
-        
-    try:
-        with open(cache_path, "w", encoding="utf-8") as f:
-            json.dump(lyrics_data, f, ensure_ascii=False)
-    except Exception:
-        pass
-        
-    return lyrics_data
+        logger.debug(f"LRCLIB get failed for {clean_t}: {e}")
+
+    # Step 2: LRCLIB /api/search (track_name & artist_name)
+    if not found:
+        try:
+            url = f"https://lrclib.net/api/search?track_name={urllib.parse.quote(clean_t)}"
+            if clean_a:
+                url += f"&artist_name={urllib.parse.quote(clean_a)}"
+            req = urllib.request.Request(url, headers={"User-Agent": "MusicGrabber/1.0"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status == 200:
+                    results = json.loads(resp.read().decode("utf-8"))
+                    if isinstance(results, list) and len(results) > 0:
+                        for res in results:
+                            if res.get("syncedLyrics") or res.get("plainLyrics"):
+                                found = {
+                                    "syncedLyrics": res.get("syncedLyrics"),
+                                    "plainLyrics": res.get("plainLyrics"),
+                                    "artist": res.get("artistName") or clean_a,
+                                    "title": res.get("trackName") or clean_t,
+                                    "album": res.get("albumName"),
+                                    "source": "LRCLIB Search"
+                                }
+                                break
+        except Exception as e:
+            logger.debug(f"LRCLIB search failed for {clean_t}: {e}")
+
+    # Step 3: LRCLIB /api/search broad query q=clean_t clean_a
+    if not found:
+        try:
+            query = f"{clean_t} {clean_a}".strip()
+            url = f"https://lrclib.net/api/search?q={urllib.parse.quote(query)}"
+            req = urllib.request.Request(url, headers={"User-Agent": "MusicGrabber/1.0"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status == 200:
+                    results = json.loads(resp.read().decode("utf-8"))
+                    if isinstance(results, list) and len(results) > 0:
+                        for res in results:
+                            if res.get("syncedLyrics") or res.get("plainLyrics"):
+                                found = {
+                                    "syncedLyrics": res.get("syncedLyrics"),
+                                    "plainLyrics": res.get("plainLyrics"),
+                                    "artist": res.get("artistName") or clean_a,
+                                    "title": res.get("trackName") or clean_t,
+                                    "album": res.get("albumName"),
+                                    "source": "LRCLIB Query"
+                                }
+                                break
+        except Exception as e:
+            logger.debug(f"LRCLIB query failed: {e}")
+
+    # Step 4: Lyrics.ovh fallback
+    if not found and clean_a and clean_t:
+        try:
+            url = f"https://api.lyrics.ovh/v1/{urllib.parse.quote(clean_a)}/{urllib.parse.quote(clean_t)}"
+            req = urllib.request.Request(url, headers={"User-Agent": "MusicGrabber/1.0"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status == 200:
+                    res = json.loads(resp.read().decode("utf-8"))
+                    lyrics_txt = res.get("lyrics")
+                    if lyrics_txt:
+                        found = {
+                            "syncedLyrics": None,
+                            "plainLyrics": lyrics_txt.strip(),
+                            "artist": clean_a,
+                            "title": clean_t,
+                            "source": "Lyrics.ovh"
+                        }
+        except Exception as e:
+            logger.debug(f"Lyrics.ovh failed: {e}")
+
+    # Step 5: NetEase Music search/lyrics API fallback
+    if not found:
+        try:
+            search_query = f"{clean_t} {clean_a}".strip()
+            s_url = f"https://music.163.com/api/search/get/web?csrf_token=&hlpretag=&hlposttag=&s={urllib.parse.quote(search_query)}&type=1&offset=0&total=true&limit=3"
+            req = urllib.request.Request(s_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status == 200:
+                    s_res = json.loads(resp.read().decode("utf-8"))
+                    songs = s_res.get("result", {}).get("songs", [])
+                    if songs:
+                        song_id = songs[0]["id"]
+                        l_url = f"https://music.163.com/api/song/lyric?os=pc&id={song_id}&lv=-1&kv=-1&tv=-1"
+                        l_req = urllib.request.Request(l_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+                        with urllib.request.urlopen(l_req, timeout=5) as l_resp:
+                            if l_resp.status == 200:
+                                l_res = json.loads(l_resp.read().decode("utf-8"))
+                                lrc = l_res.get("lrc", {}).get("lyric")
+                                if lrc and len(lrc.strip()) > 10:
+                                    found = {
+                                        "syncedLyrics": lrc,
+                                        "plainLyrics": re.sub(r"\[\d+:\d+\.\d+\]", "", lrc).strip(),
+                                        "artist": clean_a or (songs[0]["artists"][0]["name"] if songs[0].get("artists") else ""),
+                                        "title": clean_t or songs[0].get("name", ""),
+                                        "source": "NetEase"
+                                    }
+        except Exception as e:
+            logger.debug(f"NetEase fallback failed: {e}")
+
+    if found:
+        lyrics_data = found
+        try:
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(lyrics_data, f, ensure_ascii=False)
+        except Exception:
+            pass
+        return lyrics_data
+    else:
+        return {
+            "syncedLyrics": None,
+            "plainLyrics": "Lyrics not found for this track.",
+            "artist": clean_a or raw_artist,
+            "title": clean_t or raw_title
+        }
 
 class AddSourceModel(BaseModel):
     username: str

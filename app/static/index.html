@@ -4,11 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Music Grabber — Ultimate Offline Sync</title>
+    <!-- SVG Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Crect x='2' y='2' width='20' height='20' rx='6' fill='%236366f1'/%3E%3Cpath d='M9 17V7l9-2v10' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='6.5' cy='17' r='2.5' fill='%23ffffff'/%3E%3Ccircle cx='15.5' cy='15' r='2.5' fill='%23ffffff'/%3E%3C/svg%3E">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=2.2.0">
+    <link rel="stylesheet" href="/static/style.css?v=2.3.0">
 </head>
 <body>
     <div class="glass-bg"></div>
@@ -17,10 +19,14 @@
         <!-- Top Navigation Bar -->
         <header class="app-header">
             <div class="brand">
-                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="2" y="2" width="20" height="20" rx="6" fill="var(--primary)" fill-opacity="0.15" stroke="var(--primary)" stroke-width="1.5"/>
+                    <path d="M9 17V7l9-2v10" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="6.5" cy="17" r="2.5" fill="var(--primary)"/>
+                    <circle cx="15.5" cy="15" r="2.5" fill="var(--primary)"/>
+                </svg>
                 <div class="brand-text">
                     <h1>Music Grabber</h1>
-                    <span>Self-Hosted Sync</span>
                 </div>
             </div>
             
@@ -846,26 +852,127 @@
         </div>
     </div>
 
-    <!-- Lyrics Drawer Modal -->
-    <div id="lyrics-drawer-modal" class="modal-overlay" style="display: none;">
-        <div class="glass-card modal-card" style="max-width: 580px; width: 90%; max-height: 82vh; display: flex; flex-direction: column; padding: 24px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid var(--border-glass); padding-bottom: 12px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                    <div>
-                        <h3 id="lyrics-song-title" style="margin: 0; font-size: 1.1rem; color: var(--text-main);">Lyrics</h3>
-                        <span id="lyrics-song-artist" style="font-size: 0.8rem; color: var(--text-dim);">Fetch Lyrics</span>
-                    </div>
+    <!-- Full-Screen Maximized Music Player Overlay -->
+    <div id="maximized-player-overlay" class="maximized-player-overlay" style="display: none;">
+        <div id="maximized-bg-blur" class="maximized-bg-blur"></div>
+        <div class="maximized-overlay-content">
+            <!-- Header Bar -->
+            <div class="maximized-header">
+                <div style="flex: 1;"></div>
+                <div class="maximized-header-actions" style="justify-content: flex-end;">
+                    <button id="maximized-fullscreen-btn" class="btn btn-icon" title="Toggle Full Screen (F)">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                    </button>
+                    <button id="maximized-lyrics-toggle-btn" class="btn btn-icon active" title="Toggle Lyrics (L)">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    </button>
+                    <button id="maximized-queue-toggle-btn" class="btn btn-icon active" title="Toggle Queue Panel">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h11v2H4z"/></svg>
+                    </button>
+                    <button id="maximized-minimize-btn" class="btn btn-icon" title="Minimize Player (Esc)">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
                 </div>
-                <button id="lyrics-drawer-close" class="btn btn-icon btn-sm" style="color: var(--text-dim);">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                </button>
             </div>
 
-            <div id="lyrics-content-body" style="flex: 1; overflow-y: auto; line-height: 1.8; font-size: 1.05rem; text-align: center; padding: 16px 24px; color: var(--text-main); white-space: pre-wrap; font-family: var(--font-sans); background: rgba(0,0,0,0.15); border-radius: var(--radius-md); border: 1px solid var(--border-glass);">
-                Click on a playing song to view lyrics...
+            <!-- Body Layout Container -->
+            <div id="maximized-body-container" class="maximized-body-container lyrics-off">
+                <!-- Left Column: Album Art & Song Info -->
+                <div class="maximized-art-column">
+                    <div id="maximized-cover-wrapper" class="maximized-cover-wrapper">
+                        <div id="maximized-cover-art" class="maximized-cover-art">🎵</div>
+                    </div>
+                    <div class="maximized-track-details">
+                        <h2 id="maximized-song-title">Song Title</h2>
+                        <h3 id="maximized-song-artist">Artist Name</h3>
+                        <span id="maximized-song-album" class="maximized-album-badge">Album Name</span>
+                    </div>
+
+                    <!-- Embedded Controls in Art Column -->
+                    <div class="maximized-controls-section">
+                        <div class="maximized-seeker-row">
+                            <span id="maximized-curr-time">0:00</span>
+                            <div class="maximized-slider-wrap">
+                                <input type="range" id="maximized-progress-slider" min="0" max="100" value="0">
+                            </div>
+                            <span id="maximized-total-time">0:00</span>
+                        </div>
+                        <div class="maximized-buttons-row">
+                            <button id="maximized-shuffle-btn" class="btn btn-icon" title="Shuffle (S)">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+                            </button>
+                            <button id="maximized-prev-btn" class="btn btn-icon" title="Previous Track">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6L18 18V6z"/></svg>
+                            </button>
+                            <button id="maximized-play-btn" class="btn btn-icon play-main-btn" title="Play/Pause (Space)">
+                                <svg id="maximized-play-svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                <svg id="maximized-pause-svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style="display: none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                            </button>
+                            <button id="maximized-next-btn" class="btn btn-icon" title="Next Track">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M6 18l8.5-6L6 6zm9-12v12h2V6z"/></svg>
+                            </button>
+                            <button id="maximized-repeat-btn" class="btn btn-icon" title="Repeat (R)">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Center Column: Lyrics Area -->
+                <div id="maximized-lyrics-column" class="maximized-lyrics-column">
+                    <div class="maximized-lyrics-toolbar">
+                        <span style="font-weight: 600; font-size: 0.9rem; color: var(--text-muted);">Lyrics</span>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <button id="max-lyrics-font-dec" class="btn btn-icon btn-sm" title="Decrease Font Size" style="font-size: 0.75rem; font-weight: 700; width: 28px; height: 28px; padding: 0;">A-</button>
+                            <button id="max-lyrics-font-inc" class="btn btn-icon btn-sm" title="Increase Font Size" style="font-size: 0.75rem; font-weight: 700; width: 28px; height: 28px; padding: 0;">A+</button>
+                            <button id="max-lyrics-align-btn" class="btn btn-icon btn-sm" title="Toggle Alignment" style="width: 28px; height: 28px; padding: 0;">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="3" y2="18"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="maximized-lyrics-body" class="maximized-lyrics-body">
+                        <div class="lyrics-placeholder-msg">Select a playing song to view lyrics</div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Collapsible Queue Panel -->
+                <div id="maximized-queue-column" class="maximized-queue-column">
+                    <div class="maximized-queue-header">
+                        <h4>Play Queue</h4>
+                        <button id="maximized-queue-close-btn" class="btn btn-icon btn-sm" title="Collapse Queue">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                    <div id="maximized-queue-list" class="maximized-queue-list">
+                        <!-- Queue Items dynamically populated -->
+                    </div>
+                </div>
             </div>
         </div>
+    </div>
+
+    <!-- Floating Draggable & Resizable Lyrics Modal -->
+    <div id="floating-lyrics-modal" class="floating-lyrics-modal" style="display: none;">
+        <div id="floating-lyrics-header" class="floating-lyrics-header">
+            <div class="drag-handle" style="display: flex; align-items: center; gap: 8px; flex: 1; cursor: move; user-select: none;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                <span id="floating-lyrics-title" style="font-weight: 600; font-size: 0.85rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;">Lyrics</span>
+            </div>
+            <div class="floating-lyrics-actions" style="display: flex; align-items: center; gap: 4px;">
+                <button id="floating-lyrics-font-dec" class="btn btn-icon btn-sm" title="Decrease Font Size" style="font-size: 0.75rem; font-weight: 700; width: 24px; height: 24px; padding: 0;">A-</button>
+                <button id="floating-lyrics-font-inc" class="btn btn-icon btn-sm" title="Increase Font Size" style="font-size: 0.75rem; font-weight: 700; width: 24px; height: 24px; padding: 0;">A+</button>
+                <button id="floating-lyrics-align-btn" class="btn btn-icon btn-sm" title="Toggle Alignment" style="width: 24px; height: 24px; padding: 0;">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="3" y2="18"/></svg>
+                </button>
+                <button id="floating-lyrics-close" class="btn btn-icon btn-sm" title="Close Floating Lyrics" style="width: 24px; height: 24px; padding: 0;">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+        </div>
+        <div id="floating-lyrics-body" class="floating-lyrics-body">
+            <div class="lyrics-placeholder-msg">Select a playing song to view lyrics</div>
+        </div>
+        <div id="floating-lyrics-resize-handle" class="floating-lyrics-resize-handle" title="Drag to resize"></div>
     </div>
 
     <!-- Unsaved Settings Confirmation Modal -->
@@ -886,7 +993,7 @@
     <div id="music-player-bar" class="music-player-bar" style="display: flex;">
         <!-- Left: Track Info -->
         <div class="player-track-info" style="display: flex; align-items: center; gap: 10px; width: 30%; min-width: 240px;">
-            <div id="player-album-art" class="player-album-art" style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); flex-shrink: 0; position: relative; overflow: hidden;">
+            <div id="player-album-art" class="player-album-art" style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); flex-shrink: 0; position: relative; overflow: hidden; cursor: pointer;" title="Maximize Player">
                 🎵
             </div>
 
@@ -905,7 +1012,7 @@
                 </button>
             </div>
 
-            <div class="player-metadata" style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
+            <div class="player-metadata" style="display: flex; flex-direction: column; min-width: 0; flex: 1; cursor: pointer;" title="Maximize Player">
                 <span id="player-track-title" style="font-weight: 600; font-size: 0.9rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">Select a song to play</span>
                 <span id="player-track-artist" style="font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">No Active Track</span>
             </div>
@@ -962,8 +1069,8 @@
             </button>
 
             <!-- Lyrics Drawer Button -->
-            <button id="player-lyrics-btn" class="btn btn-icon" title="Lyrics" style="color: var(--text-dim); padding: 6px;">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            <button id="player-lyrics-btn" class="btn btn-icon" title="Lyrics & Maximized Player" style="color: var(--text-dim); padding: 6px;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             </button>
 
             <button id="player-pip-btn" class="btn btn-icon" title="Picture in Picture" style="color: var(--text-dim); padding: 6px;">
