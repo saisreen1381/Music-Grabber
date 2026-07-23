@@ -5398,31 +5398,87 @@ function renderDiscoverSongsTable(query = "") {
                 const drawerTr = document.createElement("tr");
                 drawerTr.className = "song-inline-details-drawer";
                 drawerTr.innerHTML = `
-                    <td colspan="8" style="padding: 0; background: rgba(14, 17, 28, 0.95); border-bottom: 1px solid var(--primary);">
-                        <div style="padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;">
-                            <div style="display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1;">
-                                <div style="width: 60px; height: 60px; border-radius: var(--radius-md); overflow: hidden; background: rgba(0,0,0,0.4); border: 1px solid var(--border-glass); flex-shrink: 0; position: relative; display: flex; align-items: center; justify-content: center;">
-                                    <span style="font-size: 1.8rem; position: absolute; z-index: 1;">🎵</span>
-                                    ${trackThumb ? `<img src="${trackThumb}" style="width: 100%; height: 100%; object-fit: cover; position: absolute; left: 0; top: 0; z-index: 2;">` : ''}
-                                </div>
-                                <div style="min-width: 0; flex: 1;">
-                                    <h4 style="margin: 0 0 4px 0; font-size: 0.95rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(s.title)}</h4>
-                                    <p style="margin: 0 0 6px 0; font-size: 0.8rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(s.artist)} ${s.album ? '• ' + escapeHtml(s.album) : ''} ${s.year ? '(' + s.year + ')' : ''}</p>
-                                    <div style="display: flex; gap: 12px; font-size: 0.75rem; color: var(--text-muted); flex-wrap: wrap;">
-                                        <span>Genre: <strong style="color: var(--text-main);">${escapeHtml(s.genre)}</strong></span>
-                                        <span>Duration: <strong style="color: var(--text-main);">${durationStr}</strong></span>
-                                        <span>Size: <strong style="color: var(--text-main);">${sizeStr}</strong></span>
+                    <td colspan="8" style="padding: 0; background: rgba(10, 13, 22, 0.98); border-bottom: 2px solid var(--primary); box-shadow: inset 0 4px 20px rgba(0,0,0,0.8);">
+                        <div style="padding: 22px 28px; display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; align-items: stretch; background: linear-gradient(135deg, rgba(99, 102, 241, 0.07) 0%, rgba(6, 182, 212, 0.03) 50%, transparent 100%);">
+                            
+                            <!-- LEFT COLUMN: Track Details, Artwork, Actions & Metrics -->
+                            <div style="display: flex; flex-direction: column; gap: 16px;">
+                                
+                                <!-- Header: Artwork + Title/Artist + Actions -->
+                                <div style="display: flex; gap: 18px; align-items: flex-start;">
+                                    <!-- 1. Cover Art (110x110) -->
+                                    <div style="width: 110px; height: 110px; border-radius: var(--radius-md); overflow: hidden; background: #000; border: 1px solid var(--border-glass); position: relative; flex-shrink: 0; box-shadow: 0 10px 25px rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center;">
+                                        <span style="font-size: 2.5rem; position: absolute; z-index: 1; opacity: 0.3;">🎵</span>
+                                        ${trackThumb ? `<img src="${trackThumb}" style="width: 100%; height: 100%; object-fit: cover; position: absolute; left: 0; top: 0; z-index: 2;">` : ''}
+                                    </div>
+
+                                    <!-- Song Info & Actions -->
+                                    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px;">
+                                        <div>
+                                            <h3 style="margin: 0 0 4px 0; font-size: 1.15rem; font-weight: 800; color: var(--text-main); line-height: 1.3;">${escapeHtml(s.title)}</h3>
+                                            <p style="margin: 0; font-size: 0.88rem; color: #06b6d4; font-weight: 600;">${escapeHtml(s.artist)} ${s.album ? '<span style="color: var(--text-dim); font-weight: 400;"> • ' + escapeHtml(s.album) + '</span>' : ''}</p>
+                                        </div>
+
+                                        <!-- Action Buttons Bar -->
+                                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                            <button class="btn btn-primary drawer-play-btn" style="display: flex; align-items: center; gap: 6px; border-radius: 20px; font-weight: 700; padding: 7px 16px; background: linear-gradient(135deg, #6366f1, #06b6d4); border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4); font-size: 0.82rem;">
+                                                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Now
+                                            </button>
+                                            <button class="btn btn-secondary drawer-edit-btn" style="display: flex; align-items: center; gap: 6px; padding: 7px 12px; font-size: 0.78rem; font-weight: 600;">✏️ Edit Metadata</button>
+                                            <button class="btn btn-secondary drawer-playlist-btn" style="display: flex; align-items: center; gap: 6px; padding: 7px 12px; font-size: 0.78rem; font-weight: 600;">➕ Playlist</button>
+                                            <button class="btn btn-danger drawer-delete-btn" style="display: flex; align-items: center; gap: 6px; padding: 7px 12px; font-size: 0.78rem; color: #f87171; font-weight: 600;">🗑️ Delete</button>
+                                        </div>
                                     </div>
                                 </div>
+
+                                <!-- Metrics Cards Grid (Year, Genre, Duration, File Size) -->
+                                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; font-size: 0.8rem;">
+                                    <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass); padding: 8px 10px; border-radius: 8px;">
+                                        <span style="color: var(--text-dim); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 2px;">Release Year</span>
+                                        <strong style="color: var(--text-main); font-size: 0.82rem;">${escapeHtml(s.year || "-")}</strong>
+                                    </div>
+                                    <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass); padding: 8px 10px; border-radius: 8px;">
+                                        <span style="color: var(--text-dim); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 2px;">Genre</span>
+                                        <strong style="color: var(--text-main); font-size: 0.82rem;">${escapeHtml(s.genre || "Music")}</strong>
+                                    </div>
+                                    <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass); padding: 8px 10px; border-radius: 8px;">
+                                        <span style="color: var(--text-dim); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 2px;">Duration</span>
+                                        <strong style="color: var(--text-main); font-size: 0.82rem;">${durationStr}</strong>
+                                    </div>
+                                    <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass); padding: 8px 10px; border-radius: 8px;">
+                                        <span style="color: var(--text-dim); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 2px;">File Size</span>
+                                        <strong style="color: var(--text-main); font-size: 0.82rem;">${sizeStr}</strong>
+                                    </div>
+                                </div>
+
+                                <!-- Disk Location Container -->
+                                <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); padding: 8px 12px; border-radius: 8px; font-size: 0.75rem;">
+                                    <span style="color: var(--text-dim); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 2px;">Disk Location</span>
+                                    <span style="color: #94a3b8; font-family: monospace; word-break: break-all;">${escapeHtml(s.filename || s.name || s.path || "-")}</span>
+                                </div>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-                                <button class="btn btn-primary btn-sm drawer-play-btn" style="display: flex; align-items: center; gap: 6px; border-radius: 20px; font-weight: 600;">
-                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Now
-                                </button>
-                                <button class="btn btn-secondary btn-sm drawer-edit-btn" style="display: flex; align-items: center; gap: 6px;">✏️ Edit Metadata</button>
-                                <button class="btn btn-secondary btn-sm drawer-playlist-btn" style="display: flex; align-items: center; gap: 6px;">➕ Add to Playlist</button>
-                                <button class="btn btn-danger btn-sm drawer-delete-btn" style="display: flex; align-items: center; gap: 6px; color: #f87171;">🗑️ Delete</button>
+
+                            <!-- RIGHT COLUMN: Dedicated Full-Height Song Lyrics Card -->
+                            <div style="background: rgba(14, 17, 28, 0.95); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.4); height: 100%; min-height: 220px;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+                                    <span style="font-size: 0.82rem; font-weight: 700; color: #06b6d4; display: flex; align-items: center; gap: 8px;">
+                                        📜 <span>Song Lyrics</span>
+                                    </span>
+                                    ${s.lyrics ? `<span style="font-size: 0.68rem; color: #10b981; font-weight: 700; background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); padding: 2px 8px; border-radius: 12px;">Synced / Plain Text</span>` : ''}
+                                </div>
+
+                                <div class="drawer-lyrics-container" style="flex: 1; min-height: 0; max-height: 220px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; color: #cbd5e1; line-height: 1.6; padding-right: 6px;">
+                                    ${s.lyrics ? `<pre style="margin: 0; white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: inherit;">${escapeHtml(s.lyrics)}</pre>` : `
+                                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; gap: 10px; padding: 20px 0;">
+                                            <span style="font-size: 0.78rem; color: var(--text-dim);">No lyrics attached to this track yet.</span>
+                                            <button class="btn btn-secondary btn-sm drawer-quick-fetch-lyrics-btn" style="font-size: 0.75rem; padding: 6px 14px; background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(6,182,212,0.25)); border: 1px solid var(--border-glass); font-weight: 600;">
+                                                ✨ Fetch Lyrics Now
+                                            </button>
+                                        </div>
+                                    `}
+                                </div>
                             </div>
+
                         </div>
                     </td>
                 `;
@@ -5431,6 +5487,52 @@ function renderDiscoverSongsTable(query = "") {
                 drawerTr.querySelector(".drawer-edit-btn").onclick = () => openMetadataEditModal(s);
                 drawerTr.querySelector(".drawer-playlist-btn").onclick = () => openAddToPlaylistModal(s);
                 drawerTr.querySelector(".drawer-delete-btn").onclick = () => deleteTrackFromLibrary(s);
+
+                const quickLyricsBtn = drawerTr.querySelector(".drawer-quick-fetch-lyrics-btn");
+                if (quickLyricsBtn) {
+                    quickLyricsBtn.onclick = async () => {
+                        quickLyricsBtn.disabled = true;
+                        quickLyricsBtn.innerHTML = `<div class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></div> Fetching...`;
+                        try {
+                            const res = await fetch(`/api/metadata/fetch-lyrics?title=${encodeURIComponent(s.title)}&artist=${encodeURIComponent(s.artist)}`);
+                            const data = await res.json();
+                            if (res.ok && data.lyrics) {
+                                s.lyrics = data.lyrics;
+                                const container = drawerTr.querySelector(".drawer-lyrics-container");
+                                if (container) {
+                                    container.innerHTML = `<pre style="margin: 0; white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: inherit;">${escapeHtml(data.lyrics)}</pre>`;
+                                }
+
+                                try {
+                                    await fetch("/api/metadata/save", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                            username: activeProfile,
+                                            file_path: s.path || s.filename,
+                                            title: s.title,
+                                            artist: s.artist,
+                                            album: s.album,
+                                            genre: s.genre,
+                                            year: s.year,
+                                            lyrics: data.lyrics
+                                        })
+                                    });
+                                } catch(e) {}
+
+                                showToast(`Lyrics fetched from ${data.source || 'online'} & saved!`, "success");
+                            } else {
+                                showToast("No lyrics found online for this track title & artist.", "warning");
+                                quickLyricsBtn.disabled = false;
+                                quickLyricsBtn.textContent = "✨ Fetch Lyrics Now";
+                            }
+                        } catch(e) {
+                            showToast("Failed to fetch lyrics online.", "error");
+                            quickLyricsBtn.disabled = false;
+                            quickLyricsBtn.textContent = "✨ Fetch Lyrics Now";
+                        }
+                    };
+                }
 
                 tr.after(drawerTr);
             });

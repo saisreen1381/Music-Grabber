@@ -1011,6 +1011,53 @@ def browse_directory(path: str = "/"):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list directory: {e}")
 
+@app.get("/api/metadata/fetch-lyrics")
+def fetch_lyrics_online(title: str, artist: str = ""):
+    clean_title = (title or "").strip()
+    clean_artist = (artist or "").strip()
+    if not clean_title:
+        return {"lyrics": None, "source": None}
+
+    # 1. Try LRCLIB API
+    try:
+        url = f"https://lrclib.net/api/get?track_name={urllib.parse.quote(clean_title)}&artist_name={urllib.parse.quote(clean_artist)}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'MusicGrabber/1.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            lyrics = data.get("syncedLyrics") or data.get("plainLyrics")
+            if lyrics:
+                return {"lyrics": lyrics, "source": "LRCLIB"}
+    except Exception:
+        pass
+
+    # 2. Try LRCLIB Search API
+    try:
+        url = f"https://lrclib.net/api/search?q={urllib.parse.quote(f'{clean_artist} {clean_title}')}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'MusicGrabber/1.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            items = json.loads(response.read().decode('utf-8'))
+            if isinstance(items, list) and len(items) > 0:
+                for item in items:
+                    l = item.get("syncedLyrics") or item.get("plainLyrics")
+                    if l:
+                        return {"lyrics": l, "source": "LRCLIB Search"}
+    except Exception:
+        pass
+
+    # 3. Try Lyrics.ovh API
+    try:
+        if clean_artist:
+            url = f"https://api.lyrics.ovh/v1/{urllib.parse.quote(clean_artist)}/{urllib.parse.quote(clean_title)}"
+            req = urllib.request.Request(url, headers={'User-Agent': 'MusicGrabber/1.0'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                if data.get("lyrics"):
+                    return {"lyrics": data["lyrics"], "source": "Lyrics.ovh"}
+    except Exception:
+        pass
+
+    return {"lyrics": None, "source": None}
+
 @app.get("/api/stream")
 def stream_audio(username: str, filename: str):
     profile_dir = USERS_DIR / username
