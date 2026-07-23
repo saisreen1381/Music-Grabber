@@ -4566,24 +4566,204 @@ function openMetadataEditModal(track) {
     const modal = document.getElementById("metadata-edit-modal");
     if (!modal) return;
     modal.style.display = "flex";
-    
-    document.getElementById("meta-input-title").value = track.title || "";
-    document.getElementById("meta-input-artist").value = track.artist || "";
-    document.getElementById("meta-input-album").value = track.album || "";
-    document.getElementById("meta-input-genre").value = track.genre || "";
+
+    const inputTitle = document.getElementById("meta-input-title");
+    const inputArtist = document.getElementById("meta-input-artist");
+    const inputAlbum = document.getElementById("meta-input-album");
+    const inputGenre = document.getElementById("meta-input-genre");
+    const inputYear = document.getElementById("meta-input-year");
+    const inputCover = document.getElementById("meta-input-cover");
+    const inputLyrics = document.getElementById("meta-input-lyrics");
+    const imgPreview = document.getElementById("meta-preview-artwork");
+
+    const candidatesWrapper = document.getElementById("meta-candidates-wrapper");
+    const candidatesList = document.getElementById("meta-candidates-list");
+    const candidatesCount = document.getElementById("meta-candidates-count");
+    if (candidatesWrapper) candidatesWrapper.style.display = "none";
+    if (candidatesList) candidatesList.innerHTML = "";
+
+    if (inputTitle) inputTitle.value = track.title || "";
+    if (inputArtist) inputArtist.value = track.artist || "";
+    if (inputAlbum) inputAlbum.value = track.album || "";
+    if (inputGenre) inputGenre.value = track.genre || "";
+    if (inputYear) inputYear.value = track.year || "";
+    if (inputCover) inputCover.value = track.cover_url || track.thumbnail_url || "";
+    if (inputLyrics) inputLyrics.value = track.lyrics || "";
+
+    const artSrc = track.thumbnail_url || track.cover_url || "";
+    if (imgPreview) {
+        if (artSrc) {
+            imgPreview.src = artSrc;
+            imgPreview.style.display = "block";
+        } else {
+            imgPreview.style.display = "none";
+        }
+    }
+
+    if (inputCover) {
+        inputCover.oninput = () => {
+            const val = inputCover.value.trim();
+            if (val && imgPreview) {
+                imgPreview.src = val;
+                imgPreview.style.display = "block";
+            }
+        };
+    }
+
+    const autoFetchBtn = document.getElementById("meta-auto-fetch-btn");
+    if (autoFetchBtn) {
+        autoFetchBtn.onclick = async () => {
+            const rawTitle = inputTitle ? inputTitle.value.trim() : (track.title || "");
+            const rawArtist = inputArtist ? inputArtist.value.trim() : (track.artist || "");
+
+            const cleanTitle = rawTitle
+                .replace(/#(Lyrical|Video|Full|Song|Official|HD|4K)/gi, "")
+                .replace(/\|\|?/g, " ")
+                .replace(/\b(Full Video Song|Lyrical Video|Official Video|Audio Song|Video Song|Official Audio|Lyric Video)\b/gi, "")
+                .replace(/\s+/g, " ")
+                .trim();
+
+            const isGenericArtist = !rawArtist || rawArtist.toLowerCase().includes("aditya music") || rawArtist.toLowerCase().includes("unknown") || rawArtist.toLowerCase().includes("channel");
+            const cleanArtist = isGenericArtist ? "" : rawArtist;
+
+            const query = `${cleanTitle} ${cleanArtist}`.trim() || cleanTitle;
+            if (!query) {
+                showToast("Please enter a song title or artist to search.", "warning");
+                return;
+            }
+
+            if (candidatesWrapper) candidatesWrapper.style.display = "block";
+            if (candidatesList) candidatesList.innerHTML = `<div style="font-size: 0.8rem; color: var(--text-dim); padding: 8px;"><span class="spinner" style="width: 14px; height: 14px; border-width: 2px; margin-right: 6px; display: inline-block; vertical-align: middle;"></span> Searching iTunes, MusicBrainz, LRCLIB for "${escapeHtml(query)}"...</div>`;
+            if (candidatesCount) candidatesCount.textContent = "Searching...";
+
+            try {
+                let res = await fetch(`/api/fetch-metadata-candidates?query=${encodeURIComponent(query)}`);
+                let data = await res.json();
+                let candidates = data.candidates || [];
+
+                if (candidates.length === 0 && cleanTitle && cleanArtist) {
+                    res = await fetch(`/api/fetch-metadata-candidates?query=${encodeURIComponent(cleanTitle)}`);
+                    data = await res.json();
+                    candidates = data.candidates || [];
+                }
+
+                if (candidates.length === 0) {
+                    if (candidatesList) candidatesList.innerHTML = `<div style="font-size: 0.8rem; color: var(--text-dim); padding: 8px;">No online metadata candidates found. You can still manually edit any fields below.</div>`;
+                    if (candidatesCount) candidatesCount.textContent = "0 candidates found";
+                } else {
+                    if (candidatesCount) candidatesCount.textContent = `${candidates.length} candidate(s) found - click to apply`;
+                    if (candidatesList) {
+                        candidatesList.innerHTML = "";
+                        candidates.forEach(cand => {
+                            const card = document.createElement("div");
+                            card.style.cssText = "display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); cursor: pointer; transition: background 0.2s;";
+                            card.innerHTML = `
+                                <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                                    ${cand.cover_url ? `<img src="${cand.cover_url}" style="width: 32px; height: 32px; border-radius: 4px; object-fit: cover; flex-shrink: 0;">` : `<span style="font-size: 1.2rem;">🎵</span>`}
+                                    <div style="min-width: 0;">
+                                        <strong style="font-size: 0.82rem; color: var(--text-main); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(cand.title)}</strong>
+                                        <span style="font-size: 0.72rem; color: var(--text-dim); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(cand.artist)} ${cand.album ? '• ' + escapeHtml(cand.album) : ''} ${cand.year ? '(' + cand.year + ')' : ''}</span>
+                                    </div>
+                                </div>
+                                <span class="badge" style="font-size: 0.65rem; background: rgba(99, 102, 241, 0.2); color: var(--primary); font-weight: 600;">${cand.source}</span>
+                            `;
+                            card.onclick = () => {
+                                if (cand.title && inputTitle) inputTitle.value = cand.title;
+                                if (cand.artist && inputArtist) inputArtist.value = cand.artist;
+                                if (cand.album && inputAlbum) inputAlbum.value = cand.album;
+                                if (cand.genre && inputGenre) inputGenre.value = cand.genre;
+                                if (cand.year && inputYear) inputYear.value = cand.year;
+                                if (cand.cover_url && inputCover) {
+                                    inputCover.value = cand.cover_url;
+                                    if (imgPreview) {
+                                        imgPreview.src = cand.cover_url;
+                                        imgPreview.style.display = "block";
+                                    }
+                                }
+                                showToast(`Applied metadata from ${cand.source}!`, "success");
+                            };
+                            candidatesList.appendChild(card);
+                        });
+                    }
+                }
+            } catch (e) {
+                if (candidatesList) candidatesList.innerHTML = `<div style="font-size: 0.8rem; color: var(--danger); padding: 8px;">Error searching candidates: ${e.message}</div>`;
+            }
+        };
+    }
+
+    const fetchLyricsBtn = document.getElementById("meta-fetch-lyrics-btn");
+    if (fetchLyricsBtn) {
+        fetchLyricsBtn.onclick = async () => {
+            const t = inputTitle.value.trim() || track.title || "";
+            const a = inputArtist.value.trim() || track.artist || "";
+            if (!t) {
+                showToast("Please enter a title to fetch lyrics.", "warning");
+                return;
+            }
+            try {
+                fetchLyricsBtn.textContent = "Fetching...";
+                const res = await fetch(`/api/lyrics?artist=${encodeURIComponent(a)}&title=${encodeURIComponent(t)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const lyr = data.syncedLyrics || data.plainLyrics || "";
+                    if (lyr && inputLyrics) {
+                        inputLyrics.value = lyr;
+                        showToast("Lyrics loaded!", "success");
+                    } else {
+                        showToast("No lyrics found for this track.", "warning");
+                    }
+                } else {
+                    showToast("No lyrics found.", "warning");
+                }
+            } catch (e) {
+                showToast("Error fetching lyrics: " + e.message, "danger");
+            } finally {
+                fetchLyricsBtn.textContent = "Fetch Lyrics Only";
+            }
+        };
+    }
 
     const saveBtn = document.getElementById("meta-modal-save");
     const cancelBtn = document.getElementById("meta-modal-cancel");
 
-    const onSave = () => {
-        track.title = document.getElementById("meta-input-title").value.trim() || track.title;
-        track.artist = document.getElementById("meta-input-artist").value.trim() || track.artist;
-        track.album = document.getElementById("meta-input-album").value.trim() || track.album;
-        track.genre = document.getElementById("meta-input-genre").value.trim() || track.genre;
+    const onSave = async () => {
+        const updatedMeta = {
+            username: activeProfile,
+            filename: track.filename || track.local_filename || track.name || track.path || "",
+            title: inputTitle ? inputTitle.value.trim() : track.title,
+            artist: inputArtist ? inputArtist.value.trim() : track.artist,
+            album: inputAlbum ? inputAlbum.value.trim() : track.album,
+            genre: inputGenre ? inputGenre.value.trim() : track.genre,
+            year: inputYear ? inputYear.value.trim() : track.year,
+            cover_url: inputCover ? inputCover.value.trim() : (track.cover_url || track.thumbnail_url),
+            lyrics: inputLyrics ? inputLyrics.value.trim() : track.lyrics
+        };
+
+        track.title = updatedMeta.title || track.title;
+        track.artist = updatedMeta.artist || track.artist;
+        track.album = updatedMeta.album || track.album;
+        track.genre = updatedMeta.genre || track.genre;
+        track.year = updatedMeta.year || track.year;
+        if (updatedMeta.cover_url) {
+            track.cover_url = updatedMeta.cover_url;
+            track.thumbnail_url = updatedMeta.cover_url;
+        }
+
+        try {
+            await fetch("/api/update-track-metadata", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updatedMeta)
+            });
+        } catch (e) {
+            console.error("Backend metadata update error:", e);
+        }
 
         modal.style.display = "none";
-        showToast("Metadata updated successfully.", "success");
-        renderDiscoverSongsTable();
+        showToast("Metadata saved successfully.", "success");
+        if (typeof renderDiscoverSongsTable === "function") renderDiscoverSongsTable();
+        if (typeof loadDiscoverData === "function") loadDiscoverData();
         if (currentPlayingTrack === track) updatePlaybackUI();
     };
 

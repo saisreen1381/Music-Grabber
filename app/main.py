@@ -430,6 +430,173 @@ def delete_track(username: str, filename: str):
     else:
         raise HTTPException(status_code=404, detail="File not found on disk")
 
+class TrackMetadataModel(BaseModel):
+    username: str
+    filename: str
+    title: Optional[str] = None
+    artist: Optional[str] = None
+    album: Optional[str] = None
+    genre: Optional[str] = None
+    year: Optional[str] = None
+    cover_url: Optional[str] = None
+    lyrics: Optional[str] = None
+
+@app.get("/api/fetch-metadata-candidates")
+def fetch_metadata_candidates(query: str):
+    candidates = []
+    clean_q = query.strip()
+    if not clean_q:
+        return {"candidates": []}
+
+    try:
+        url = f"https://itunes.apple.com/search?term={urllib.parse.quote(clean_q)}&entity=song&limit=6"
+        req = urllib.request.Request(url, headers={"User-Agent": "MusicGrabber/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            results = data.get("results", [])
+            for item in results:
+                cover_url = item.get("artworkUrl100", "")
+                if cover_url:
+                    cover_url = cover_url.replace("100x100bb", "600x600bb")
+                release_date = item.get("releaseDate", "")
+                year = release_date[:4] if release_date else ""
+                candidates.append({
+                    "title": item.get("trackName", ""),
+                    "artist": item.get("artistName", ""),
+                    "album": item.get("collectionName", ""),
+                    "genre": item.get("primaryGenreName", "Pop"),
+                    "year": year,
+                    "cover_url": cover_url,
+                    "source": "iTunes"
+                })
+    except Exception as e:
+        logger.debug(f"iTunes metadata lookup error: {e}")
+
+    try:
+        mb_url = f"https://musicbrainz.org/ws/2/recording/?query={urllib.parse.quote(clean_q)}&fmt=json&limit=5"
+        req = urllib.request.Request(mb_url, headers={"User-Agent": "MusicGrabber/1.0 (contact@example.com)"})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            recordings = data.get("recordings", [])
+            for rec in recordings:
+                title = rec.get("title", "")
+                artist_credit = rec.get("artist-credit", [])
+                artist = artist_credit[0].get("name", "") if artist_credit else ""
+                releases = rec.get("releases", [])
+                album = releases[0].get("title", "") if releases else ""
+                date = rec.get("first-release-date", "")
+                year = date[:4] if date else ""
+                
+                if not any(c["title"].lower() == title.lower() and c["artist"].lower() == artist.lower() for c in candidates):
+                    candidates.append({
+                        "title": title,
+                        "artist": artist,
+                        "album": album,
+                        "genre": "Music",
+                        "year": year,
+                        "cover_url": "",
+                        "source": "MusicBrainz"
+                    })
+    except Exception as e:
+        logger.debug(f"MusicBrainz lookup error: {e}")
+
+    return {"candidates": candidates}
+
+@app.post("/api/update-track-metadata")
+def update_track_metadata(data: TrackMetadataModel):
+    profile_dir = USERS_DIR / data.username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    config = get_user_config(profile_dir) or {}
+    download_dir = config.get("download_dir", "")
+    additional_dirs = config.get("additional_library_dirs", []) + config.get("additional_download_dirs", [])
+    scan_paths = get_scan_paths(download_dir, additional_dirs, profile_dir)
+
+    clean_filename = urllib.parse.unquote(data.filename)
+    target_file = None
+
+    for folder in scan_paths:
+        p1 = Path(folder) / data.filename
+        p2 = Path(folder) / clean_filename
+        if p1.exists() and p1.is_file():
+            target_file = p1
+            break
+        if p2.exists() and p2.is_file():
+            target_file = p2
+            break
+
+    if not target_file:
+        p1 = Path(data.filename)
+        p2 = Path(clean_filename)
+        if p1.exists() and p1.is_file():
+            target_file = p1
+        elif p2.exists() and p2.is_file():
+            target_file = p2
+
+    if not target_file:
+        for folder in scan_paths:
+            fp = Path(folder)
+            if fp.exists() and fp.is_dir():
+                for f in fp.rglob("*"):
+                    if f.is_file() and (f.name == data.filename or f.name == clean_filename or f.stem == Path(data.filename).stem or f.stem == Path(clean_filename).stem):
+                        target_file = f
+                        break
+            if target_file:
+                break
+
+    if not target_file:
+        raise HTTPException(status_code=404, detail=f"Track file not found: {data.filename}")
+
+    if data.cover_url and data.cover_url.startswith("http"):
+        try:
+            img_ext = ".png" if ".png" in data.cover_url.lower() else ".jpg"
+            sibling_img = target_file.with_suffix(img_ext)
+            req = urllib.request.Request(data.cover_url, headers={"User-Agent": "MusicGrabber/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                with open(sibling_img, "wb") as f:
+                    f.write(resp.read())
+        except Exception as e:
+            logger.error(f"Failed to download cover art: {e}")
+
+    try:
+        temp_file = target_file.with_suffix(".meta_tmp" + target_file.suffix)
+        cmd = [
+            "ffmpeg", "-y", "-i", str(target_file),
+            "-metadata", f"title={data.title or ''}",
+            "-metadata", f"artist={data.artist or ''}",
+            "-metadata", f"album={data.album or ''}",
+            "-metadata", f"genre={data.genre or ''}",
+            "-metadata", f"date={data.year or ''}",
+            "-codec", "copy",
+            str(temp_file)
+        ]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+        if res.returncode == 0 and temp_file.exists():
+            os.replace(temp_file, target_file)
+        elif temp_file.exists():
+            os.remove(temp_file)
+    except Exception as e:
+        logger.debug(f"ffmpeg metadata edit error: {e}")
+
+    sidecar_json = target_file.with_suffix(".json")
+    meta_dict = {
+        "title": data.title,
+        "artist": data.artist,
+        "album": data.album,
+        "genre": data.genre,
+        "year": data.year,
+        "lyrics": data.lyrics,
+        "cover_url": data.cover_url
+    }
+    try:
+        with open(sidecar_json, "w", encoding="utf-8") as f:
+            json.dump(meta_dict, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to write sidecar json: {e}")
+
+    return {"status": "ok", "message": "Metadata updated successfully", "metadata": meta_dict}
+
 @app.get("/api/thumbnail")
 def get_thumbnail(path: str):
     audio_path = Path(path)
@@ -574,6 +741,15 @@ def resolve_genre(tags: dict, artist: str, title: str) -> str:
     return "Pop / Dance" if raw_genre and raw_genre.strip().lower() == "music" else "Pop / Mainstream"
 
 def get_file_metadata(file_path: Path):
+    title = file_path.stem
+    artist = "Unknown Artist"
+    album = "Unknown Album"
+    genre = "Pop / Mainstream"
+    year = ""
+    lyrics = ""
+    duration = 0.0
+    thumb_url = f"/api/thumbnail?path={urllib.parse.quote(str(file_path))}"
+
     try:
         cmd = [
             "ffprobe", 
@@ -591,28 +767,38 @@ def get_file_metadata(file_path: Path):
         artist = tags.get("artist") or tags.get("ARTIST") or "Unknown Artist"
         album = tags.get("album") or tags.get("ALBUM") or "Unknown Album"
         genre = resolve_genre(tags, artist, title)
-        
-        thumb_url = f"/api/thumbnail?path={urllib.parse.quote(str(file_path))}"
-        return {
-            "filename": file_path.name,
-            "title": title,
-            "artist": artist,
-            "genre": genre,
-            "album": album,
-            "duration": float(fmt.get("duration", 0)),
-            "thumbnail_url": thumb_url
-        }
+        year = tags.get("date") or tags.get("DATE") or tags.get("year") or tags.get("YEAR") or ""
+        duration = float(fmt.get("duration", 0))
     except Exception:
-        thumb_url = f"/api/thumbnail?path={urllib.parse.quote(str(file_path))}"
-        return {
-            "filename": file_path.name,
-            "title": file_path.stem,
-            "artist": "Unknown Artist",
-            "genre": "Pop / Mainstream",
-            "album": "Unknown Album",
-            "duration": 0,
-            "thumbnail_url": thumb_url
-        }
+        pass
+
+    sidecar_json = file_path.with_suffix(".json")
+    if sidecar_json.exists():
+        try:
+            with open(sidecar_json, "r", encoding="utf-8") as f:
+                s_data = json.load(f)
+                if isinstance(s_data, dict):
+                    if s_data.get("title"): title = s_data["title"]
+                    if s_data.get("artist"): artist = s_data["artist"]
+                    if s_data.get("album"): album = s_data["album"]
+                    if s_data.get("genre"): genre = s_data["genre"]
+                    if s_data.get("year"): year = s_data["year"]
+                    if s_data.get("lyrics"): lyrics = s_data["lyrics"]
+                    if s_data.get("cover_url"): thumb_url = s_data["cover_url"]
+        except Exception as e:
+            logger.debug(f"Error reading sidecar JSON {sidecar_json}: {e}")
+
+    return {
+        "filename": file_path.name,
+        "title": title,
+        "artist": artist,
+        "genre": genre,
+        "album": album,
+        "year": year,
+        "lyrics": lyrics,
+        "duration": duration,
+        "thumbnail_url": thumb_url
+    }
 
 @app.get("/api/discover")
 def discover_local_songs(username: str):
