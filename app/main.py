@@ -391,6 +391,40 @@ def save_config(username: str, config: ConfigModel):
         
     return {"status": "success", "config": config_dict, "message": msg}
 
+@app.post("/api/delete-track")
+def delete_track(username: str, filename: str):
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    config = get_user_config(username, USERS_DIR)
+    scan_paths = get_scan_paths(config, profile_dir)
+    
+    deleted = False
+    for folder in scan_paths:
+        target_path = Path(folder) / filename
+        if target_path.exists() and target_path.is_file():
+            try:
+                os.remove(target_path)
+                deleted = True
+                break
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
+                
+    if not deleted:
+        abs_path = Path(filename)
+        if abs_path.exists() and abs_path.is_file():
+            try:
+                os.remove(abs_path)
+                deleted = True
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
+                
+    if deleted:
+        return {"status": "ok", "message": f"Successfully deleted {filename}"}
+    else:
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
 @app.get("/api/thumbnail")
 def get_thumbnail(path: str):
     audio_path = Path(path)

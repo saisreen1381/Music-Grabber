@@ -559,6 +559,10 @@ async function handleProfileChange(username) {
     try { renderSourcesList(); } catch (e) { console.error(e); }
     try { loadDiscoverData(); } catch (e) { console.error(e); }
     try { restoreLastPlayedTrack(); } catch (e) { console.error(e); }
+    try { initSyncSubtabs(); } catch (e) { console.error(e); }
+    try { initContextMenu(); } catch (e) { console.error(e); }
+    try { initLibraryToolbar(); } catch (e) { console.error(e); }
+    try { initLocalPlaylists(); } catch (e) { console.error(e); }
     
     // Restore last active playlist tab if saved
     try {
@@ -4439,12 +4443,421 @@ function renderDiscoverGenresGrid(query = "") {
     }
 }
 
+let activeContextMenuTrack = null;
+
+function formatTrackDuration(sec) {
+    if (!sec || isNaN(sec) || sec <= 0) return "--:--";
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+function openContextMenu(x, y, track) {
+    activeContextMenuTrack = track;
+    const menu = document.getElementById("custom-context-menu");
+    if (!menu) return;
+
+    menu.style.display = "block";
+    const menuWidth = 220;
+    const menuHeight = 240;
+
+    let posX = x;
+    let posY = y;
+    if (x + menuWidth > window.innerWidth) posX = window.innerWidth - menuWidth - 10;
+    if (y + menuHeight > window.innerHeight) posY = window.innerHeight - menuHeight - 10;
+
+    menu.style.left = `${posX}px`;
+    menu.style.top = `${posY}px`;
+}
+
+function closeContextMenu() {
+    const menu = document.getElementById("custom-context-menu");
+    if (menu) menu.style.display = "none";
+}
+
+document.addEventListener("click", (e) => {
+    const menu = document.getElementById("custom-context-menu");
+    if (menu && !menu.contains(e.target)) {
+        closeContextMenu();
+    }
+});
+
+function initContextMenu() {
+    const btnPlayNow = document.getElementById("ctx-play-now");
+    const btnPlayNext = document.getElementById("ctx-play-next");
+    const btnAddQueue = document.getElementById("ctx-add-queue");
+    const btnAddPlaylist = document.getElementById("ctx-add-playlist");
+    const btnEditMeta = document.getElementById("ctx-edit-metadata");
+    const btnDelete = document.getElementById("ctx-delete-track");
+
+    if (btnPlayNow) {
+        btnPlayNow.addEventListener("click", () => {
+            closeContextMenu();
+            if (activeContextMenuTrack) playTrack(activeContextMenuTrack);
+        });
+    }
+    if (btnPlayNext) {
+        btnPlayNext.addEventListener("click", () => {
+            closeContextMenu();
+            if (activeContextMenuTrack) {
+                const insertIdx = currentQueueIndex + 1;
+                playerQueue.splice(insertIdx, 0, activeContextMenuTrack);
+                showToast(`"${activeContextMenuTrack.title || activeContextMenuTrack.filename}" will play next.`, "success");
+            }
+        });
+    }
+    if (btnAddQueue) {
+        btnAddQueue.addEventListener("click", () => {
+            closeContextMenu();
+            if (activeContextMenuTrack) {
+                playerQueue.push(activeContextMenuTrack);
+                showToast(`Added "${activeContextMenuTrack.title || activeContextMenuTrack.filename}" to play queue.`, "success");
+            }
+        });
+    }
+    if (btnAddPlaylist) {
+        btnAddPlaylist.addEventListener("click", () => {
+            closeContextMenu();
+            if (activeContextMenuTrack) openAddToPlaylistModal(activeContextMenuTrack);
+        });
+    }
+    if (btnEditMeta) {
+        btnEditMeta.addEventListener("click", () => {
+            closeContextMenu();
+            if (activeContextMenuTrack) openMetadataEditModal(activeContextMenuTrack);
+        });
+    }
+    if (btnDelete) {
+        btnDelete.addEventListener("click", () => {
+            closeContextMenu();
+            if (activeContextMenuTrack) deleteTrackFromLibrary(activeContextMenuTrack);
+        });
+    }
+}
+
+async function deleteTrackFromLibrary(track) {
+    if (!activeProfile || !track) return;
+    const filename = track.filename || track.local_filename || track.name || track.path || "";
+    if (!filename) return;
+
+    try {
+        const res = await fetch(`/api/delete-track?username=${activeProfile}&filename=${encodeURIComponent(filename)}`, {
+            method: "POST"
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showToast(data.message || "Track deleted successfully.", "success");
+            if (typeof loadFiles === "function") loadFiles();
+        } else {
+            showToast("Failed to delete track: " + (data.detail || "Error"), "danger");
+        }
+    } catch (e) {
+        showToast("Error deleting track: " + e.message, "danger");
+    }
+}
+
+function openMetadataEditModal(track) {
+    const modal = document.getElementById("metadata-edit-modal");
+    if (!modal) return;
+    modal.style.display = "flex";
+    
+    document.getElementById("meta-input-title").value = track.title || "";
+    document.getElementById("meta-input-artist").value = track.artist || "";
+    document.getElementById("meta-input-album").value = track.album || "";
+    document.getElementById("meta-input-genre").value = track.genre || "";
+
+    const saveBtn = document.getElementById("meta-modal-save");
+    const cancelBtn = document.getElementById("meta-modal-cancel");
+
+    const onSave = () => {
+        track.title = document.getElementById("meta-input-title").value.trim() || track.title;
+        track.artist = document.getElementById("meta-input-artist").value.trim() || track.artist;
+        track.album = document.getElementById("meta-input-album").value.trim() || track.album;
+        track.genre = document.getElementById("meta-input-genre").value.trim() || track.genre;
+
+        modal.style.display = "none";
+        showToast("Metadata updated successfully.", "success");
+        renderDiscoverSongsTable();
+        if (currentPlayingTrack === track) updatePlaybackUI();
+    };
+
+    const onCancel = () => {
+        modal.style.display = "none";
+    };
+
+    if (saveBtn) saveBtn.onclick = onSave;
+    if (cancelBtn) cancelBtn.onclick = onCancel;
+}
+
+function initLocalPlaylists() {
+    if (!activeConfig) return;
+    if (!activeConfig.local_playlists) activeConfig.local_playlists = [];
+
+    renderLocalPlaylistsList();
+
+    const createBtn = document.getElementById("create-local-playlist-btn");
+    if (createBtn) {
+        createBtn.onclick = () => {
+            const inputName = document.getElementById("new-playlist-input");
+            const val = inputName ? inputName.value.trim() : "";
+            const name = val || prompt("Enter new playlist name:");
+            if (name && name.trim()) {
+                createNewLocalPlaylist(name.trim());
+            }
+        };
+    }
+}
+
+function createNewLocalPlaylist(name) {
+    if (!activeConfig) return;
+    if (!activeConfig.local_playlists) activeConfig.local_playlists = [];
+
+    const newPl = {
+        id: "lp_" + Date.now(),
+        name: name,
+        tracks: []
+    };
+    activeConfig.local_playlists.push(newPl);
+    saveConfig(activeProfile, activeConfig);
+    renderLocalPlaylistsList();
+    showToast(`Created playlist "${name}".`, "success");
+}
+
+function renderLocalPlaylistsList() {
+    const listEl = document.getElementById("local-playlists-list");
+    if (!listEl) return;
+    listEl.innerHTML = "";
+
+    const playlists = (activeConfig && activeConfig.local_playlists) ? activeConfig.local_playlists : [];
+    if (playlists.length === 0) {
+        listEl.innerHTML = `<div class="empty-table" style="padding: 20px 0;">No playlists created yet. Click "+ Create" to make one.</div>`;
+        return;
+    }
+
+    playlists.forEach(pl => {
+        const item = document.createElement("div");
+        item.style.cssText = "padding: 10px 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; justify-content: space-between;";
+        item.innerHTML = `
+            <div>
+                <strong style="font-size: 0.9rem; color: var(--text-main); display: block;">${escapeHtml(pl.name)}</strong>
+                <span style="font-size: 0.75rem; color: var(--text-dim);">${pl.tracks ? pl.tracks.length : 0} songs</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" style="padding: 2px 8px; font-size: 0.75rem;">View</button>
+        `;
+        item.addEventListener("click", () => openLocalPlaylistView(pl));
+        listEl.appendChild(item);
+    });
+}
+
+function openLocalPlaylistView(pl) {
+    const emptyState = document.getElementById("local-playlist-empty-state");
+    const content = document.getElementById("local-playlist-content");
+    const titleEl = document.getElementById("local-playlist-title");
+    const countEl = document.getElementById("local-playlist-count");
+    const tbody = document.getElementById("local-playlist-table-body");
+
+    if (emptyState) emptyState.style.display = "none";
+    if (content) content.style.display = "flex";
+    if (titleEl) titleEl.textContent = pl.name;
+    if (countEl) countEl.textContent = `${pl.tracks ? pl.tracks.length : 0} songs`;
+
+    if (tbody) {
+        tbody.innerHTML = "";
+        const tracks = pl.tracks || [];
+        if (tracks.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="empty-table">No tracks in this playlist yet. Right-click or use the action menu on any song in your library to add it here.</td></tr>`;
+        } else {
+            tracks.forEach((t, idx) => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td style="text-align: center;">${idx + 1}</td>
+                    <td><strong>${escapeHtml(t.title || t.filename || "Unknown")}</strong></td>
+                    <td>${escapeHtml(t.artist || "Unknown")}</td>
+                    <td>${escapeHtml(t.album || "Unknown")}</td>
+                    <td style="text-align: right;">
+                        <button class="btn btn-danger btn-sm remove-pl-track-btn" style="padding: 2px 8px; font-size: 0.75rem;">Remove</button>
+                    </td>
+                `;
+                tr.querySelector(".remove-pl-track-btn").addEventListener("click", () => {
+                    pl.tracks.splice(idx, 1);
+                    saveConfig(activeProfile, activeConfig);
+                    openLocalPlaylistView(pl);
+                    renderLocalPlaylistsList();
+                });
+                tbody.appendChild(tr);
+            });
+        }
+    }
+
+    const playAllBtn = document.getElementById("play-local-playlist-btn");
+    if (playAllBtn) {
+        playAllBtn.onclick = () => {
+            if (pl.tracks && pl.tracks.length > 0) {
+                playTrack(pl.tracks[0], pl.tracks, 0);
+            }
+        };
+    }
+
+    const deletePlBtn = document.getElementById("delete-local-playlist-btn");
+    if (deletePlBtn) {
+        deletePlBtn.onclick = () => {
+            if (activeConfig && activeConfig.local_playlists) {
+                activeConfig.local_playlists = activeConfig.local_playlists.filter(p => p.id !== pl.id);
+                saveConfig(activeProfile, activeConfig);
+                renderLocalPlaylistsList();
+                if (content) content.style.display = "none";
+                if (emptyState) emptyState.style.display = "flex";
+                showToast(`Deleted playlist "${pl.name}".`, "success");
+            }
+        };
+    }
+}
+
+function openAddToPlaylistModal(track) {
+    const modal = document.getElementById("add-to-playlist-modal");
+    const list = document.getElementById("playlist-picker-list");
+    if (!modal || !list) return;
+
+    modal.style.display = "flex";
+    list.innerHTML = "";
+
+    const playlists = (activeConfig && activeConfig.local_playlists) ? activeConfig.local_playlists : [];
+    if (playlists.length === 0) {
+        list.innerHTML = `<div class="empty-table" style="padding: 10px 0;">No local playlists created yet. Type a name below to create your first playlist.</div>`;
+    } else {
+        playlists.forEach(pl => {
+            const btn = document.createElement("button");
+            btn.className = "btn btn-secondary btn-block";
+            btn.style.cssText = "justify-content: space-between; text-align: left; padding: 10px 14px; margin-bottom: 4px; display: flex; align-items: center;";
+            btn.innerHTML = `<span>📁 ${escapeHtml(pl.name)}</span> <small style="opacity: 0.7;">(${pl.tracks ? pl.tracks.length : 0} songs)</small>`;
+            btn.onclick = () => {
+                if (!pl.tracks) pl.tracks = [];
+                pl.tracks.push(track);
+                saveConfig(activeProfile, activeConfig);
+                modal.style.display = "none";
+                showToast(`Added "${track.title || track.filename}" to playlist "${pl.name}".`, "success");
+            };
+            list.appendChild(btn);
+        });
+    }
+
+    const createAddBtn = document.getElementById("create-and-add-playlist-btn");
+    const inputEl = document.getElementById("new-playlist-input");
+
+    if (createAddBtn) {
+        createAddBtn.onclick = () => {
+            const name = inputEl ? inputEl.value.trim() : "";
+            if (name) {
+                if (!activeConfig.local_playlists) activeConfig.local_playlists = [];
+                const newPl = { id: "lp_" + Date.now(), name: name, tracks: [track] };
+                activeConfig.local_playlists.push(newPl);
+                saveConfig(activeProfile, activeConfig);
+                if (inputEl) inputEl.value = "";
+                modal.style.display = "none";
+                renderLocalPlaylistsList();
+                showToast(`Created playlist "${name}" and added "${track.title || track.filename}".`, "success");
+            }
+        };
+    }
+
+    const cancelBtn = document.getElementById("playlist-picker-cancel");
+    if (cancelBtn) {
+        cancelBtn.onclick = () => {
+            modal.style.display = "none";
+        };
+    }
+}
+
+function initSyncSubtabs() {
+    const btnFiles = document.getElementById("sync-subtab-files-btn");
+    const btnSources = document.getElementById("sync-subtab-sources-btn");
+    const paneFiles = document.getElementById("sync-pane-files");
+    const paneSources = document.getElementById("sync-pane-sources");
+
+    if (btnFiles && btnSources) {
+        btnFiles.addEventListener("click", () => {
+            btnFiles.classList.add("active");
+            btnSources.classList.remove("active");
+            if (paneFiles) paneFiles.style.display = "block";
+            if (paneSources) paneSources.style.display = "none";
+        });
+        btnSources.addEventListener("click", () => {
+            btnSources.classList.add("active");
+            btnFiles.classList.remove("active");
+            if (paneSources) paneSources.style.display = "block";
+            if (paneFiles) paneFiles.style.display = "none";
+        });
+    }
+}
+
+function initLibraryToolbar() {
+    const genreFilter = document.getElementById("library-genre-filter");
+    const sortBy = document.getElementById("library-sort-by");
+    const colsBtn = document.getElementById("library-columns-btn");
+    const colsPopover = document.getElementById("library-columns-popover");
+
+    if (genreFilter) {
+        genreFilter.addEventListener("change", () => renderDiscoverSongsTable());
+    }
+    if (sortBy) {
+        sortBy.addEventListener("change", () => renderDiscoverSongsTable());
+    }
+
+    if (colsBtn && colsPopover) {
+        colsBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            colsPopover.style.display = colsPopover.style.display === "block" ? "none" : "block";
+        });
+        document.addEventListener("click", (e) => {
+            if (colsPopover && !colsPopover.contains(e.target) && e.target !== colsBtn) {
+                colsPopover.style.display = "none";
+            }
+        });
+    }
+
+    const colToggles = [
+        { id: "col-toggle-artist", class: "col-artist" },
+        { id: "col-toggle-album", class: "col-album" },
+        { id: "col-toggle-genre", class: "col-genre" },
+        { id: "col-toggle-duration", class: "col-duration" },
+        { id: "col-toggle-size", class: "col-size" },
+    ];
+
+    colToggles.forEach(t => {
+        const el = document.getElementById(t.id);
+        if (el) {
+            el.addEventListener("change", (e) => {
+                const show = e.target.checked;
+                document.querySelectorAll(`.${t.class}`).forEach(c => {
+                    if (show) c.classList.remove("col-hidden");
+                    else c.classList.add("col-hidden");
+                });
+            });
+        }
+    });
+}
+
 function renderDiscoverSongsTable(query = "") {
     if (!discoverData || !discoverSongsTableBody) return;
     discoverSongsTableBody.innerHTML = "";
     let songs = discoverData.all_songs || [];
     const q = query.trim().toLowerCase();
     
+    const genreSelect = document.getElementById("library-genre-filter");
+    if (genreSelect && genreSelect.options.length <= 1) {
+        const uniqueGenres = Array.from(new Set(songs.map(s => s.genre).filter(Boolean))).sort();
+        uniqueGenres.forEach(g => {
+            const opt = document.createElement("option");
+            opt.value = g;
+            opt.textContent = g;
+            genreSelect.appendChild(opt);
+        });
+    }
+
+    if (genreSelect && genreSelect.value !== "all") {
+        songs = songs.filter(s => s.genre === genreSelect.value);
+    }
+
     if (q) {
         songs = songs.filter(s => 
             (s.title && s.title.toLowerCase().includes(q)) ||
@@ -4454,8 +4867,18 @@ function renderDiscoverSongsTable(query = "") {
         );
     }
 
+    const sortSelect = document.getElementById("library-sort-by");
+    const sortVal = sortSelect ? sortSelect.value : "title";
+    if (sortVal === "title") {
+        songs.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    } else if (sortVal === "artist") {
+        songs.sort((a, b) => (a.artist || "").localeCompare(b.artist || ""));
+    } else if (sortVal === "duration") {
+        songs.sort((a, b) => (b.duration || 0) - (a.duration || 0));
+    }
+
     if (songs.length === 0) {
-        discoverSongsTableBody.innerHTML = `<tr><td colspan="6" class="empty-table">${q ? 'No songs matching "' + escapeHtml(query) + '" found.' : 'No downloaded songs found yet.'}</td></tr>`;
+        discoverSongsTableBody.innerHTML = `<tr><td colspan="8" class="empty-table">${q ? 'No songs matching "' + escapeHtml(query) + '" found.' : 'No downloaded songs found yet.'}</td></tr>`;
     } else {
         songs.forEach((s, idx) => {
             const tr = document.createElement("tr");
@@ -4466,6 +4889,8 @@ function renderDiscoverSongsTable(query = "") {
             tr.dataset.filename = s.filename || s.name || "";
             
             const trackThumb = s.thumbnail_url || "";
+            const durationStr = formatTrackDuration(s.duration);
+            const sizeStr = s.size ? `${(s.size / (1024 * 1024)).toFixed(1)} MB` : "-";
             
             tr.innerHTML = `
                 <td class="play-indicator-cell" style="width: 50px; min-width: 50px; text-align: center; color: var(--text-dim); white-space: nowrap;">
@@ -4481,31 +4906,44 @@ function renderDiscoverSongsTable(query = "") {
                         <strong style="font-size: 0.95rem;">${escapeHtml(s.title)}</strong>
                     </div>
                 </td>
-                <td>${escapeHtml(s.artist)}</td>
-                <td>${escapeHtml(s.album)}</td>
-                <td class="genre-cell" style="white-space: nowrap;">
+                <td class="col-artist">${escapeHtml(s.artist)}</td>
+                <td class="col-album">${escapeHtml(s.album)}</td>
+                <td class="col-genre" style="white-space: nowrap;">
                     <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
                         <span style="font-size: 0.9rem; opacity: 0.85;">🎸</span>
                         <span class="badge" style="background: rgba(255, 255, 255, 0.06); padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; border: 1px solid var(--border-glass); white-space: nowrap; display: inline-block;">${escapeHtml(s.genre)}</span>
                     </div>
                 </td>
-                <td style="text-align: right; width: 60px;">
-                    <button class="btn btn-primary btn-icon play-btn-row" title="Play Song" style="width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--primary); border: none; color: #fff; padding: 0;">
+                <td class="col-duration" style="text-align: center; font-size: 0.85rem; color: var(--text-dim); font-variant-numeric: tabular-nums;">${durationStr}</td>
+                <td class="col-size" style="text-align: center; font-size: 0.8rem; color: var(--text-dim);">${sizeStr}</td>
+                <td style="text-align: right; width: 90px; white-space: nowrap;">
+                    <button class="btn btn-primary btn-icon play-btn-row" title="Play Song" style="width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--primary); border: none; color: #fff; padding: 0; margin-right: 4px;">
                         <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                     </button>
+                    <button class="btn btn-secondary btn-icon track-options-btn" title="More Options" style="width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; padding: 0; font-size: 1.1rem; line-height: 1;">⋮</button>
                 </td>
             `;
             
-            // Clicking anywhere on the row plays the song
             tr.addEventListener("click", (e) => {
-                // Avoid double trigger if clicking the button specifically
-                if (e.target.closest(".play-btn-row")) return;
+                if (e.target.closest(".play-btn-row") || e.target.closest(".track-options-btn")) return;
                 playTrack(s, songs);
             });
-            
+
             tr.querySelector(".play-btn-row").addEventListener("click", () => {
                 playTrack(s, songs);
             });
+
+            tr.querySelector(".track-options-btn").addEventListener("click", (e) => {
+                e.stopPropagation();
+                const rect = e.target.getBoundingClientRect();
+                openContextMenu(rect.left - 180, rect.bottom + 4, s);
+            });
+
+            tr.addEventListener("contextmenu", (e) => {
+                e.preventDefault();
+                openContextMenu(e.clientX, e.clientY, s);
+            });
+
             discoverSongsTableBody.appendChild(tr);
         });
         highlightActivePlayingRows();

@@ -2443,3 +2443,23 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
     font-weight: 600;
     color: var(--primary);
 }
+
+/* Custom Context Menu Styling */
+.context-menu-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-main);
+}
+
+.context-menu-item.danger:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+}
+
+/* Hide Table Columns */
+.col-artist.col-hidden,
+.col-album.col-hidden,
+.col-genre.col-hidden,
+.col-duration.col-hidden,
+.col-size.col-hidden {
+    display: none !important;
+}
