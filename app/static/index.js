@@ -22,6 +22,7 @@ let isQueueActiveInMaximized = true;
 let currentSyncedLyricsLines = [];
 let currentPlainLyricsLines = [];
 let isLyricsAutoScrollEnabled = localStorage.getItem("musicgrabber_lyrics_autoscroll") !== "false";
+let activeLyricsTrackKey = null;
 
 async function updateLikedTracksSet() {
     allLikedTracksSet.clear();
@@ -2814,6 +2815,13 @@ function updatePlaybackUI() {
     
     playerTrackTitle.textContent = title;
     playerTrackArtist.textContent = artist;
+
+    // Automatic Lyrics Update on Track Change
+    const trackKey = (currentPlayingTrack.id || currentPlayingTrack.url || title + artist).toLowerCase();
+    if (activeLyricsTrackKey !== trackKey) {
+        activeLyricsTrackKey = trackKey;
+        fetchLyrics(artist, title);
+    }
     
     // Rating Buttons State (Like / Dislike)
     const likeBtn = document.getElementById("player-like-btn");
@@ -3211,6 +3219,7 @@ function renderMaximizedQueueList() {
         item.style.cssText = `display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: var(--radius-sm); background: ${isCurrent ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.02)'}; border: 1px solid ${isCurrent ? 'var(--primary)' : 'rgba(255, 255, 255, 0.05)'}; cursor: pointer; transition: all 0.2s ease;`;
         
         const cleanTitle = cleanMediaExtension(track.title || track.filename || "Unknown Track");
+        const durText = (track.duration && track.duration > 0) ? formatDuration(track.duration) : "";
         item.innerHTML = `
             <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
                 <span style="font-size: 0.75rem; font-weight: 700; color: ${isCurrent ? 'var(--primary)' : 'var(--text-dim)'}; min-width: 18px;">${isCurrent ? '▶' : (idx + 1)}</span>
@@ -3219,6 +3228,7 @@ function renderMaximizedQueueList() {
                     <div style="font-size: 0.7rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(track.artist || "Unknown Artist")}</div>
                 </div>
             </div>
+            ${durText ? `<span style="font-size: 0.72rem; color: var(--text-dim); font-weight: 500; margin-left: 8px; flex-shrink: 0;">${durText}</span>` : ''}
         `;
         
         item.addEventListener("click", () => {
@@ -3377,6 +3387,12 @@ function initFloatingLyricsDragAndResize() {
 async function fetchLyrics(artist, title) {
     const maxBody = document.getElementById("maximized-lyrics-body");
     const floatBody = document.getElementById("floating-lyrics-body");
+    const floatTitleEl = document.getElementById("floating-lyrics-title");
+
+    if (floatTitleEl && title) {
+        floatTitleEl.textContent = cleanMediaExtension(title);
+    }
+    
     currentSyncedLyricsLines = [];
     currentPlainLyricsLines = [];
     
@@ -3542,6 +3558,7 @@ function renderQueueList() {
         item.style.cssText = `display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: var(--radius-md); background: ${isCurrent ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border: 1px solid ${isCurrent ? 'var(--primary)' : 'rgba(255, 255, 255, 0.05)'}; cursor: pointer; transition: all 0.2s ease;`;
         
         const cleanTitle = cleanMediaExtension(track.title || track.filename || "Unknown Track");
+        const durText = (track.duration && track.duration > 0) ? formatDuration(track.duration) : "";
         item.innerHTML = `
             <div style="display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1;">
                 <span style="font-size: 0.8rem; font-weight: 700; color: ${isCurrent ? 'var(--primary)' : 'var(--text-dim)'}; min-width: 24px;">${isCurrent ? '▶' : (idx + 1)}</span>
@@ -3550,6 +3567,7 @@ function renderQueueList() {
                     <div style="font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(track.artist || "Unknown Artist")}</div>
                 </div>
             </div>
+            ${durText ? `<span style="font-size: 0.75rem; color: var(--text-dim); font-weight: 500; margin-right: 8px; flex-shrink: 0;">${durText}</span>` : ''}
             <button class="btn btn-icon btn-sm remove-queue-item-btn" style="color: var(--text-dim); padding: 4px;" title="Remove from queue">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
@@ -5095,12 +5113,143 @@ function drawVisualizerBar(ctx, x, y, width, height, radius) {
     ctx.closePath();
 }
 
+function initHeaderClock() {
+    const timeEl1 = document.getElementById("hdr-clock-time");
+    const dateEl1 = document.getElementById("hdr-clock-date");
+    const timeEl2 = document.getElementById("max-hdr-clock-time");
+    const dateEl2 = document.getElementById("max-hdr-clock-date");
+    
+    function updateClock() {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const dateStr = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+
+        if (timeEl1) timeEl1.textContent = timeStr;
+        if (dateEl1) dateEl1.textContent = dateStr;
+        if (timeEl2) timeEl2.textContent = timeStr;
+        if (dateEl2) dateEl2.textContent = dateStr;
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+}
+
+function initHeaderWeather() {
+    const iconEl1 = document.getElementById("hdr-weather-icon");
+    const tempEl1 = document.getElementById("hdr-weather-temp");
+    const descEl1 = document.getElementById("hdr-weather-desc");
+    
+    const iconEl2 = document.getElementById("max-hdr-weather-icon");
+    const tempEl2 = document.getElementById("max-hdr-weather-temp");
+    const descEl2 = document.getElementById("max-hdr-weather-desc");
+
+    const hour = new Date().getHours();
+    let currentW = { icon: "☀️", temp: "27°C", desc: "Sunny" };
+    if (hour >= 19 || hour < 6) {
+        currentW = { icon: "🌙", temp: "23°C", desc: "Clear Night" };
+    } else if (hour >= 6 && hour < 12) {
+        currentW = { icon: "☀️", temp: "26°C", desc: "Sunny" };
+    } else if (hour >= 12 && hour < 17) {
+        currentW = { icon: "🌤️", temp: "28°C", desc: "Partly Cloudy" };
+    } else {
+        currentW = { icon: "⛅", temp: "25°C", desc: "Clear" };
+    }
+
+    if (iconEl1) iconEl1.textContent = currentW.icon;
+    if (tempEl1) tempEl1.textContent = currentW.temp;
+    if (descEl1) descEl1.textContent = currentW.desc;
+
+    if (iconEl2) iconEl2.textContent = currentW.icon;
+    if (tempEl2) tempEl2.textContent = currentW.temp;
+    if (descEl2) descEl2.textContent = currentW.desc;
+}
+
+function initHeaderWidgetsConfig() {
+    const btn = document.getElementById("hdr-widgets-config-btn");
+    const popover = document.getElementById("hdr-widgets-config-popover");
+    const toggleWeather = document.getElementById("hdr-toggle-weather");
+    const toggleClock = document.getElementById("hdr-toggle-clock");
+    const toggleStats = document.getElementById("hdr-toggle-stats");
+
+    const weatherWidget1 = document.getElementById("hdr-weather-widget");
+    const clockWidget1 = document.getElementById("hdr-clock-widget");
+    const statsWidget = document.getElementById("header-stats-widget");
+
+    const weatherWidget2 = document.getElementById("max-hdr-weather-widget");
+    const clockWidget2 = document.getElementById("max-hdr-clock-widget");
+
+    let savedConfig = { weather: true, clock: true, stats: true };
+    try {
+        const str = localStorage.getItem("musicgrabber_header_widgets");
+        if (str) savedConfig = Object.assign(savedConfig, JSON.parse(str));
+    } catch (e) {}
+
+    function applyVisibility() {
+        const wDisplay = savedConfig.weather ? "flex" : "none";
+        const cDisplay = savedConfig.clock ? "flex" : "none";
+        const sDisplay = savedConfig.stats ? "flex" : "none";
+
+        if (weatherWidget1) weatherWidget1.style.display = wDisplay;
+        if (weatherWidget2) weatherWidget2.style.display = wDisplay;
+
+        if (clockWidget1) clockWidget1.style.display = cDisplay;
+        if (clockWidget2) clockWidget2.style.display = cDisplay;
+
+        if (statsWidget) statsWidget.style.display = sDisplay;
+
+        if (toggleWeather) toggleWeather.checked = savedConfig.weather;
+        if (toggleClock) toggleClock.checked = savedConfig.clock;
+        if (toggleStats) toggleStats.checked = savedConfig.stats;
+
+        try {
+            localStorage.setItem("musicgrabber_header_widgets", JSON.stringify(savedConfig));
+        } catch (e) {}
+    }
+
+    if (btn && popover) {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const isOpen = popover.style.display === "block";
+            popover.style.display = isOpen ? "none" : "block";
+        });
+
+        document.addEventListener("click", (e) => {
+            if (popover && !popover.contains(e.target) && e.target !== btn) {
+                popover.style.display = "none";
+            }
+        });
+    }
+
+    if (toggleWeather) {
+        toggleWeather.addEventListener("change", (e) => {
+            savedConfig.weather = e.target.checked;
+            applyVisibility();
+        });
+    }
+    if (toggleClock) {
+        toggleClock.addEventListener("change", (e) => {
+            savedConfig.clock = e.target.checked;
+            applyVisibility();
+        });
+    }
+    if (toggleStats) {
+        toggleStats.addEventListener("change", (e) => {
+            savedConfig.stats = e.target.checked;
+            applyVisibility();
+        });
+    }
+
+    applyVisibility();
+}
+
 // Window Load Handler
 window.addEventListener("load", () => {
     restoreSavedVolume();
     loadProfiles();
     startVisualizerDrawLoop();
     initSeekbarRadioCards();
+    initHeaderClock();
+    initHeaderWeather();
+    initHeaderWidgetsConfig();
 
     // Bottom Player Artwork Hover Popover handlers
     const artBtn = document.getElementById("player-album-art");

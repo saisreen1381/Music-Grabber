@@ -55,13 +55,15 @@ body {
 
 /* App Container Layout */
 .app-container {
-    max-width: 1400px;
+    max-width: 100%;
+    width: 100%;
     margin: 0 auto;
-    padding: 24px 24px 0 24px;
+    padding: 20px 32px 0 32px;
     display: flex;
     flex-direction: column;
     height: calc(100vh - 90px);
     min-height: 610px;
+    box-sizing: border-box;
 }
 
 /* Header */
@@ -1760,10 +1762,11 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
 .maximized-body-container {
     flex: 1;
     display: flex;
-    gap: 32px;
+    gap: 24px;
     min-height: 0;
-    align-items: center;
-    justify-content: center;
+    width: 100%;
+    align-items: stretch;
+    justify-content: stretch;
 }
 
 /* Normal View (Lyrics Off) */
@@ -1773,7 +1776,7 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
 
 .maximized-body-container.lyrics-off .maximized-art-column {
     flex: 1;
-    max-width: 620px;
+    max-width: 650px;
     margin: 0 auto;
 }
 
@@ -1784,12 +1787,12 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
 
 /* Lyrics On View */
 .maximized-body-container.lyrics-on .maximized-art-column {
-    width: 440px;
+    width: 480px;
     flex-shrink: 0;
 }
 
 .maximized-body-container.lyrics-on .maximized-cover-wrapper {
-    max-width: 380px;
+    max-width: 420px;
     aspect-ratio: 1 / 1;
 }
 
@@ -1799,7 +1802,8 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
     flex-direction: column;
     min-width: 0;
     height: 100%;
-    max-width: 650px;
+    max-width: none;
+    margin: 0;
 }
 
 .maximized-art-column {
@@ -2131,8 +2135,26 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
 }
 
 /* ==========================================================================
-   HEADER STATS WIDGET (Top Navigation Overview)
+   HEADER WIDGETS (Weather, Live Clock & System Stats)
    ========================================================================== */
+.hdr-widget-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-glass);
+    padding: 6px 14px;
+    border-radius: 20px;
+    backdrop-filter: blur(12px);
+    transition: all 0.25s ease;
+    user-select: none;
+}
+
+.hdr-widget-badge:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
 .header-stats-widget {
     display: flex;
     align-items: center;
