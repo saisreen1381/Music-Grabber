@@ -29,6 +29,26 @@
                     <h1>Music Grabber</h1>
                 </div>
             </div>
+
+            <!-- Top Header Stats & System Quick Overview -->
+            <div id="header-stats-widget" class="header-stats-widget">
+                <div class="header-stat-item" title="Total Library Songs">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                    <span id="hdr-tracks-count" style="font-weight: 700; color: var(--primary);">0</span>
+                    <span style="color: var(--text-dim); font-size: 0.75rem;">Tracks</span>
+                </div>
+                <div class="header-stat-divider"></div>
+                <div class="header-stat-item" title="Configured Playlist Sources">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+                    <span id="hdr-playlists-count" style="font-weight: 700; color: var(--accent);">0</span>
+                    <span style="color: var(--text-dim); font-size: 0.75rem;">Sources</span>
+                </div>
+                <div class="header-stat-divider"></div>
+                <div class="header-stat-item" title="Auto-Sync Status">
+                    <span id="hdr-autosync-dot" class="status-pulse-dot"></span>
+                    <span id="hdr-autosync-status" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted);">Auto-Sync Off</span>
+                </div>
+            </div>
             
             <div class="profile-actions" style="display: flex; align-items: center; gap: 8px;">
                 <div style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass); padding: 4px 12px; border-radius: var(--radius-md); height: 38px;">
@@ -415,7 +435,7 @@
 
                             <!-- Auto Sync Scheduler Settings Card -->
                             <div class="form-divider" style="margin: 32px 0 20px 0; border-top: 1px solid var(--border-glass);"></div>
-                            <div class="scheduler-card" style="background: rgba(15, 20, 34, 0.6); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); padding: 22px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                            <div class="scheduler-card">
                                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
                                     <h3 class="divider-title" style="margin: 0; display: flex; align-items: center; gap: 8px; font-size: 1.1rem; font-weight: 700; color: var(--text-main);">
                                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -428,16 +448,16 @@
                                 </div>
 
                                 <div class="form-group" style="margin-bottom: 16px;">
-                                    <label class="checkbox-label-wrapper" style="background: rgba(255,255,255,0.02); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-glass); cursor: pointer;">
+                                    <label class="checkbox-label-wrapper" style="padding: 10px 0; cursor: pointer;">
                                         <input type="checkbox" id="setting-auto-sync">
                                         <div class="checkbox-label-content">
                                             <strong style="color: var(--text-main); font-size: 0.95rem;">Enable Daily / Periodic Auto-Sync</strong>
-                                            <p style="margin-top: 4px; color: var(--text-dim); font-size: 0.8rem; line-height: 1.4;">Automatically sync this profile's checked playlists in the background without opening the UI.</p>
+                                            <p style="margin-top: 2px; color: var(--text-dim); font-size: 0.8rem; line-height: 1.4;">Automatically sync this profile's checked playlists in the background without opening the UI.</p>
                                         </div>
                                     </label>
                                 </div>
 
-                                <div id="scheduler-options" class="scheduler-options" style="display: none; background: rgba(0,0,0,0.25); padding: 18px; border-radius: var(--radius-md); border: 1px solid var(--border-glass);">
+                                <div id="scheduler-options" class="scheduler-options" style="display: none; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06);">
                                     <div class="form-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; align-items: end;">
                                         <div class="form-group">
                                             <label for="setting-sync-mode" style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);">Schedule Mode</label>
@@ -467,18 +487,102 @@
                         <div class="form-divider" style="margin: 32px 0 20px 0; border-top: 1px solid var(--border-glass);"></div>
                         <h3 class="divider-title" style="margin-bottom: 16px;">🎨 UI Customization & Audio Settings</h3>
                         <div class="settings-form">
-                            <!-- Seek Bar Style -->
+                            <!-- Seek Bar Style Selection with Visual Radio Cards -->
                             <div class="form-group">
-                                <label for="setting-seekbar-style">Seek Bar Style</label>
-                                <div class="select-wrapper">
-                                    <select id="setting-seekbar-style">
-                                        <option value="solid_envelope">Solid Waveform Envelope (Continuous Silhouette)</option>
-                                        <option value="equalizer">Realtime Equalizer (Dynamic Bouncing Bars)</option>
-                                        <option value="thin_bars">Thin Frequency Spectrum Bars</option>
-                                        <option value="minimal_line">Minimal Progress Line (Sleek Glow Bar)</option>
-                                    </select>
+                                <label style="margin-bottom: 10px; display: block;">Seek Bar Visual Style</label>
+                                <input type="hidden" id="setting-seekbar-style" value="solid_envelope">
+                                
+                                <div class="seekbar-cards-grid">
+                                    <!-- Option 1: Solid Waveform Envelope -->
+                                    <label class="seekbar-card active" data-style-value="solid_envelope">
+                                        <div class="seekbar-card-header">
+                                            <input type="radio" name="seekbar_style_radio" value="solid_envelope" checked>
+                                            <span class="seekbar-card-title">Solid Waveform Envelope</span>
+                                        </div>
+                                        <span class="seekbar-card-desc">Continuous silhouette filled waveform envelope</span>
+                                        <div class="seekbar-preview-box">
+                                            <svg viewBox="0 0 160 28" width="100%" height="28" style="overflow: visible;">
+                                                <path d="M0,14 Q20,2 40,14 T80,14 T120,14 T160,14" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+                                                <path d="M0,14 Q10,4 20,14 T40,14 T60,4 T80,14 L80,14 L0,14 Z" fill="url(#solid-grad-1)"/>
+                                                <path d="M0,14 Q10,24 20,14 T40,14 T60,24 T80,14 L80,14 L0,14 Z" fill="url(#solid-grad-1)"/>
+                                                <line x1="0" y1="14" x2="80" y2="14" stroke="#06b6d4" stroke-width="2"/>
+                                                <line x1="80" y1="14" x2="160" y2="14" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+                                                <defs>
+                                                    <linearGradient id="solid-grad-1" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                        <stop offset="0%" stop-color="#6366f1" />
+                                                        <stop offset="100%" stop-color="#06b6d4" />
+                                                    </linearGradient>
+                                                </defs>
+                                            </svg>
+                                        </div>
+                                    </label>
+
+                                    <!-- Option 2: Realtime Equalizer -->
+                                    <label class="seekbar-card" data-style-value="equalizer">
+                                        <div class="seekbar-card-header">
+                                            <input type="radio" name="seekbar_style_radio" value="equalizer">
+                                            <span class="seekbar-card-title">Realtime Equalizer</span>
+                                        </div>
+                                        <span class="seekbar-card-desc">Dynamic bouncing frequency spectrum equalizer bars</span>
+                                        <div class="seekbar-preview-box">
+                                            <div class="preview-bars-row">
+                                                <span class="p-bar active" style="height: 40%;"></span>
+                                                <span class="p-bar active" style="height: 75%;"></span>
+                                                <span class="p-bar active" style="height: 100%;"></span>
+                                                <span class="p-bar active" style="height: 60%;"></span>
+                                                <span class="p-bar active" style="height: 85%;"></span>
+                                                <span class="p-bar active" style="height: 45%;"></span>
+                                                <span class="p-bar" style="height: 70%;"></span>
+                                                <span class="p-bar" style="height: 30%;"></span>
+                                                <span class="p-bar" style="height: 55%;"></span>
+                                                <span class="p-bar" style="height: 25%;"></span>
+                                            </div>
+                                        </div>
+                                    </label>
+
+                                    <!-- Option 3: Thin Frequency Spectrum Bars -->
+                                    <label class="seekbar-card" data-style-value="thin_bars">
+                                        <div class="seekbar-card-header">
+                                            <input type="radio" name="seekbar_style_radio" value="thin_bars">
+                                            <span class="seekbar-card-title">Thin Frequency Spectrum</span>
+                                        </div>
+                                        <span class="seekbar-card-desc">Fine high-density audio frequency bars</span>
+                                        <div class="seekbar-preview-box">
+                                            <div class="preview-thin-bars-row">
+                                                <span class="p-thin active" style="height: 30%;"></span>
+                                                <span class="p-thin active" style="height: 50%;"></span>
+                                                <span class="p-thin active" style="height: 80%;"></span>
+                                                <span class="p-thin active" style="height: 95%;"></span>
+                                                <span class="p-thin active" style="height: 65%;"></span>
+                                                <span class="p-thin active" style="height: 85%;"></span>
+                                                <span class="p-thin active" style="height: 40%;"></span>
+                                                <span class="p-thin active" style="height: 70%;"></span>
+                                                <span class="p-thin" style="height: 60%;"></span>
+                                                <span class="p-thin" style="height: 35%;"></span>
+                                                <span class="p-thin" style="height: 50%;"></span>
+                                                <span class="p-thin" style="height: 20%;"></span>
+                                                <span class="p-thin" style="height: 40%;"></span>
+                                                <span class="p-thin" style="height: 15%;"></span>
+                                            </div>
+                                        </div>
+                                    </label>
+
+                                    <!-- Option 4: Minimal Progress Line -->
+                                    <label class="seekbar-card" data-style-value="minimal_line">
+                                        <div class="seekbar-card-header">
+                                            <input type="radio" name="seekbar_style_radio" value="minimal_line">
+                                            <span class="seekbar-card-title">Minimal Progress Line</span>
+                                        </div>
+                                        <span class="seekbar-card-desc">Sleek modern glowing progress bar</span>
+                                        <div class="seekbar-preview-box" style="display: flex; align-items: center;">
+                                            <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.12); border-radius: 2px; position: relative;">
+                                                <div style="width: 50%; height: 100%; background: linear-gradient(90deg, #6366f1, #06b6d4); border-radius: 2px; box-shadow: 0 0 8px rgba(6, 182, 212, 0.6);"></div>
+                                                <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 10px; height: 10px; border-radius: 50%; background: #06b6d4; box-shadow: 0 0 10px #06b6d4;"></div>
+                                            </div>
+                                        </div>
+                                    </label>
                                 </div>
-                                <span class="help-text">Choose the visual style for the bottom player progress seek bar.</span>
+                                <span class="help-text" style="margin-top: 8px;">Click a card to choose the progress seek bar style across both minimized and full-screen player views.</span>
                             </div>
 
                             <!-- Audio Equalizer Preset -->
@@ -892,8 +996,9 @@
                     <div class="maximized-controls-section">
                         <div class="maximized-seeker-row">
                             <span id="maximized-curr-time">0:00</span>
-                            <div class="maximized-slider-wrap">
-                                <input type="range" id="maximized-progress-slider" min="0" max="100" value="0">
+                            <div class="maximized-slider-wrap" style="position: relative; height: 28px; display: flex; align-items: center; flex: 1;">
+                                <canvas id="maximized-progress-visualizer" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; border-radius: 4px;"></canvas>
+                                <input type="range" id="maximized-progress-slider" min="0" max="100" value="0" style="position: relative; z-index: 2; width: 100%; height: 100%; background: transparent; cursor: pointer; outline: none; -webkit-appearance: none; appearance: none; margin: 0;">
                             </div>
                             <span id="maximized-total-time">0:00</span>
                         </div>
@@ -922,7 +1027,10 @@
                 <div id="maximized-lyrics-column" class="maximized-lyrics-column">
                     <div class="maximized-lyrics-toolbar">
                         <span style="font-weight: 600; font-size: 0.9rem; color: var(--text-muted);">Lyrics</span>
-                        <div style="display: flex; align-items: center; gap: 6px;">
+                        <div class="lyrics-toolbar-controls" style="display: flex; align-items: center; gap: 6px;">
+                            <button id="max-lyrics-autoscroll-btn" class="btn btn-icon btn-sm active" title="Toggle Auto-Scroll" style="width: 28px; height: 28px; padding: 0;">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                            </button>
                             <button id="max-lyrics-font-dec" class="btn btn-icon btn-sm" title="Decrease Font Size" style="font-size: 0.75rem; font-weight: 700; width: 28px; height: 28px; padding: 0;">A-</button>
                             <button id="max-lyrics-font-inc" class="btn btn-icon btn-sm" title="Increase Font Size" style="font-size: 0.75rem; font-weight: 700; width: 28px; height: 28px; padding: 0;">A+</button>
                             <button id="max-lyrics-align-btn" class="btn btn-icon btn-sm" title="Toggle Alignment" style="width: 28px; height: 28px; padding: 0;">
@@ -959,6 +1067,9 @@
                 <span id="floating-lyrics-title" style="font-weight: 600; font-size: 0.85rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;">Lyrics</span>
             </div>
             <div class="floating-lyrics-actions" style="display: flex; align-items: center; gap: 4px;">
+                <button id="floating-lyrics-autoscroll-btn" class="btn btn-icon btn-sm active" title="Toggle Auto-Scroll" style="width: 24px; height: 24px; padding: 0;">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                </button>
                 <button id="floating-lyrics-font-dec" class="btn btn-icon btn-sm" title="Decrease Font Size" style="font-size: 0.75rem; font-weight: 700; width: 24px; height: 24px; padding: 0;">A-</button>
                 <button id="floating-lyrics-font-inc" class="btn btn-icon btn-sm" title="Increase Font Size" style="font-size: 0.75rem; font-weight: 700; width: 24px; height: 24px; padding: 0;">A+</button>
                 <button id="floating-lyrics-align-btn" class="btn btn-icon btn-sm" title="Toggle Alignment" style="width: 24px; height: 24px; padding: 0;">
@@ -991,8 +1102,23 @@
 
     <!-- Spotify-style Bottom Music Player Bar -->
     <div id="music-player-bar" class="music-player-bar" style="display: flex;">
+        <!-- Hover Artwork Enlarged Preview Popover -->
+        <div id="player-art-hover-preview" class="player-art-hover-preview">
+            <div class="art-preview-card-inner">
+                <div id="player-art-hover-img" class="art-preview-art-display">🎵</div>
+                <div class="art-preview-meta">
+                    <span id="player-art-hover-title" class="art-preview-title-text">Song Title</span>
+                    <span id="player-art-hover-artist" class="art-preview-artist-text">Artist</span>
+                </div>
+                <div class="art-preview-expand-badge">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                    <span>Click to Expand</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Left: Track Info -->
-        <div class="player-track-info" style="display: flex; align-items: center; gap: 10px; width: 30%; min-width: 240px;">
+        <div class="player-track-info" style="display: flex; align-items: center; gap: 10px; width: 30%; min-width: 240px; position: relative;">
             <div id="player-album-art" class="player-album-art" style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); flex-shrink: 0; position: relative; overflow: hidden; cursor: pointer;" title="Maximize Player">
                 🎵
             </div>

@@ -20,6 +20,8 @@ let isMaximizedPlayerOpen = false;
 let isLyricsActiveInMaximized = false;
 let isQueueActiveInMaximized = true;
 let currentSyncedLyricsLines = [];
+let currentPlainLyricsLines = [];
+let isLyricsAutoScrollEnabled = localStorage.getItem("musicgrabber_lyrics_autoscroll") !== "false";
 
 async function updateLikedTracksSet() {
     allLikedTracksSet.clear();
@@ -760,6 +762,16 @@ function populateSettingsForm() {
     if (activeConfig.seekbar_style) {
         visualizerStyleMode = activeConfig.seekbar_style;
         if (settingSeekbarStyle) settingSeekbarStyle.value = visualizerStyleMode;
+        
+        const radioToSelect = document.querySelector(`input[name="seekbar_style_radio"][value="${visualizerStyleMode}"]`);
+        if (radioToSelect) radioToSelect.checked = true;
+        document.querySelectorAll('.seekbar-card').forEach(card => {
+            if (card.getAttribute("data-style-value") === visualizerStyleMode) {
+                card.classList.add("active");
+            } else {
+                card.classList.remove("active");
+            }
+        });
     }
     if (activeConfig.eq_preset && settingEqPreset) {
         settingEqPreset.value = activeConfig.eq_preset;
@@ -775,6 +787,76 @@ function populateSettingsForm() {
     }
 
     renderAdditionalLibraryDirs();
+    updateHeaderStats();
+}
+
+function updateHeaderStats() {
+    const tracksCountElem = document.getElementById("hdr-tracks-count");
+    const playlistsCountElem = document.getElementById("hdr-playlists-count");
+    const autoSyncDot = document.getElementById("hdr-autosync-dot");
+    const autoSyncStatusElem = document.getElementById("hdr-autosync-status");
+
+    if (tracksCountElem) {
+        const total = (currentTracks && currentTracks.length) ? currentTracks.length : 0;
+        tracksCountElem.textContent = total;
+    }
+    if (playlistsCountElem) {
+        const totalSources = (activeConfig && activeConfig.sources) ? activeConfig.sources.length : 0;
+        playlistsCountElem.textContent = totalSources;
+    }
+    if (autoSyncStatusElem && autoSyncDot) {
+        const isAutoSyncOn = activeConfig && activeConfig.auto_sync === true;
+        if (isAutoSyncOn) {
+            autoSyncDot.classList.add("active");
+            const modeText = (activeConfig.sync_mode === "interval") 
+                ? `Every ${activeConfig.sync_interval_hours || 24}h` 
+                : `Daily @ ${activeConfig.sync_time || "02:00"}`;
+            autoSyncStatusElem.textContent = `Auto-Sync: ${modeText}`;
+            autoSyncStatusElem.style.color = "#10b981";
+        } else {
+            autoSyncDot.classList.remove("active");
+            autoSyncStatusElem.textContent = "Auto-Sync Off";
+            autoSyncStatusElem.style.color = "var(--text-muted)";
+        }
+    }
+}
+
+function initSeekbarRadioCards() {
+    const radioInputs = document.querySelectorAll('input[name="seekbar_style_radio"]');
+    const cards = document.querySelectorAll('.seekbar-card');
+    const hiddenInput = document.getElementById("setting-seekbar-style");
+
+    radioInputs.forEach(radio => {
+        radio.addEventListener("change", (e) => {
+            const val = e.target.value;
+            if (hiddenInput) hiddenInput.value = val;
+            visualizerStyleMode = val;
+            try { localStorage.setItem("musicgrabber_seekbar_style", val); } catch (err) {}
+            
+            cards.forEach(card => {
+                if (card.getAttribute("data-style-value") === val) {
+                    card.classList.add("active");
+                } else {
+                    card.classList.remove("active");
+                }
+            });
+
+            if (activeConfig) {
+                activeConfig.seekbar_style = val;
+                autoSaveSettings();
+            }
+        });
+    });
+
+    cards.forEach(card => {
+        card.addEventListener("click", () => {
+            const radio = card.querySelector('input[type="radio"]');
+            if (radio && !radio.checked) {
+                radio.checked = true;
+                radio.dispatchEvent(new Event("change"));
+            }
+        });
+    });
 }
 
 function renderAdditionalLibraryDirs() {
@@ -997,6 +1079,7 @@ function renderToDownloadTable(tracks) {
 
 function renderFilesList(files) {
     if (filesCountText) filesCountText.textContent = `${files.length}`;
+    if (typeof updateHeaderStats === "function") updateHeaderStats();
     
     if (!filesTableBody) return;
     
@@ -2809,11 +2892,20 @@ function updatePlaybackUI() {
     }
 
     // Update player album art
+    const hoverTitle = document.getElementById("player-art-hover-title");
+    const hoverArtist = document.getElementById("player-art-hover-artist");
+    const hoverImg = document.getElementById("player-art-hover-img");
+    if (hoverTitle) hoverTitle.textContent = title;
+    if (hoverArtist) hoverArtist.textContent = artist;
+
     if (playerAlbumArt) {
-        if (currentPlayingTrack.thumbnail_url) {
-            playerAlbumArt.innerHTML = `<img src="${currentPlayingTrack.thumbnail_url}" onerror="this.remove(); playerAlbumArt.innerHTML='🎵';" style="width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-sm);">`;
+        if (currentPlayingTrack.thumbnail_url || currentPlayingTrack.thumbnail) {
+            const tUrl = currentPlayingTrack.thumbnail_url || currentPlayingTrack.thumbnail;
+            playerAlbumArt.innerHTML = `<img src="${tUrl}" onerror="this.remove(); playerAlbumArt.innerHTML='🎵';" style="width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-sm);">`;
+            if (hoverImg) hoverImg.innerHTML = `<img src="${tUrl}" onerror="this.remove(); hoverImg.innerHTML='🎵';" style="width: 100%; height: 100%; object-fit: cover;">`;
         } else {
             playerAlbumArt.innerHTML = `🎵`;
+            if (hoverImg) hoverImg.innerHTML = `🎵`;
         }
     }
     
@@ -3286,6 +3378,7 @@ async function fetchLyrics(artist, title) {
     const maxBody = document.getElementById("maximized-lyrics-body");
     const floatBody = document.getElementById("floating-lyrics-body");
     currentSyncedLyricsLines = [];
+    currentPlainLyricsLines = [];
     
     const loadingHtml = `<div class="lyrics-placeholder-msg"><span class="spinner" style="width: 24px; height: 24px; border-width: 2px; border-top-color: var(--primary); margin-right: 12px;"></span> Searching lyrics online...</div>`;
     if (maxBody) maxBody.innerHTML = loadingHtml;
@@ -3298,8 +3391,7 @@ async function fetchLyrics(artist, title) {
             if (data.syncedLyrics) {
                 parseAndRenderSyncedLyrics(data.syncedLyrics);
             } else if (data.plainLyrics && !data.plainLyrics.includes("not found")) {
-                if (maxBody) maxBody.textContent = data.plainLyrics;
-                if (floatBody) floatBody.textContent = data.plainLyrics;
+                renderPlainLyrics(data.plainLyrics);
             } else {
                 const notFoundHtml = `<div class="lyrics-placeholder-msg">Lyrics not found for this track.</div>`;
                 if (maxBody) maxBody.innerHTML = notFoundHtml;
@@ -3318,6 +3410,54 @@ async function fetchLyrics(artist, title) {
     applyLyricsCustomization();
 }
 
+function renderPlainLyrics(plainText) {
+    const maxBody = document.getElementById("maximized-lyrics-body");
+    const floatBody = document.getElementById("floating-lyrics-body");
+    
+    if (maxBody) maxBody.innerHTML = "";
+    if (floatBody) floatBody.innerHTML = "";
+    currentSyncedLyricsLines = [];
+    currentPlainLyricsLines = [];
+
+    const rawLines = plainText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+    if (rawLines.length === 0) {
+        const notFoundHtml = `<div class="lyrics-placeholder-msg">Lyrics empty.</div>`;
+        if (maxBody) maxBody.innerHTML = notFoundHtml;
+        if (floatBody) floatBody.innerHTML = notFoundHtml;
+        return;
+    }
+
+    const totalLines = rawLines.length;
+
+    rawLines.forEach((text, idx) => {
+        const lineEl1 = document.createElement("div");
+        lineEl1.className = "lyrics-line";
+        lineEl1.textContent = text;
+        lineEl1.dataset.lineIndex = idx;
+        lineEl1.addEventListener("click", () => {
+            if (localAudioElement && localAudioElement.duration) {
+                localAudioElement.currentTime = (idx / totalLines) * localAudioElement.duration;
+            }
+        });
+        if (maxBody) maxBody.appendChild(lineEl1);
+
+        const lineEl2 = document.createElement("div");
+        lineEl2.className = "lyrics-line";
+        lineEl2.textContent = text;
+        lineEl2.dataset.lineIndex = idx;
+        lineEl2.addEventListener("click", () => {
+            if (localAudioElement && localAudioElement.duration) {
+                localAudioElement.currentTime = (idx / totalLines) * localAudioElement.duration;
+            }
+        });
+        if (floatBody) floatBody.appendChild(lineEl2);
+
+        currentPlainLyricsLines.push({ index: idx, elements: [lineEl1, lineEl2] });
+    });
+
+    applyLyricsCustomization();
+}
+
 function parseAndRenderSyncedLyrics(lrcText) {
     const maxBody = document.getElementById("maximized-lyrics-body");
     const floatBody = document.getElementById("floating-lyrics-body");
@@ -3325,6 +3465,7 @@ function parseAndRenderSyncedLyrics(lrcText) {
     if (maxBody) maxBody.innerHTML = "";
     if (floatBody) floatBody.innerHTML = "";
     currentSyncedLyricsLines = [];
+    currentPlainLyricsLines = [];
     
     const lines = lrcText.split("\n");
     const timeRegex = /\[(\d+):(\d+)\.(\d+)\]/;
@@ -3363,8 +3504,7 @@ function parseAndRenderSyncedLyrics(lrcText) {
     
     if (currentSyncedLyricsLines.length === 0) {
         const plainText = lrcText.replace(/\[\d+:\d+\.\d+\]/g, "").trim();
-        if (maxBody) maxBody.textContent = plainText;
-        if (floatBody) floatBody.textContent = plainText;
+        renderPlainLyrics(plainText);
     }
     applyLyricsCustomization();
 }
@@ -3466,7 +3606,35 @@ if (playerLyricsBtn) {
     });
 }
 
+function toggleLyricsAutoScroll() {
+    isLyricsAutoScrollEnabled = !isLyricsAutoScrollEnabled;
+    try {
+        localStorage.setItem("musicgrabber_lyrics_autoscroll", isLyricsAutoScrollEnabled);
+    } catch (e) {}
+    updateLyricsAutoScrollUI();
+    showToast(isLyricsAutoScrollEnabled ? "Lyrics Auto-Scroll Enabled" : "Lyrics Auto-Scroll Disabled", "info");
+}
+
+function updateLyricsAutoScrollUI() {
+    const btn1 = document.getElementById("max-lyrics-autoscroll-btn");
+    const btn2 = document.getElementById("floating-lyrics-autoscroll-btn");
+    [btn1, btn2].forEach(btn => {
+        if (!btn) return;
+        if (isLyricsAutoScrollEnabled) {
+            btn.classList.add("active");
+            btn.style.color = "var(--accent)";
+            btn.title = "Auto-Scroll: ON (Click to disable)";
+        } else {
+            btn.classList.remove("active");
+            btn.style.color = "var(--text-dim)";
+            btn.title = "Auto-Scroll: OFF (Click to enable)";
+        }
+    });
+}
+
 // Wire Lyrics Customization Controls
+const maxAutoScrollBtn = document.getElementById("max-lyrics-autoscroll-btn");
+const floatAutoScrollBtn = document.getElementById("floating-lyrics-autoscroll-btn");
 const maxFontDecBtn = document.getElementById("max-lyrics-font-dec");
 const maxFontIncBtn = document.getElementById("max-lyrics-font-inc");
 const maxAlignBtn = document.getElementById("max-lyrics-align-btn");
@@ -3475,6 +3643,8 @@ const floatFontIncBtn = document.getElementById("floating-lyrics-font-inc");
 const floatAlignBtn = document.getElementById("floating-lyrics-align-btn");
 const floatCloseBtn = document.getElementById("floating-lyrics-close");
 
+if (maxAutoScrollBtn) maxAutoScrollBtn.addEventListener("click", toggleLyricsAutoScroll);
+if (floatAutoScrollBtn) floatAutoScrollBtn.addEventListener("click", toggleLyricsAutoScroll);
 if (maxFontDecBtn) maxFontDecBtn.addEventListener("click", () => changeLyricsFontSize(-2));
 if (maxFontIncBtn) maxFontIncBtn.addEventListener("click", () => changeLyricsFontSize(2));
 if (maxAlignBtn) maxAlignBtn.addEventListener("click", toggleLyricsAlignment);
@@ -3483,6 +3653,8 @@ if (floatFontDecBtn) floatFontDecBtn.addEventListener("click", () => changeLyric
 if (floatFontIncBtn) floatFontIncBtn.addEventListener("click", () => changeLyricsFontSize(2));
 if (floatAlignBtn) floatAlignBtn.addEventListener("click", toggleLyricsAlignment);
 if (floatCloseBtn) floatCloseBtn.addEventListener("click", closeFloatingLyrics);
+
+updateLyricsAutoScrollUI();
 
 initFloatingLyricsDragAndResize();
 
@@ -3651,21 +3823,40 @@ localAudioElement.addEventListener("timeupdate", () => {
         if (maxCurr) maxCurr.textContent = formatDuration(cur);
         if (maxTotal) maxTotal.textContent = formatDuration(dur);
 
-        // Highlight active synced lyrics line across maximized and floating views
-        if (currentSyncedLyricsLines && currentSyncedLyricsLines.length > 0) {
-            let activeIdx = -1;
-            for (let i = 0; i < currentSyncedLyricsLines.length; i++) {
-                if (cur >= currentSyncedLyricsLines[i].time) {
-                    activeIdx = i;
-                } else {
-                    break;
+        // Highlight & Auto-scroll active lyrics line across maximized and floating views
+        if (isLyricsAutoScrollEnabled && dur > 0) {
+            if (currentSyncedLyricsLines && currentSyncedLyricsLines.length > 0) {
+                let activeIdx = -1;
+                for (let i = 0; i < currentSyncedLyricsLines.length; i++) {
+                    if (cur >= currentSyncedLyricsLines[i].time) {
+                        activeIdx = i;
+                    } else {
+                        break;
+                    }
                 }
-            }
-            if (activeIdx >= 0) {
-                currentSyncedLyricsLines.forEach((item, idx) => {
-                    const lineEls = item.elements || (item.element ? [item.element] : []);
+                if (activeIdx >= 0) {
+                    currentSyncedLyricsLines.forEach((item, idx) => {
+                        const lineEls = item.elements || (item.element ? [item.element] : []);
+                        lineEls.forEach(el => {
+                            if (idx === activeIdx) {
+                                if (!el.classList.contains("active")) {
+                                    el.classList.add("active");
+                                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
+                            } else {
+                                el.classList.remove("active");
+                            }
+                        });
+                    });
+                }
+            } else if (currentPlainLyricsLines && currentPlainLyricsLines.length > 0) {
+                const ratio = Math.min(0.99, Math.max(0, cur / dur));
+                const activeLineIdx = Math.floor(ratio * currentPlainLyricsLines.length);
+
+                currentPlainLyricsLines.forEach((item, idx) => {
+                    const lineEls = item.elements || [];
                     lineEls.forEach(el => {
-                        if (idx === activeIdx) {
+                        if (idx === activeLineIdx) {
                             if (!el.classList.contains("active")) {
                                 el.classList.add("active");
                                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -4651,26 +4842,197 @@ if (unsavedCancelBtn) {
     });
 }
 
-function startVisualizerDrawLoop() {
-    const canvas = document.getElementById("player-progress-visualizer");
-    if (!canvas) return;
+function drawVisualizerOnCanvas(canvas, canvasCtx, progress, bufferProgress, freqs, localAudio) {
+    if (!canvas || !canvasCtx) return;
     
-    const canvasCtx = canvas.getContext("2d");
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+        if (canvas.width !== Math.floor(rect.width) || canvas.height !== Math.floor(rect.height)) {
+            canvas.width = Math.floor(rect.width);
+            canvas.height = Math.floor(rect.height);
+        }
+    }
+    
+    const width = canvas.width;
+    const height = canvas.height;
+    if (width <= 0 || height <= 0) return;
+    
+    canvasCtx.clearRect(0, 0, width, height);
+    
+    const playedWidth = Math.floor(progress * width);
+    const bufferedWidth = Math.floor(bufferProgress * width);
+    
+    if (visualizerStyleMode === "solid_envelope") {
+        // MODE 1: Solid Waveform Envelope
+        const centerY = height / 2;
+        const peaksUpper = new Float32Array(width);
+        const peaksLower = new Float32Array(width);
+        
+        for (let x = 0; x < width; x++) {
+            const normX = x / width;
+            const w1 = Math.sin(normX * Math.PI * 3.5);
+            const w2 = Math.cos(normX * Math.PI * 9.2);
+            const w3 = Math.sin(normX * Math.PI * 18);
+            let amp = 0.15 + 0.7 * Math.abs(w1 * 0.5 + w2 * 0.35 + w3 * 0.15);
+            
+            if (localAudio && !localAudio.paused && freqs.length > 0) {
+                const fIdx = Math.min(freqs.length - 1, Math.floor(normX * freqs.length));
+                amp = 0.4 * amp + 0.6 * (freqs[fIdx] / 255);
+            }
+            
+            let envH = amp * (height * 0.42);
+            if (envH < 2) envH = 2;
+            
+            peaksUpper[x] = centerY - envH;
+            peaksLower[x] = centerY + envH;
+        }
+        
+        // 1. Played Section (Gradient)
+        if (playedWidth > 0) {
+            canvasCtx.beginPath();
+            canvasCtx.moveTo(0, centerY);
+            for (let x = 0; x <= playedWidth; x++) {
+                canvasCtx.lineTo(x, peaksUpper[x]);
+            }
+            for (let x = playedWidth; x >= 0; x--) {
+                canvasCtx.lineTo(x, peaksLower[x]);
+            }
+            canvasCtx.closePath();
+            const grad = canvasCtx.createLinearGradient(0, 0, playedWidth, 0);
+            grad.addColorStop(0, "#6366f1");
+            grad.addColorStop(1, "#06b6d4");
+            canvasCtx.fillStyle = grad;
+            canvasCtx.fill();
+        }
+        
+        // 2. Buffered Section (Translucent White)
+        if (bufferedWidth > playedWidth) {
+            canvasCtx.beginPath();
+            canvasCtx.moveTo(playedWidth, centerY);
+            for (let x = playedWidth; x <= bufferedWidth; x++) {
+                canvasCtx.lineTo(x, peaksUpper[x]);
+            }
+            for (let x = bufferedWidth; x >= playedWidth; x--) {
+                canvasCtx.lineTo(x, peaksLower[x]);
+            }
+            canvasCtx.closePath();
+            canvasCtx.fillStyle = "rgba(255, 255, 255, 0.65)";
+            canvasCtx.fill();
+        }
+        
+        // 3. Unbuffered Section (Dim Translucent Grey Envelope)
+        if (bufferedWidth < width) {
+            canvasCtx.beginPath();
+            canvasCtx.moveTo(bufferedWidth, centerY);
+            for (let x = bufferedWidth; x < width; x++) {
+                canvasCtx.lineTo(x, peaksUpper[x]);
+            }
+            for (let x = width - 1; x >= bufferedWidth; x--) {
+                canvasCtx.lineTo(x, peaksLower[x]);
+            }
+            canvasCtx.closePath();
+            canvasCtx.fillStyle = "rgba(255, 255, 255, 0.14)";
+            canvasCtx.fill();
+        }
+        
+        // Center Baseline Line
+        canvasCtx.beginPath();
+        canvasCtx.moveTo(0, centerY);
+        canvasCtx.lineTo(playedWidth, centerY);
+        canvasCtx.strokeStyle = "#06b6d4";
+        canvasCtx.lineWidth = 1;
+        canvasCtx.stroke();
+
+    } else if (visualizerStyleMode === "minimal_line") {
+        // MODE 4: Modern Minimal Progress Line
+        const centerY = height / 2;
+        
+        // 1. Unbuffered background line
+        canvasCtx.beginPath();
+        canvasCtx.moveTo(0, centerY);
+        canvasCtx.lineTo(width, centerY);
+        canvasCtx.strokeStyle = "rgba(255, 255, 255, 0.14)";
+        canvasCtx.lineWidth = 3;
+        canvasCtx.lineCap = "round";
+        canvasCtx.stroke();
+        
+        // 2. Buffered line (Translucent White)
+        if (bufferedWidth > 0) {
+            canvasCtx.beginPath();
+            canvasCtx.moveTo(0, centerY);
+            canvasCtx.lineTo(bufferedWidth, centerY);
+            canvasCtx.strokeStyle = "rgba(255, 255, 255, 0.65)";
+            canvasCtx.lineWidth = 3;
+            canvasCtx.lineCap = "round";
+            canvasCtx.stroke();
+        }
+        
+        // 3. Played line (Cyan)
+        if (playedWidth > 0) {
+            canvasCtx.beginPath();
+            canvasCtx.moveTo(0, centerY);
+            canvasCtx.lineTo(playedWidth, centerY);
+            canvasCtx.strokeStyle = "#06b6d4";
+            canvasCtx.lineWidth = 3;
+            canvasCtx.lineCap = "round";
+            canvasCtx.stroke();
+        }
+        
+    } else {
+        // MODE 2 & 3: Equalizer / Thin Frequency Bars
+        const isEq = visualizerStyleMode === "equalizer";
+        const barWidth = isEq ? 4 : 2.5;
+        const barGap = isEq ? 3 : 1.5;
+        const totalBarWidth = barWidth + barGap;
+        const barCount = Math.floor(width / totalBarWidth);
+        
+        for (let i = 0; i < barCount; i++) {
+            let val = 0;
+            const normX = i / barCount;
+            const w1 = Math.sin(normX * Math.PI * 4);
+            const w2 = Math.cos(normX * Math.PI * 11);
+            const contour = 0.18 + 0.22 * Math.abs(w1 * 0.5 + w2 * 0.5);
+            
+            if (freqs.length > 0) {
+                const freqIdx = Math.min(freqs.length - 1, Math.floor(normX * freqs.length));
+                const realFreq = freqs[freqIdx] / 255;
+                val = isEq ? realFreq : (0.4 * contour + 0.6 * realFreq);
+            } else {
+                val = contour;
+            }
+            
+            let barHeight = val * height * 0.9;
+            if (barHeight < 3) barHeight = 3;
+            
+            const x = i * totalBarWidth;
+            const y = (height - barHeight) / 2;
+            const isPlayed = x <= playedWidth;
+            const isBuffered = x <= bufferedWidth;
+            
+            canvasCtx.beginPath();
+            if (isPlayed) {
+                const grad = canvasCtx.createLinearGradient(0, y, 0, y + barHeight);
+                grad.addColorStop(0, "#6366f1");
+                grad.addColorStop(1, "#06b6d4");
+                canvasCtx.fillStyle = grad;
+            } else if (isBuffered) {
+                canvasCtx.fillStyle = "rgba(255, 255, 255, 0.75)";
+            } else {
+                canvasCtx.fillStyle = "rgba(255, 255, 255, 0.14)";
+            }
+            
+            drawVisualizerBar(canvasCtx, x, y, barWidth, barHeight, 1);
+            canvasCtx.fill();
+        }
+    }
+}
+
+function startVisualizerDrawLoop() {
+    const miniCanvas = document.getElementById("player-progress-visualizer");
+    const maxCanvas = document.getElementById("maximized-progress-visualizer");
     
     function draw() {
         visualizerAnimationId = requestAnimationFrame(draw);
-        
-        // Match canvas dimensions to layout container size dynamically
-        const rect = canvas.getBoundingClientRect();
-        if (canvas.width !== rect.width || canvas.height !== rect.height) {
-            canvas.width = rect.width;
-            canvas.height = rect.height;
-        }
-        
-        const width = canvas.width;
-        const height = canvas.height;
-        
-        canvasCtx.clearRect(0, 0, width, height);
         
         const localAudio = document.getElementById("local-audio-element");
         const duration = (localAudio && localAudio.duration && !isNaN(localAudio.duration)) ? localAudio.duration : 0;
@@ -4702,171 +5064,14 @@ function startVisualizerDrawLoop() {
             }
         }
         
-        const playedWidth = Math.floor(progress * width);
-        const bufferedWidth = Math.floor(bufferProgress * width);
+        if (miniCanvas) {
+            const miniCtx = miniCanvas.getContext("2d");
+            drawVisualizerOnCanvas(miniCanvas, miniCtx, progress, bufferProgress, freqs, localAudio);
+        }
         
-        if (visualizerStyleMode === "solid_envelope") {
-            // MODE 1: Solid Waveform Envelope
-            const centerY = height / 2;
-            const peaksUpper = new Float32Array(width);
-            const peaksLower = new Float32Array(width);
-            
-            for (let x = 0; x < width; x++) {
-                const normX = x / width;
-                const w1 = Math.sin(normX * Math.PI * 3.5);
-                const w2 = Math.cos(normX * Math.PI * 9.2);
-                const w3 = Math.sin(normX * Math.PI * 18);
-                let amp = 0.15 + 0.7 * Math.abs(w1 * 0.5 + w2 * 0.35 + w3 * 0.15);
-                
-                if (localAudio && !localAudio.paused && freqs.length > 0) {
-                    const fIdx = Math.min(freqs.length - 1, Math.floor(normX * freqs.length));
-                    amp = 0.4 * amp + 0.6 * (freqs[fIdx] / 255);
-                }
-                
-                let envH = amp * (height * 0.42);
-                if (envH < 2) envH = 2;
-                
-                peaksUpper[x] = centerY - envH;
-                peaksLower[x] = centerY + envH;
-            }
-            
-            // 1. Played Section (Gradient)
-            if (playedWidth > 0) {
-                canvasCtx.beginPath();
-                canvasCtx.moveTo(0, centerY);
-                for (let x = 0; x <= playedWidth; x++) {
-                    canvasCtx.lineTo(x, peaksUpper[x]);
-                }
-                for (let x = playedWidth; x >= 0; x--) {
-                    canvasCtx.lineTo(x, peaksLower[x]);
-                }
-                canvasCtx.closePath();
-                const grad = canvasCtx.createLinearGradient(0, 0, playedWidth, 0);
-                grad.addColorStop(0, "#6366f1");
-                grad.addColorStop(1, "#06b6d4");
-                canvasCtx.fillStyle = grad;
-                canvasCtx.fill();
-            }
-            
-            // 2. Buffered Section (Translucent White)
-            if (bufferedWidth > playedWidth) {
-                canvasCtx.beginPath();
-                canvasCtx.moveTo(playedWidth, centerY);
-                for (let x = playedWidth; x <= bufferedWidth; x++) {
-                    canvasCtx.lineTo(x, peaksUpper[x]);
-                }
-                for (let x = bufferedWidth; x >= playedWidth; x--) {
-                    canvasCtx.lineTo(x, peaksLower[x]);
-                }
-                canvasCtx.closePath();
-                canvasCtx.fillStyle = "rgba(255, 255, 255, 0.65)";
-                canvasCtx.fill();
-            }
-            
-            // 3. Unbuffered Section (Dim Translucent Grey Envelope)
-            if (bufferedWidth < width) {
-                canvasCtx.beginPath();
-                canvasCtx.moveTo(bufferedWidth, centerY);
-                for (let x = bufferedWidth; x < width; x++) {
-                    canvasCtx.lineTo(x, peaksUpper[x]);
-                }
-                for (let x = width - 1; x >= bufferedWidth; x--) {
-                    canvasCtx.lineTo(x, peaksLower[x]);
-                }
-                canvasCtx.closePath();
-                canvasCtx.fillStyle = "rgba(255, 255, 255, 0.14)";
-                canvasCtx.fill();
-            }
-            
-            // Center Baseline Line
-            canvasCtx.beginPath();
-            canvasCtx.moveTo(0, centerY);
-            canvasCtx.lineTo(playedWidth, centerY);
-            canvasCtx.strokeStyle = "#06b6d4";
-            canvasCtx.lineWidth = 1;
-            canvasCtx.stroke();
-
-        } else if (visualizerStyleMode === "minimal_line") {
-            // MODE 4: Modern Minimal Progress Line
-            const centerY = height / 2;
-            
-            // 1. Unbuffered background line
-            canvasCtx.beginPath();
-            canvasCtx.moveTo(0, centerY);
-            canvasCtx.lineTo(width, centerY);
-            canvasCtx.strokeStyle = "rgba(255, 255, 255, 0.14)";
-            canvasCtx.lineWidth = 3;
-            canvasCtx.lineCap = "round";
-            canvasCtx.stroke();
-            
-            // 2. Buffered line (Translucent White)
-            if (bufferedWidth > 0) {
-                canvasCtx.beginPath();
-                canvasCtx.moveTo(0, centerY);
-                canvasCtx.lineTo(bufferedWidth, centerY);
-                canvasCtx.strokeStyle = "rgba(255, 255, 255, 0.65)";
-                canvasCtx.lineWidth = 3;
-                canvasCtx.lineCap = "round";
-                canvasCtx.stroke();
-            }
-            
-            // 3. Played line (Cyan)
-            if (playedWidth > 0) {
-                canvasCtx.beginPath();
-                canvasCtx.moveTo(0, centerY);
-                canvasCtx.lineTo(playedWidth, centerY);
-                canvasCtx.strokeStyle = "#06b6d4";
-                canvasCtx.lineWidth = 3;
-                canvasCtx.lineCap = "round";
-                canvasCtx.stroke();
-            }
-            
-        } else {
-            // MODE 2 & 3: Equalizer / Thin Frequency Bars
-            const isEq = visualizerStyleMode === "equalizer";
-            const barWidth = isEq ? 4 : 2.5;
-            const barGap = isEq ? 3 : 1.5;
-            const totalBarWidth = barWidth + barGap;
-            const barCount = Math.floor(width / totalBarWidth);
-            
-            for (let i = 0; i < barCount; i++) {
-                let val = 0;
-                const normX = i / barCount;
-                const w1 = Math.sin(normX * Math.PI * 4);
-                const w2 = Math.cos(normX * Math.PI * 11);
-                const contour = 0.18 + 0.22 * Math.abs(w1 * 0.5 + w2 * 0.5);
-                
-                if (freqs.length > 0) {
-                    const freqIdx = Math.min(freqs.length - 1, Math.floor(normX * freqs.length));
-                    const realFreq = freqs[freqIdx] / 255;
-                    val = isEq ? realFreq : (0.4 * contour + 0.6 * realFreq);
-                } else {
-                    val = contour;
-                }
-                
-                let barHeight = val * height * 0.9;
-                if (barHeight < 3) barHeight = 3;
-                
-                const x = i * totalBarWidth;
-                const y = (height - barHeight) / 2;
-                const isPlayed = x <= playedWidth;
-                const isBuffered = x <= bufferedWidth;
-                
-                canvasCtx.beginPath();
-                if (isPlayed) {
-                    const grad = canvasCtx.createLinearGradient(0, y, 0, y + barHeight);
-                    grad.addColorStop(0, "#6366f1");
-                    grad.addColorStop(1, "#06b6d4");
-                    canvasCtx.fillStyle = grad;
-                } else if (isBuffered) {
-                    canvasCtx.fillStyle = "rgba(255, 255, 255, 0.75)";
-                } else {
-                    canvasCtx.fillStyle = "rgba(255, 255, 255, 0.14)";
-                }
-                
-                drawVisualizerBar(canvasCtx, x, y, barWidth, barHeight, 1);
-                canvasCtx.fill();
-            }
+        if (maxCanvas && (isMaximizedPlayerOpen || maxCanvas.offsetParent !== null)) {
+            const maxCtx = maxCanvas.getContext("2d");
+            drawVisualizerOnCanvas(maxCanvas, maxCtx, progress, bufferProgress, freqs, localAudio);
         }
     }
     
@@ -4895,6 +5100,24 @@ window.addEventListener("load", () => {
     restoreSavedVolume();
     loadProfiles();
     startVisualizerDrawLoop();
+    initSeekbarRadioCards();
+
+    // Bottom Player Artwork Hover Popover handlers
+    const artBtn = document.getElementById("player-album-art");
+    const trackInfoBtn = document.querySelector(".player-track-info");
+    const hoverPreview = document.getElementById("player-art-hover-preview");
+    if (hoverPreview && (artBtn || trackInfoBtn)) {
+        const showHover = () => hoverPreview.classList.add("show-hover");
+        const hideHover = () => hoverPreview.classList.remove("show-hover");
+        if (artBtn) {
+            artBtn.addEventListener("mouseenter", showHover);
+            artBtn.addEventListener("mouseleave", hideHover);
+        }
+        if (trackInfoBtn) {
+            trackInfoBtn.addEventListener("mouseenter", showHover);
+            trackInfoBtn.addEventListener("mouseleave", hideHover);
+        }
+    }
 
     // Dual Subtab Switching (To Be Downloaded vs Downloaded Files)
     const subtabToDownloadBtn = document.getElementById("subtab-to-download-btn");

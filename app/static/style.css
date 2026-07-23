@@ -241,20 +241,24 @@ body {
 .sync-left {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 16px;
+    height: 100%;
     min-height: 0;
-    overflow-y: auto;
-    max-height: calc(100vh - 120px);
-    scrollbar-width: none;
-}
-.sync-left::-webkit-scrollbar {
-    display: none;
+    overflow: hidden;
 }
 
 .sync-right {
     display: flex;
     flex-direction: column;
     gap: 24px;
+    height: 100%;
+    min-height: 0;
+}
+
+#sync-progress-modal {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     min-height: 0;
 }
 
@@ -2013,6 +2017,21 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
     margin-bottom: 8px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     flex-shrink: 0;
+    position: relative;
+}
+
+.maximized-lyrics-toolbar .lyrics-toolbar-controls {
+    opacity: 0;
+    transform: translateY(-4px);
+    pointer-events: none;
+    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.maximized-lyrics-toolbar:hover .lyrics-toolbar-controls,
+.maximized-lyrics-column:hover .maximized-lyrics-toolbar .lyrics-toolbar-controls {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
 }
 
 /* Floating Draggable & Resizable Lyrics Modal */
@@ -2049,6 +2068,20 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
     background: rgba(0, 0, 0, 0.3);
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     flex-shrink: 0;
+}
+
+.floating-lyrics-actions {
+    opacity: 0;
+    transform: translateY(-4px);
+    pointer-events: none;
+    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.floating-lyrics-header:hover .floating-lyrics-actions,
+.floating-lyrics-modal:hover .floating-lyrics-header .floating-lyrics-actions {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
 }
 
 .floating-lyrics-body {
@@ -2095,4 +2128,257 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
 
 .floating-lyrics-resize-handle:hover {
     opacity: 1;
+}
+
+/* ==========================================================================
+   HEADER STATS WIDGET (Top Navigation Overview)
+   ========================================================================== */
+.header-stats-widget {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-glass);
+    padding: 6px 18px;
+    border-radius: 24px;
+    backdrop-filter: blur(12px);
+    transition: var(--transition);
+}
+
+.header-stats-widget:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.header-stat-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-main);
+}
+
+.header-stat-divider {
+    width: 1px;
+    height: 14px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.status-pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #64748b;
+    transition: var(--transition);
+}
+
+.status-pulse-dot.active {
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+    animation: statusPulse 2s infinite;
+}
+
+@keyframes statusPulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* ==========================================================================
+   SETTINGS: SEEK BAR VISUAL RADIO CARDS GRID
+   ========================================================================== */
+.seekbar-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    margin-top: 8px;
+}
+
+.seekbar-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    user-select: none;
+}
+
+.seekbar-card:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px);
+}
+
+.seekbar-card.active,
+.seekbar-card:has(input[type="radio"]:checked) {
+    background: rgba(99, 102, 241, 0.12);
+    border-color: var(--primary);
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+}
+
+.seekbar-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.seekbar-card-header input[type="radio"] {
+    accent-color: var(--primary);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.seekbar-card-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.seekbar-card-desc {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    line-height: 1.3;
+}
+
+.seekbar-preview-box {
+    margin-top: 6px;
+    height: 38px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.preview-bars-row, .preview-thin-bars-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    height: 100%;
+}
+
+.preview-thin-bars-row {
+    gap: 2px;
+}
+
+.p-bar {
+    width: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    transition: height 0.3s ease;
+}
+
+.p-bar.active {
+    background: linear-gradient(180deg, #6366f1, #06b6d4);
+    box-shadow: 0 0 6px rgba(6, 182, 212, 0.4);
+}
+
+.p-thin {
+    width: 2.5px;
+    border-radius: 1.5px;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.p-thin.active {
+    background: linear-gradient(180deg, #6366f1, #06b6d4);
+}
+
+/* ==========================================================================
+   MINIMIZED MUSIC PLAYER: ARTWORK HOVER PREVIEW POPOVER
+   ========================================================================== */
+.player-art-hover-preview {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 16px;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.player-track-info:hover ~ .player-art-hover-preview,
+.player-track-info:hover .player-art-hover-preview,
+.player-album-art:hover ~ .player-art-hover-preview,
+.player-art-hover-preview.show-hover {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.art-preview-card-inner {
+    background: rgba(14, 18, 28, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-active);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), 0 0 25px rgba(99, 102, 241, 0.25);
+    border-radius: var(--radius-lg);
+    padding: 12px;
+    width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.art-preview-art-display {
+    width: 176px;
+    height: 176px;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3.5rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+}
+
+.art-preview-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.art-preview-title-text {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.art-preview-artist-text {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.art-preview-expand-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--primary);
 }
