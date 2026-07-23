@@ -761,6 +761,7 @@ function populateSettingsForm() {
     
     // Populate UI Customizations from activeConfig
     if (activeConfig.seekbar_style) {
+        if (activeConfig.seekbar_style === "equalizer") activeConfig.seekbar_style = "track_waveform_bars";
         visualizerStyleMode = activeConfig.seekbar_style;
         if (settingSeekbarStyle) settingSeekbarStyle.value = visualizerStyleMode;
         
@@ -4860,6 +4861,31 @@ if (unsavedCancelBtn) {
     });
 }
 
+function getTrackWaveformPeaks(track, count) {
+    const seedStr = (track ? (track.id || track.title || track.filename || "") : "default_track");
+    let hash = 0;
+    for (let i = 0; i < seedStr.length; i++) {
+        hash = (hash << 5) - hash + seedStr.charCodeAt(i);
+        hash |= 0;
+    }
+    const absHash = Math.abs(hash);
+
+    const peaks = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+        const norm = i / count;
+        const w1 = Math.sin(norm * Math.PI * 3.2 + (absHash % 17));
+        const w2 = Math.cos(norm * Math.PI * 8.4 + (absHash % 29));
+        const w3 = Math.sin(norm * Math.PI * 18.6 + (absHash % 41));
+        const w4 = Math.cos(norm * Math.PI * 31.2 + (absHash % 53));
+        
+        let amp = 0.12 + 0.78 * Math.abs(w1 * 0.4 + w2 * 0.3 + w3 * 0.2 + w4 * 0.1);
+        const envelope = Math.sin(norm * Math.PI);
+        amp = amp * (0.35 + 0.65 * envelope);
+        peaks[i] = Math.min(1.0, Math.max(0.08, amp));
+    }
+    return peaks;
+}
+
 function drawVisualizerOnCanvas(canvas, canvasCtx, progress, bufferProgress, freqs, localAudio) {
     if (!canvas || !canvasCtx) return;
     
@@ -4881,24 +4907,15 @@ function drawVisualizerOnCanvas(canvas, canvasCtx, progress, bufferProgress, fre
     const bufferedWidth = Math.floor(bufferProgress * width);
     
     if (visualizerStyleMode === "solid_envelope") {
-        // MODE 1: Solid Waveform Envelope
+        // MODE 1: Static Continuous Waveform Silhouette Envelope (Audacity Line Style)
         const centerY = height / 2;
         const peaksUpper = new Float32Array(width);
         const peaksLower = new Float32Array(width);
+        const trackPeaks = getTrackWaveformPeaks(currentPlayingTrack, width);
         
         for (let x = 0; x < width; x++) {
-            const normX = x / width;
-            const w1 = Math.sin(normX * Math.PI * 3.5);
-            const w2 = Math.cos(normX * Math.PI * 9.2);
-            const w3 = Math.sin(normX * Math.PI * 18);
-            let amp = 0.15 + 0.7 * Math.abs(w1 * 0.5 + w2 * 0.35 + w3 * 0.15);
-            
-            if (localAudio && !localAudio.paused && freqs.length > 0) {
-                const fIdx = Math.min(freqs.length - 1, Math.floor(normX * freqs.length));
-                amp = 0.4 * amp + 0.6 * (freqs[fIdx] / 255);
-            }
-            
-            let envH = amp * (height * 0.42);
+            const amp = trackPeaks[x] || 0.15;
+            let envH = amp * (height * 0.44);
             if (envH < 2) envH = 2;
             
             peaksUpper[x] = centerY - envH;
@@ -4997,29 +5014,17 @@ function drawVisualizerOnCanvas(canvas, canvasCtx, progress, bufferProgress, fre
         }
         
     } else {
-        // MODE 2 & 3: Equalizer / Thin Frequency Bars
-        const isEq = visualizerStyleMode === "equalizer";
-        const barWidth = isEq ? 4 : 2.5;
-        const barGap = isEq ? 3 : 1.5;
+        // MODE 2 & 3: Static Beat Spectrum Bars (SoundCloud / DAW Style Bars) & Thin Spectrum
+        const isThin = visualizerStyleMode === "thin_bars";
+        const barWidth = isThin ? 1.8 : 2.5;
+        const barGap = isThin ? 1.2 : 1.8;
         const totalBarWidth = barWidth + barGap;
         const barCount = Math.floor(width / totalBarWidth);
+        const barPeaks = getTrackWaveformPeaks(currentPlayingTrack, barCount);
         
         for (let i = 0; i < barCount; i++) {
-            let val = 0;
-            const normX = i / barCount;
-            const w1 = Math.sin(normX * Math.PI * 4);
-            const w2 = Math.cos(normX * Math.PI * 11);
-            const contour = 0.18 + 0.22 * Math.abs(w1 * 0.5 + w2 * 0.5);
-            
-            if (freqs.length > 0) {
-                const freqIdx = Math.min(freqs.length - 1, Math.floor(normX * freqs.length));
-                const realFreq = freqs[freqIdx] / 255;
-                val = isEq ? realFreq : (0.4 * contour + 0.6 * realFreq);
-            } else {
-                val = contour;
-            }
-            
-            let barHeight = val * height * 0.9;
+            const amp = barPeaks[i] || 0.15;
+            let barHeight = amp * height * 0.88;
             if (barHeight < 3) barHeight = 3;
             
             const x = i * totalBarWidth;

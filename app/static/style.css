@@ -1751,6 +1751,7 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
     display: flex;
     align-items: center;
     gap: 10px;
+    margin-left: auto;
 }
 
 .maximized-header-actions .btn.active {
@@ -1889,6 +1890,19 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
     color: var(--text-dim);
 }
 
+.maximized-seeker-row span,
+#maximized-curr-time,
+#maximized-total-time,
+#player-curr-time,
+#player-total-time {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    min-width: 44px;
+    display: inline-block;
+    text-align: center;
+    flex-shrink: 0;
+}
+
 .maximized-slider-wrap {
     flex: 1;
     display: flex;
@@ -1897,8 +1911,32 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
 
 .maximized-slider-wrap input[type="range"] {
     width: 100%;
-    accent-color: var(--primary);
     cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+}
+
+#maximized-progress-slider::-webkit-slider-thumb,
+#player-progress-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    background: transparent;
+    border: none;
+    pointer-events: none;
+}
+
+#maximized-progress-slider::-moz-range-thumb,
+#player-progress-slider::-moz-range-thumb {
+    width: 0;
+    height: 0;
+    opacity: 0;
+    background: transparent;
+    border: none;
+    pointer-events: none;
 }
 
 .maximized-buttons-row {
@@ -1973,7 +2011,8 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
 
 /* Collapsible Queue Column */
 .maximized-queue-column {
-    width: 320px;
+    width: 420px;
+    min-width: 380px;
     height: 100%;
     background: rgba(14, 18, 28, 0.8);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -2282,11 +2321,11 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
     overflow: hidden;
 }
 
-.preview-bars-row, .preview-thin-bars-row {
+.preview-bars-row {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 2.5px;
     width: 100%;
     height: 100%;
 }
@@ -2296,8 +2335,8 @@ tr.playing-row .play-yt-song-btn, tr.playing-row .play-btn-row {
 }
 
 .p-bar {
-    width: 4px;
-    border-radius: 2px;
+    width: 2.5px;
+    border-radius: 1px;
     background: rgba(255, 255, 255, 0.2);
     transition: height 0.3s ease;
 }
