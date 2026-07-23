@@ -568,18 +568,19 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
                 
             os.makedirs(download_dir, exist_ok=True)
             
-            # 1. Scan destination
-            emit(f"Scanning existing files in '{download_dir}'...")
-            existing_songs = scan_existing_files(download_dir)
-            emit(f"Found {len(existing_songs)} unique existing tracks in folder.")
+            user_dir = os.path.dirname(config_path)
+            cookie_file = get_user_cookie_file(user_dir)
+            additional_dirs = config.get("additional_library_dirs", [])
             
+            # 1. Scan destination & metadata cache
+            emit(f"Scanning existing files in '{download_dir}' and metadata cache...")
+            existing_songs = scan_existing_files(download_dir, additional_dirs=additional_dirs, profile_dir=user_dir)
+            emit(f"Found {len(existing_songs)} unique existing tracks across library and cache.")
+                    
             # 2. Gather tracks from all sources
             all_tracks = []
             seen_normalized = set()
             
-            user_dir = os.path.dirname(config_path)
-            cookie_file = get_user_cookie_file(user_dir)
-                    
             def fetch_single_source(src):
                 src_type = src.get("type")
                 src_name = src.get("name", "Unnamed Source")
@@ -645,11 +646,11 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
                 if not is_track_downloaded(track, existing_songs):
                     to_download.append(track)
                     
-            emit(f"Tracks already downloaded: {len(all_tracks) - len(to_download)}")
+            emit(f"Tracks already downloaded: {len(all_tracks) - len(to_download)} (skipped - matched in local library or metadata cache)")
             emit(f"New tracks to download: {len(to_download)}")
             
             if not to_download:
-                emit("All songs are up-to-date! Synchronization completed successfully.")
+                emit(f"All {len(all_tracks)} tracks are up-to-date! Synchronization completed successfully.")
                 emit("SYNC_FINISHED_SUCCESS")
                 return
                 
@@ -674,18 +675,10 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
                 if username in aborted_syncs:
                     return
                 t_name = f"Worker-{index+1}"
-                ext = "mp3"
-                title_val = track.get("title") or track.get("display_name") or ""
-                artist_val = track.get("artist") or ""
-                id_val = track.get("video_id") or track.get("id") or ""
-                track_filename = (filename_template
-                                  .replace("%(title)s", title_val)
-                                  .replace("%(artist)s", artist_val)
-                                  .replace("%(id)s", id_val)
-                                  .replace("%(ext)s", ext))
-                track_filename = os.path.basename(track_filename)
+                title_val = track.get("title") or track.get("display_name") or "Track"
+                track_filename = f"{title_val}.mp3"
                 
-                emit(f"[{t_name}] Starting download: {track_filename}")
+                emit(f"[{t_name}] Starting download: {title_val}")
                 
                 use_cookies = track.get("use_cookies", False) and cookie_file is not None
                 
@@ -697,7 +690,7 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
                 
                 # Retry without cookies if cookies were invalid
                 if not success and use_cookies:
-                    emit(f"[{t_name}] Retrying without cookies: {track_filename}")
+                    emit(f"[{t_name}] Retrying without cookies: {title_val}")
                     success, output_lines = download_track_ytdlp(
                         ytdlp_path, track, download_dir, 
                         None,
@@ -726,11 +719,20 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
                             filename_template, embed_metadata
                         )
                     
+                # Find actual saved file on disk if success
+                actual_name = track_filename
+                if success:
+                    sanitized = re.sub(r'[\\/:*?"<>|]', '_', title_val)
+                    for file in Path(download_dir).glob(f"{sanitized}.*"):
+                        if file.suffix.lower() in ['.mp3', '.m4a', '.opus', '.webm', '.flac', '.wav', '.aac', '.ogg']:
+                            actual_name = file.name
+                            break
+
                 with count_lock:
                     if username in aborted_syncs:
                         return
                     if success:
-                        emit(f"[{t_name}] SUCCESS: {track_filename}")
+                        emit(f"[{t_name}] SUCCESS: Saved as {actual_name}")
                         success_count += 1
                     else:
                         emit(f"[{t_name}] FAILED: {track_filename}")
