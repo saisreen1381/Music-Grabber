@@ -1053,11 +1053,13 @@ async function loadToDownloadList() {
 function renderToDownloadTable(tracks) {
     const tbody = document.getElementById("to-download-table-body");
     const countBadge = document.getElementById("to-download-count");
+    const selectAllCb = document.getElementById("select-all-queued-checkbox");
+    if (selectAllCb) selectAllCb.checked = false;
     if (countBadge) countBadge.textContent = tracks.length;
     if (!tbody) return;
     
     if (tracks.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" class="empty-table" style="padding: 40px; text-align: center; color: var(--text-muted);">🎉 All playlist songs are downloaded and up-to-date!</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-table" style="padding: 40px; text-align: center; color: var(--text-muted);">🎉 All playlist songs are downloaded and up-to-date!</td></tr>`;
         return;
     }
     
@@ -1067,19 +1069,104 @@ function renderToDownloadTable(tracks) {
         const cleanTitle = cleanMediaExtension(t.title || t.display_name || "Unknown Track");
         tr.innerHTML = `
             <td style="text-align: center;">
-                <button class="btn btn-icon btn-sm play-queued-track-btn" title="Play Song" style="width: 24px; height: 24px; border-radius: 50%; color: var(--primary); padding: 0; display: inline-flex; align-items: center; justify-content: center;">
-                    <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                </button>
+                <input type="checkbox" class="queued-track-checkbox" data-idx="${idx}" style="accent-color: var(--primary); cursor: pointer;">
             </td>
             <td style="font-weight: 500;">${escapeHtml(cleanTitle)}</td>
             <td style="color: var(--text-muted); font-size: 0.8rem;">${escapeHtml(t.source_name)}</td>
+            <td style="text-align: center;">
+                <button class="btn btn-icon btn-sm ignore-queued-track-btn" title="Add to Ignore List" style="width: 26px; height: 26px; border-radius: 50%; color: #f59e0b; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease;">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                </button>
+            </td>
         `;
         
-        tr.querySelector(".play-queued-track-btn").addEventListener("click", () => {
-            playTrack(t, tracks, idx);
+        const rowCb = tr.querySelector(".queued-track-checkbox");
+        tr.addEventListener("click", (e) => {
+            if (e.target.closest("button") || e.target.closest("input")) return;
+            if (rowCb) rowCb.checked = !rowCb.checked;
+        });
+
+        tr.querySelector(".ignore-queued-track-btn").addEventListener("click", async (e) => {
+            e.stopPropagation();
+            if (!activeProfile) return;
+            try {
+                const res = await fetch("/api/ignore-list/add-track", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        username: activeProfile,
+                        track_id: t.id || "",
+                        title: cleanTitle,
+                        url: t.url || "",
+                        artist: t.artist || "",
+                        source_id: t.source_id || ""
+                    })
+                });
+                if (res.ok) {
+                    showToast(`Added "${cleanTitle}" to ignore list.`, "warning");
+                    allToDownloadTracks = allToDownloadTracks.filter(item => item !== t);
+                    renderToDownloadTable(allToDownloadTracks);
+                } else {
+                    showToast("Failed to ignore track", "danger");
+                }
+            } catch (err) {
+                console.error("Error ignoring queued track:", err);
+            }
         });
         
         tbody.appendChild(tr);
+    });
+}
+
+// Select All & Batch Ignore handlers for Queued Table
+const selectAllQueuedCb = document.getElementById("select-all-queued-checkbox");
+if (selectAllQueuedCb) {
+    selectAllQueuedCb.addEventListener("change", () => {
+        const isChecked = selectAllQueuedCb.checked;
+        document.querySelectorAll(".queued-track-checkbox").forEach(cb => cb.checked = isChecked);
+    });
+}
+
+const ignoreSelectedQueuedBtn = document.getElementById("ignore-selected-queued-btn");
+if (ignoreSelectedQueuedBtn) {
+    ignoreSelectedQueuedBtn.addEventListener("click", async () => {
+        if (!activeProfile) return;
+        const checkedBoxes = Array.from(document.querySelectorAll(".queued-track-checkbox:checked"));
+        if (checkedBoxes.length === 0) {
+            showToast("Please select at least one queued track to ignore.", "info");
+            return;
+        }
+        
+        const selectedIndices = checkedBoxes.map(cb => parseInt(cb.getAttribute("data-idx"))).filter(idx => !isNaN(idx));
+        const selectedTracks = selectedIndices.map(idx => allToDownloadTracks[idx]).filter(Boolean);
+        
+        let count = 0;
+        for (const t of selectedTracks) {
+            const cleanTitle = cleanMediaExtension(t.title || t.display_name || "Unknown Track");
+            try {
+                const res = await fetch("/api/ignore-list/add-track", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        username: activeProfile,
+                        track_id: t.id || "",
+                        title: cleanTitle,
+                        url: t.url || "",
+                        artist: t.artist || "",
+                        source_id: t.source_id || ""
+                    })
+                });
+                if (res.ok) {
+                    count++;
+                    allToDownloadTracks = allToDownloadTracks.filter(item => item !== t);
+                }
+            } catch (err) {
+                console.error("Error ignoring track:", err);
+            }
+        }
+        
+        showToast(`Added ${count} selected songs to ignore list.`, "warning");
+        renderToDownloadTable(allToDownloadTracks);
     });
 }
 
@@ -1090,7 +1177,7 @@ function renderFilesList(files) {
     if (!filesTableBody) return;
     
     if (files.length === 0) {
-        filesTableBody.innerHTML = `<tr><td colspan="3" class="empty-table" style="padding: 40px; text-align: center; color: var(--text-muted);">No audio files found in library directories.</td></tr>`;
+        filesTableBody.innerHTML = `<tr><td colspan="4" class="empty-table" style="padding: 40px; text-align: center; color: var(--text-muted);">No audio files found in library directories.</td></tr>`;
         return;
     }
     
@@ -1113,6 +1200,13 @@ function renderFilesList(files) {
                 </button>
             </td>
             <td style="font-weight: 500;">${escapeHtml(cleanName)}</td>
+            <td style="text-align: center;">
+                <div class="status-circle-check" title="Downloaded (Local Library File)" style="width: 22px; height: 22px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; display: inline-flex; align-items: center; justify-content: center; color: #10b981; vertical-align: middle;">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </div>
+            </td>
             <td style="white-space: nowrap; color: var(--text-muted); text-align: right; font-size: 0.8rem;">${formatBytes(f.size_bytes)}</td>
         `;
         
@@ -1168,8 +1262,13 @@ function renderSourcesList() {
         if (src.type === "text_file") typeLabel = "Text List";
         
         div.innerHTML = `
-            <span class="source-name">${escapeHtml(src.name)}</span>
-            <span class="source-type">${typeLabel}</span>
+            <div style="min-width: 0; flex: 1;">
+                <div class="source-name" style="display: flex; align-items: center; gap: 6px;">
+                    <span>${escapeHtml(src.name)}</span>
+                    ${src.ignored ? `<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.65rem; padding: 1px 6px; border-radius: 10px;">Ignored</span>` : ''}
+                </div>
+                <span class="source-type">${typeLabel}</span>
+            </div>
         `;
         
         div.addEventListener("click", () => {
@@ -1202,6 +1301,20 @@ async function loadPlaylistTracks(sourceId, refresh = false) {
     playlistActiveView.style.display = "flex";
     
     activeSourceName.textContent = source.name;
+    const ignoreBtnText = document.getElementById("ignore-source-btn-text");
+    const ignoreBtn = document.getElementById("ignore-source-btn");
+    if (ignoreBtnText && ignoreBtn) {
+        if (source.ignored) {
+            ignoreBtnText.textContent = "Unignore";
+            ignoreBtn.style.color = "#10b981";
+            ignoreBtn.style.borderColor = "rgba(16, 185, 129, 0.3)";
+        } else {
+            ignoreBtnText.textContent = "Ignore";
+            ignoreBtn.style.color = "#f59e0b";
+            ignoreBtn.style.borderColor = "rgba(245, 158, 11, 0.3)";
+        }
+    }
+    
     const isUrl = source.url && source.url.startsWith("http");
     activeSourceUrl.textContent = source.url || source.path || "";
     if (isUrl) {
@@ -1279,29 +1392,45 @@ function renderTracksList(tracks) {
         row.className = "track-item-row";
         
         const checkedAttr = t.enabled ? "checked" : "";
-        const statusBadge = t.downloaded 
-            ? `<span class="badge badge-success">Downloaded</span>` 
-            : `<span class="badge badge-idle">Queued</span>`;
+        let statusBadge = "";
+        if (t.ignored) {
+            statusBadge = `<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);">Ignored</span>`;
+        } else if (t.downloaded) {
+            statusBadge = `<div class="status-circle-check" title="Downloaded (Local Library File)" style="width: 24px; height: 24px; border-radius: 50%; background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; display: inline-flex; align-items: center; justify-content: center; color: #10b981; flex-shrink: 0; vertical-align: middle;">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </div>`;
+        } else {
+            statusBadge = `<button class="btn btn-icon download-track-btn" title="Download song to Library" style="width: 26px; height: 26px; border-radius: 50%; background: rgba(139, 92, 246, 0.2); border: 1px solid #8b5cf6; display: inline-flex; align-items: center; justify-content: center; color: #a78bfa; padding: 0; cursor: pointer; transition: all 0.2s ease; flex-shrink: 0;">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+            </button>`;
+        }
             
         row.innerHTML = `
             <div class="track-checkbox-wrapper">
                 <input type="checkbox" class="track-check" data-id="${t.id}" ${checkedAttr}>
             </div>
             <div class="track-info-cell">
-                <div class="track-title">${escapeHtml(t.title)}</div>
+                <div class="track-title" style="${t.ignored ? 'text-decoration: line-through; opacity: 0.7;' : ''}">${escapeHtml(t.title)}</div>
                 <div class="track-artist">${escapeHtml(t.artist || 'Unknown Artist')} ${t.duration ? '• ' + formatDuration(t.duration) : ''}</div>
             </div>
             <div class="track-status-cell" style="display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
                 ${statusBadge}
-                <div class="track-action-buttons">
+                <div class="track-action-buttons" style="display: flex; align-items: center; gap: 4px;">
                     ${t.downloaded 
-                        ? `<button class="btn btn-primary btn-sm play-track-btn" style="padding: 0; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; min-width: 0;" title="Play Song">
+                        ? `<button class="btn btn-primary btn-sm play-track-btn" style="padding: 0; border-radius: 50%; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; min-width: 0;" title="Play Song">
                             <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                            </button>` 
-                        : `<button class="btn btn-secondary btn-sm download-track-btn" style="padding: 0; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; min-width: 0;" title="Download Immediately">
-                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-                           </button>`
+                        : ''
                     }
+                    <button class="btn btn-secondary btn-sm toggle-ignore-track-btn" style="padding: 0; border-radius: 50%; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; min-width: 0; color: ${t.ignored ? '#10b981' : '#f59e0b'}; border: 1px solid ${t.ignored ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'};" title="${t.ignored ? 'Unignore Track' : 'Add to Ignore List'}">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                    </button>
                 </div>
             </div>
         `;
@@ -1338,45 +1467,85 @@ function renderTracksList(tracks) {
                         dlBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>`;
                     }
                 } catch (e) {
-                    alert("Error downloading: " + e.message);
+                    console.error(e);
                     dlBtn.disabled = false;
                     dlBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>`;
                 }
             });
         }
-        
-        // Listen to checkbox toggling
-        const checkbox = row.querySelector(".track-check");
-        checkbox.addEventListener("change", async () => {
-            t.enabled = checkbox.checked;
-            try {
-                await fetch("/api/playlist/tracks/toggle", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        username: activeProfile,
-                        source_id: activePlaylistSourceId,
-                        track_id: t.id,
-                        enabled: checkbox.checked
-                    })
-                });
-                
-                // Update active local config structure
-                const src = activeConfig.sources.find(s => s.id === activePlaylistSourceId);
-                if (src) {
-                    if (!src.disabled_track_ids) src.disabled_track_ids = [];
-                    if (checkbox.checked) {
-                        src.disabled_track_ids = src.disabled_track_ids.filter(id => id !== t.id);
+
+        const ignoreTrackBtn = row.querySelector(".toggle-ignore-track-btn");
+        if (ignoreTrackBtn) {
+            ignoreTrackBtn.addEventListener("click", async (e) => {
+                e.stopPropagation();
+                if (!activeProfile) return;
+                const endpoint = t.ignored ? "/api/ignore-list/remove-track" : "/api/ignore-list/add-track";
+                try {
+                    const res = await fetch(endpoint, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            username: activeProfile,
+                            track_id: t.id || "",
+                            title: t.title || t.display_name || "",
+                            url: t.url || "",
+                            artist: t.artist || "",
+                            source_id: activePlaylistSourceId || ""
+                        })
+                    });
+                    if (res.ok) {
+                        t.ignored = !t.ignored;
+                        showToast(`Track "${t.title}" ${t.ignored ? 'added to ignore list' : 'removed from ignore list'}.`, t.ignored ? "warning" : "success");
+                        renderTracksList(tracks);
+                        await loadToDownloadList();
                     } else {
-                        if (!src.disabled_track_ids.includes(t.id)) {
-                            src.disabled_track_ids.push(t.id);
+                        showToast("Failed to update ignore list", "danger");
+                    }
+                } catch (err) {
+                    console.error("Error toggling track ignore:", err);
+                }
+            });
+        }
+        
+        // Wire up checkbox listeners
+        tracksItemsContainer.querySelectorAll(".track-check").forEach(cb => {
+            cb.addEventListener("change", async (e) => {
+                const trackId = e.target.getAttribute("data-id");
+                const isChecked = e.target.checked;
+                
+                // Update local state
+                const tr = currentTracks.find(t => t.id === trackId);
+                if (tr) tr.enabled = isChecked;
+                updateSelectedCount();
+                
+                try {
+                    await fetch("/api/playlist/tracks/toggle", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            username: activeProfile,
+                            source_id: activePlaylistSourceId,
+                            track_id: trackId,
+                            enabled: isChecked
+                        })
+                    });
+                    
+                    // Sync local activeConfig
+                    const src = activeConfig.sources.find(s => s.id === activePlaylistSourceId);
+                    if (src) {
+                        if (!src.disabled_track_ids) src.disabled_track_ids = [];
+                        if (isChecked) {
+                            src.disabled_track_ids = src.disabled_track_ids.filter(id => id !== trackId);
+                        } else {
+                            if (!src.disabled_track_ids.includes(trackId)) {
+                                src.disabled_track_ids.push(trackId);
+                            }
                         }
                     }
+                } catch (err) {
+                    console.error("Failed to toggle track state", err);
                 }
-            } catch (e) {
-                console.error("Failed to toggle track", e);
-            }
-            updateSelectedCount();
+            });
         });
         
         tracksItemsContainer.appendChild(row);
@@ -1404,6 +1573,38 @@ refreshPlaylistBtn.addEventListener("click", () => {
         loadPlaylistTracks(activePlaylistSourceId, true);
     }
 });
+
+const ignoreSourceBtn = document.getElementById("ignore-source-btn");
+if (ignoreSourceBtn) {
+    ignoreSourceBtn.addEventListener("click", async () => {
+        if (!activeProfile || !activePlaylistSourceId) return;
+        const src = activeConfig.sources.find(s => s.id === activePlaylistSourceId);
+        if (!src) return;
+        const newIgnoredState = !src.ignored;
+        try {
+            const res = await fetch("/api/ignore-list/toggle-source", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    username: activeProfile,
+                    source_id: activePlaylistSourceId,
+                    ignored: newIgnoredState
+                })
+            });
+            if (res.ok) {
+                src.ignored = newIgnoredState;
+                showToast(`Playlist "${src.name}" ${newIgnoredState ? 'added to ignore list' : 'removed from ignore list'}.`, newIgnoredState ? "warning" : "success");
+                loadPlaylistTracks(activePlaylistSourceId);
+                renderSourcesList();
+                await loadToDownloadList();
+            } else {
+                showToast("Failed to toggle ignore for playlist", "danger");
+            }
+        } catch (e) {
+            console.error("Failed to toggle ignored source", e);
+        }
+    });
+}
 
 // Select / Deselect All Tracks
 async function setAllTracksState(enabled) {

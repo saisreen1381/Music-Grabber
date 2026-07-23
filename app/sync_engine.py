@@ -580,6 +580,24 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
             # 2. Gather tracks from all sources
             all_tracks = []
             seen_normalized = set()
+            ignored_tracks_config = config.get("ignored_tracks", [])
+            
+            def is_track_ignored_sync(t):
+                t_id_val = str(t.get("id") or "").strip()
+                t_url_val = str(t.get("url") or "").strip()
+                t_title_val = (t.get("title") or t.get("display_name") or "").lower().strip()
+                t_norm = normalize_name(t_title_val, strip_brackets=False) or normalize_name(t_title_val, strip_brackets=True)
+                for ig in ignored_tracks_config:
+                    ig_id = str(ig.get("track_id") or ig.get("id") or "").strip()
+                    ig_url = str(ig.get("url") or "").strip()
+                    ig_title = str(ig.get("title") or "").lower().strip()
+                    ig_norm = normalize_name(ig_title, strip_brackets=False) or normalize_name(ig_title, strip_brackets=True)
+                    if (t_id_val and ig_id and t_id_val == ig_id) or \
+                       (t_url_val and ig_url and t_url_val == ig_url) or \
+                       (t_norm and ig_norm and t_norm == ig_norm) or \
+                       (t_title_val and ig_title and t_title_val == ig_title):
+                        return True
+                return False
             
             def fetch_single_source(src):
                 src_type = src.get("type")
@@ -588,6 +606,10 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
                 src_id = get_source_id(src)
                 disabled_ids = set(src.get("disabled_track_ids", []))
                 requires_cookies = (cookie_file is not None)
+
+                if src.get("ignored"):
+                    emit(f"Skipping ignored playlist source '{src_name}'.")
+                    return (src_name, [], disabled_ids, False)
 
                 emit(f"Checking playlist '{src_name}'...")
                 cached_file = os.path.join(user_dir, "playlists", f"{src_id}_tracks.json")
@@ -629,6 +651,9 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
                         src_name, tracks, disabled_ids, requires_cookies = fut.result()
                         for track in tracks:
                             norm = normalize_name(track.get("display_name", ""), strip_brackets=False) or normalize_name(track.get("display_name", ""), strip_brackets=True)
+                            if is_track_ignored_sync(track):
+                                emit(f"  Skipping ignored track: {track.get('title') or track.get('display_name')}")
+                                continue
                             if norm not in seen_normalized:
                                 if track.get("id") in disabled_ids:
                                     continue

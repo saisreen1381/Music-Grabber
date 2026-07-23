@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 
 logger = logging.getLogger("musicgrabber")
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, UploadFile, File, Request
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse, RedirectResponse
@@ -119,6 +119,7 @@ class SourceModel(BaseModel):
     url: Optional[str] = ""
     path: Optional[str] = ""
     disabled_track_ids: Optional[List[str]] = []
+    ignored: Optional[bool] = False
 
 class ConfigModel(BaseModel):
     download_dir: str
@@ -133,7 +134,22 @@ class ConfigModel(BaseModel):
     eq_preset: Optional[str] = "flat"
     autoplay_launch: Optional[bool] = False
     auto_download_liked: Optional[bool] = False
+    ignored_sources: Optional[List[str]] = []
+    ignored_tracks: Optional[List[Dict[str, Any]]] = []
     sources: List[SourceModel] = []
+
+class IgnoreTrackModel(BaseModel):
+    username: str
+    track_id: Optional[str] = ""
+    title: Optional[str] = ""
+    url: Optional[str] = ""
+    artist: Optional[str] = ""
+    source_id: Optional[str] = ""
+
+class IgnoreSourceModel(BaseModel):
+    username: str
+    source_id: str
+    ignored: bool
 
 class ProfileCreate(BaseModel):
     username: str
@@ -1397,6 +1413,25 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
             enabled = t["id"] not in disabled_ids
         else:
             enabled = not downloaded
+            
+        ignored_tracks = config.get("ignored_tracks", [])
+        is_ignored = False
+        t_id_val = str(t.get("id") or "").strip()
+        t_url_val = str(t.get("url") or "").strip()
+        t_title_val = (t.get("title") or t.get("display_name") or "").lower().strip()
+        t_norm = normalize_name(t_title_val, strip_brackets=False) or normalize_name(t_title_val, strip_brackets=True)
+        
+        for ig in ignored_tracks:
+            ig_id = str(ig.get("track_id") or ig.get("id") or "").strip()
+            ig_url = str(ig.get("url") or "").strip()
+            ig_title = str(ig.get("title") or "").lower().strip()
+            ig_norm = normalize_name(ig_title, strip_brackets=False) or normalize_name(ig_title, strip_brackets=True)
+            if (t_id_val and ig_id and t_id_val == ig_id) or \
+               (t_url_val and ig_url and t_url_val == ig_url) or \
+               (t_norm and ig_norm and t_norm == ig_norm) or \
+               (t_title_val and ig_title and t_title_val == ig_title):
+                is_ignored = True
+                break
         
         formatted_tracks.append({
             "id": t.get("id", ""),
@@ -1408,6 +1443,7 @@ def get_playlist_tracks(username: str, source_id: str, refresh: bool = False):
             "duration": t.get("duration"),
             "enabled": enabled,
             "downloaded": downloaded,
+            "ignored": is_ignored,
             "local_filename": local_filename or t.get("local_filename"),
             "thumbnail_url": thumbnail_url
         })
@@ -1493,6 +1529,113 @@ def toggle_all_tracks(payload: ToggleAllTracksModel):
         json.dump(config, f, indent=2)
         
     return {"status": "success"}
+
+@app.get("/api/ignore-list")
+def get_ignore_list(username: str):
+    profile_dir = USERS_DIR / username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+    config_file = profile_dir / "sync_config.json"
+    if not config_file.exists():
+        return {"ignored_sources": [], "ignored_tracks": []}
+    with open(config_file, "r", encoding="utf-8") as f:
+        config = json.load(f)
+    ignored_sources = [s for s in config.get("sources", []) if s.get("ignored")]
+    ignored_tracks = config.get("ignored_tracks", [])
+    return {
+        "ignored_sources": ignored_sources,
+        "ignored_tracks": ignored_tracks
+    }
+
+@app.post("/api/ignore-list/add-track")
+def add_ignored_track(payload: IgnoreTrackModel):
+    profile_dir = USERS_DIR / payload.username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+    config_file = profile_dir / "sync_config.json"
+    if not config_file.exists():
+        raise HTTPException(status_code=404, detail="Config not found")
+    with open(config_file, "r", encoding="utf-8") as f:
+        config = json.load(f)
+    ignored_tracks = config.get("ignored_tracks", [])
+    
+    track_item = {
+        "id": payload.track_id or payload.url,
+        "track_id": payload.track_id or "",
+        "title": payload.title or "",
+        "url": payload.url or "",
+        "artist": payload.artist or "",
+        "source_id": payload.source_id or ""
+    }
+    
+    already_exists = False
+    for t in ignored_tracks:
+        if (payload.track_id and t.get("track_id") == payload.track_id) or \
+           (payload.url and t.get("url") == payload.url) or \
+           (payload.title and t.get("title", "").lower() == payload.title.lower()):
+            already_exists = True
+            break
+            
+    if not already_exists:
+        ignored_tracks.append(track_item)
+        config["ignored_tracks"] = ignored_tracks
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+            
+    return {"status": "success", "ignored_tracks": config["ignored_tracks"]}
+
+@app.post("/api/ignore-list/remove-track")
+def remove_ignored_track(payload: IgnoreTrackModel):
+    profile_dir = USERS_DIR / payload.username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+    config_file = profile_dir / "sync_config.json"
+    if not config_file.exists():
+        raise HTTPException(status_code=404, detail="Config not found")
+    with open(config_file, "r", encoding="utf-8") as f:
+        config = json.load(f)
+    ignored_tracks = config.get("ignored_tracks", [])
+    
+    new_ignored = []
+    for t in ignored_tracks:
+        match_id = payload.track_id and (t.get("track_id") == payload.track_id or t.get("id") == payload.track_id)
+        match_url = payload.url and (t.get("url") == payload.url)
+        match_title = payload.title and (t.get("title", "").lower() == payload.title.lower())
+        if match_id or match_url or match_title:
+            continue
+        new_ignored.append(t)
+        
+    config["ignored_tracks"] = new_ignored
+    with open(config_file, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
+        
+    return {"status": "success", "ignored_tracks": config["ignored_tracks"]}
+
+@app.post("/api/ignore-list/toggle-source")
+def toggle_ignored_source(payload: IgnoreSourceModel):
+    profile_dir = USERS_DIR / payload.username
+    if not profile_dir.exists():
+        raise HTTPException(status_code=404, detail="Profile not found")
+    config_file = profile_dir / "sync_config.json"
+    if not config_file.exists():
+        raise HTTPException(status_code=404, detail="Config not found")
+    with open(config_file, "r", encoding="utf-8") as f:
+        config = json.load(f)
+        
+    found = False
+    for src in config.get("sources", []):
+        if src.get("id") == payload.source_id:
+            src["ignored"] = payload.ignored
+            found = True
+            break
+            
+    if not found:
+        raise HTTPException(status_code=404, detail="Source not found")
+        
+    with open(config_file, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
+        
+    return {"status": "success", "sources": config.get("sources", [])}
 
 def bg_download_task(username: str, source_id: str, track_id: str):
     profile_dir = USERS_DIR / username
