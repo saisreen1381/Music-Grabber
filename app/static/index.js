@@ -250,8 +250,8 @@ function normalizeTrackName(name, stripBrackets = true) {
         s = s.replace(/\[.*?\]/g, "").replace(/\(.*?\)/g, "");
     }
     s = cleanMediaExtension(s);
-    // Standardize unicode fullwidth symbols (pipe, dash, colon)
-    s = s.replace(/｜/g, "|").replace(/—/g, "-").replace(/：/g, ":");
+    // Standardize unicode fullwidth symbols (pipe, dash, colon) and replace underscores with space
+    s = s.replace(/｜/g, "|").replace(/—/g, "-").replace(/：/g, ":").replace(/_/g, " ");
     let cleaned = s.replace(/[^\p{L}\p{N}]/gu, "");
     if (!cleaned) return s.trim();
     return cleaned.trim();
@@ -1035,10 +1035,11 @@ async function loadToDownloadList() {
                 const data = await res.json();
                 const tracks = data.tracks || [];
                 tracks.forEach(t => {
-                    if (!t.downloaded && t.enabled && !t.ignored) {
+                    const isDownloaded = t.downloaded || isLocalTrack(t);
+                    if (!isDownloaded && t.enabled && !t.ignored) {
                         const title = cleanMediaExtension(t.title || t.display_name || "Unknown Track");
-                        const trackKey = (t.id || title).toLowerCase().trim();
-                        if (!seenTrackKeys.has(trackKey)) {
+                        const trackKey = normalizeTrackName(title, true) || (t.id || title).toLowerCase().trim();
+                        if (trackKey && !seenTrackKeys.has(trackKey)) {
                             seenTrackKeys.add(trackKey);
                             allToDownloadTracks.push({
                                 ...t,

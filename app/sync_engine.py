@@ -38,7 +38,6 @@ def get_ytdlp_path(custom_path=None):
         return custom_path
     return find_ytdlp()
 
-# Normalize strings for comparison (preserves Unicode letters and digits for all languages like Tamil, English, Hindi, etc.)
 def normalize_name(name, strip_brackets=True):
     if not name:
         return ""
@@ -47,10 +46,10 @@ def normalize_name(name, strip_brackets=True):
         # Strip common suffixes/prefixes like [Official Video], (Lyrics), (From "..."), etc.
         name = re.sub(r'\[.*?\]', '', name)
         name = re.sub(r'\(.*?\)', '', name)
-    # Convert fullwidth/unicode characters to standard equivalents
-    name = name.replace('｜', '|').replace('—', '-').replace('：', ':')
-    # Remove non-word characters while preserving Unicode letters and digits
-    cleaned = re.sub(r'[^\w]', '', name, flags=re.UNICODE)
+    # Convert fullwidth/unicode characters to standard equivalents and treat underscores as spaces/separators
+    name = name.replace('｜', '|').replace('—', '-').replace('：', ':').replace('_', ' ')
+    # Remove non-word characters and underscores while preserving Unicode letters and digits
+    cleaned = re.sub(r'[^\w]|_', '', name, flags=re.UNICODE)
     if not cleaned:
         return name.strip()
     return cleaned.strip()
