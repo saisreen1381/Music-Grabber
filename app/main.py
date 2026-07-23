@@ -426,6 +426,10 @@ def delete_track(username: str, filename: str):
                 raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
                 
     if deleted:
+        full_cache = profile_dir / "library_full_cache.json"
+        if full_cache.exists():
+            try: os.remove(full_cache)
+            except Exception: pass
         return {"status": "ok", "message": f"Successfully deleted {filename}"}
     else:
         raise HTTPException(status_code=404, detail="File not found on disk")
@@ -594,6 +598,11 @@ def update_track_metadata(data: TrackMetadataModel):
             json.dump(meta_dict, f, indent=2)
     except Exception as e:
         logger.error(f"Failed to write sidecar json: {e}")
+
+    full_cache = profile_dir / "library_full_cache.json"
+    if full_cache.exists():
+        try: os.remove(full_cache)
+        except Exception: pass
 
     return {"status": "ok", "message": "Metadata updated successfully", "metadata": meta_dict}
 
@@ -801,11 +810,23 @@ def get_file_metadata(file_path: Path):
     }
 
 @app.get("/api/discover")
-def discover_local_songs(username: str):
+def discover_local_songs(username: str, force_refresh: bool = Query(False)):
     profile_dir = USERS_DIR / username
     if not profile_dir.exists():
         raise HTTPException(status_code=404, detail="Profile not found")
         
+    full_cache_file = profile_dir / "library_full_cache.json"
+
+    # Fast Instant Load: Return cached pre-built library in <2ms if not force_refresh
+    if not force_refresh and full_cache_file.exists():
+        try:
+            with open(full_cache_file, "r", encoding="utf-8") as f:
+                cached_full = json.load(f)
+                if isinstance(cached_full, dict) and "all_songs" in cached_full:
+                    return cached_full
+        except Exception:
+            pass
+
     config_file = profile_dir / "sync_config.json"
     if not config_file.exists():
         return {"artists": {}, "genres": {}, "albums": {}, "all_songs": []}
@@ -942,12 +963,20 @@ def discover_local_songs(username: str):
             albums[alb] = []
         albums[alb].append(s)
         
-    return {
+    res_payload = {
         "artists": artists,
         "genres": genres,
         "albums": albums,
         "all_songs": songs
     }
+
+    try:
+        with open(full_cache_file, "w", encoding="utf-8") as f:
+            json.dump(res_payload, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+    return res_payload
 
 @app.get("/api/browse")
 def browse_directory(path: str = "/"):
