@@ -497,7 +497,7 @@ function switchTab(targetTab) {
     if (targetPane) {
         targetPane.classList.add("active-pane");
         targetPane.classList.add("active");
-        targetPane.style.display = "block";
+        targetPane.style.display = "flex";
     }
     
     // Update sidebar nav button active states
@@ -510,6 +510,11 @@ function switchTab(targetTab) {
         }
     });
     
+    if (targetTab === "tab-sync" || targetTab === "sync") {
+        const savedSubtab = (activeProfile ? localStorage.getItem(`musicgrabber_sync_subtab_${activeProfile}`) : null) || localStorage.getItem("musicgrabber_sync_subtab") || "sync-pane-files";
+        syncSubtabUI(savedSubtab);
+    }
+
     // Persist active tab
     if (activeProfile) {
         try { localStorage.setItem(`musicgrabber_active_tab_${activeProfile}`, targetTab); } catch (e) {}
@@ -1023,13 +1028,14 @@ async function loadToDownloadList() {
     const seenTrackKeys = new Set();
     
     for (const src of activeConfig.sources) {
+        if (src.ignored) continue;
         try {
             const res = await fetch(`/api/playlist/tracks?username=${activeProfile}&source_id=${src.id}`);
             if (res.ok) {
                 const data = await res.json();
                 const tracks = data.tracks || [];
                 tracks.forEach(t => {
-                    if (!t.downloaded && t.enabled) {
+                    if (!t.downloaded && t.enabled && !t.ignored) {
                         const title = cleanMediaExtension(t.title || t.display_name || "Unknown Track");
                         const trackKey = (t.id || title).toLowerCase().trim();
                         if (!seenTrackKeys.has(trackKey)) {
@@ -1104,8 +1110,8 @@ function renderToDownloadTable(tracks) {
                 });
                 if (res.ok) {
                     showToast(`Added "${cleanTitle}" to ignore list.`, "warning");
-                    allToDownloadTracks = allToDownloadTracks.filter(item => item !== t);
-                    renderToDownloadTable(allToDownloadTracks);
+                    await loadConfig(activeProfile);
+                    await loadToDownloadList();
                 } else {
                     showToast("Failed to ignore track", "danger");
                 }
@@ -1158,7 +1164,6 @@ if (ignoreSelectedQueuedBtn) {
                 });
                 if (res.ok) {
                     count++;
-                    allToDownloadTracks = allToDownloadTracks.filter(item => item !== t);
                 }
             } catch (err) {
                 console.error("Error ignoring track:", err);
@@ -1166,7 +1171,8 @@ if (ignoreSelectedQueuedBtn) {
         }
         
         showToast(`Added ${count} selected songs to ignore list.`, "warning");
-        renderToDownloadTable(allToDownloadTracks);
+        await loadConfig(activeProfile);
+        await loadToDownloadList();
     });
 }
 
@@ -1436,13 +1442,16 @@ function renderTracksList(tracks) {
         `;
 
         // Action button listeners
-        if (t.downloaded) {
-            row.querySelector(".play-track-btn").addEventListener("click", () => {
+        const playBtn = row.querySelector(".play-track-btn");
+        if (playBtn) {
+            playBtn.addEventListener("click", () => {
                 const downloadedTracks = tracks.filter(tr => tr.downloaded);
                 playTrack(t, downloadedTracks);
             });
-        } else {
-            const dlBtn = row.querySelector(".download-track-btn");
+        }
+        
+        const dlBtn = row.querySelector(".download-track-btn");
+        if (dlBtn) {
             dlBtn.addEventListener("click", async () => {
                 dlBtn.disabled = true;
                 dlBtn.innerHTML = `<span class="spinner" style="width: 12px; height: 12px; border-width: 2px; border-top-color: var(--primary);"></span>`;
@@ -4338,9 +4347,9 @@ playerPipBtn.addEventListener("click", togglePip);
 // ==================== Discover Page Logic ====================
 
 // Toggle Subtabs
-document.querySelectorAll(".discover-tab-btn").forEach(btn => {
+document.querySelectorAll("#tab-library .discover-tab-btn[data-subtab]").forEach(btn => {
     btn.addEventListener("click", () => {
-        document.querySelectorAll(".discover-tab-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll("#tab-library .discover-tab-btn[data-subtab]").forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
         
         const subtabId = btn.getAttribute("data-subtab");
@@ -4360,9 +4369,9 @@ async function loadDiscoverData() {
     try {
         const savedSubtab = localStorage.getItem(`musicgrabber_library_subtab_${activeProfile}`);
         if (savedSubtab) {
-            const btn = document.querySelector(`.discover-tab-btn[data-subtab="${savedSubtab}"]`);
+            const btn = document.querySelector(`#tab-library .discover-tab-btn[data-subtab="${savedSubtab}"]`);
             if (btn) {
-                document.querySelectorAll(".discover-tab-btn").forEach(b => b.classList.remove("active"));
+                document.querySelectorAll("#tab-library .discover-tab-btn[data-subtab]").forEach(b => b.classList.remove("active"));
                 btn.classList.add("active");
                 document.querySelectorAll(".discover-subtab-pane").forEach(p => p.style.display = "none");
                 const pane = document.getElementById(savedSubtab);
@@ -5176,25 +5185,158 @@ function openAddToPlaylistModal(track) {
     }
 }
 
-function initSyncSubtabs() {
+function syncSubtabUI(subtabId) {
+    if (!subtabId) subtabId = "sync-pane-files";
+    if (subtabId === "files" || subtabId === "pane-files") subtabId = "sync-pane-files";
+    if (subtabId === "sources" || subtabId === "pane-sources") subtabId = "sync-pane-sources";
+    if (subtabId === "ignored" || subtabId === "pane-ignored") subtabId = "sync-pane-ignored";
+    if (!subtabId.startsWith("sync-pane-")) subtabId = "sync-pane-" + subtabId;
+
     const btnFiles = document.getElementById("sync-subtab-files-btn");
     const btnSources = document.getElementById("sync-subtab-sources-btn");
+    const btnIgnored = document.getElementById("sync-subtab-ignored-btn");
+
     const paneFiles = document.getElementById("sync-pane-files");
     const paneSources = document.getElementById("sync-pane-sources");
+    const paneIgnored = document.getElementById("sync-pane-ignored");
 
-    if (btnFiles && btnSources) {
-        btnFiles.addEventListener("click", () => {
-            btnFiles.classList.add("active");
-            btnSources.classList.remove("active");
-            if (paneFiles) paneFiles.style.display = "block";
-            if (paneSources) paneSources.style.display = "none";
+    if (btnFiles) {
+        if (subtabId === "sync-pane-files") btnFiles.classList.add("active");
+        else btnFiles.classList.remove("active");
+    }
+    if (btnSources) {
+        if (subtabId === "sync-pane-sources") btnSources.classList.add("active");
+        else btnSources.classList.remove("active");
+    }
+    if (btnIgnored) {
+        if (subtabId === "sync-pane-ignored") btnIgnored.classList.add("active");
+        else btnIgnored.classList.remove("active");
+    }
+
+    if (paneFiles) paneFiles.style.display = (subtabId === "sync-pane-files") ? "flex" : "none";
+    if (paneSources) paneSources.style.display = (subtabId === "sync-pane-sources") ? "flex" : "none";
+    if (paneIgnored) paneIgnored.style.display = (subtabId === "sync-pane-ignored") ? "flex" : "none";
+
+    if (activeProfile) {
+        try { localStorage.setItem(`musicgrabber_sync_subtab_${activeProfile}`, subtabId); } catch (e) {}
+    }
+    try { localStorage.setItem("musicgrabber_sync_subtab", subtabId); } catch (e) {}
+
+    if (subtabId === "sync-pane-ignored") {
+        renderIgnoredList();
+    }
+}
+
+function initSyncSubtabs() {
+    const navBtns = document.querySelectorAll(".discover-nav .discover-tab-btn[data-sync-subtab]");
+    navBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const subtabId = btn.getAttribute("data-sync-subtab");
+            syncSubtabUI(subtabId);
         });
-        btnSources.addEventListener("click", () => {
-            btnSources.classList.add("active");
-            btnFiles.classList.remove("active");
-            if (paneSources) paneSources.style.display = "block";
-            if (paneFiles) paneFiles.style.display = "none";
+    });
+
+    const refreshIgnoredBtn = document.getElementById("refresh-ignored-list-btn");
+    if (refreshIgnoredBtn) {
+        refreshIgnoredBtn.addEventListener("click", () => {
+            renderIgnoredList();
         });
+    }
+}
+
+async function renderIgnoredList() {
+    const sourcesContainer = document.getElementById("ignored-sources-container");
+    const tracksContainer = document.getElementById("ignored-tracks-container");
+    if (!sourcesContainer || !tracksContainer || !activeProfile) return;
+
+    try {
+        const res = await fetch(`/api/ignore-list?username=${activeProfile}&t=${Date.now()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // 1. Render Ignored Sources
+        const ignoredSources = data.ignored_sources || [];
+        if (ignoredSources.length === 0) {
+            sourcesContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem; padding: 12px; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm);">No playlist sources added to ignore list.</div>`;
+        } else {
+            sourcesContainer.innerHTML = "";
+            ignoredSources.forEach(src => {
+                const item = document.createElement("div");
+                item.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass); border-radius: var(--radius-md);";
+                item.innerHTML = `
+                    <div>
+                        <strong style="color: var(--text-main); font-size: 0.9rem;">${escapeHtml(src.name)}</strong>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(src.url || src.path || 'Source Playlist')}</div>
+                    </div>
+                    <button class="btn btn-secondary btn-sm unignore-src-btn" style="padding: 4px 12px; font-size: 0.75rem; color: #10b981; border-color: rgba(16, 185, 129, 0.3); display: inline-flex; align-items: center; gap: 4px;">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span>Unignore</span>
+                    </button>
+                `;
+                item.querySelector(".unignore-src-btn").addEventListener("click", async () => {
+                    try {
+                        const toggleRes = await fetch("/api/ignore-list/toggle-source", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ username: activeProfile, source_id: src.id, ignored: false })
+                        });
+                        if (toggleRes.ok) {
+                            showToast(`Removed playlist "${src.name}" from ignore list.`, "success");
+                            await loadConfig(activeProfile);
+                            renderSourcesList();
+                            await loadToDownloadList();
+                            renderIgnoredList();
+                        }
+                    } catch (e) {
+                        console.error(e);
+                    }
+                });
+                sourcesContainer.appendChild(item);
+            });
+        }
+
+        // 2. Render Ignored Tracks
+        const ignoredTracks = data.ignored_tracks || [];
+        if (ignoredTracks.length === 0) {
+            tracksContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem; padding: 12px; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm);">No individual songs added to ignore list.</div>`;
+        } else {
+            tracksContainer.innerHTML = "";
+            ignoredTracks.forEach(t => {
+                const item = document.createElement("div");
+                item.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass); border-radius: var(--radius-md);";
+                item.innerHTML = `
+                    <div>
+                        <strong style="color: var(--text-main); font-size: 0.9rem;">${escapeHtml(t.title || 'Unknown Song')}</strong>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(t.artist || '')} ${t.url ? '• ' + escapeHtml(t.url) : ''}</div>
+                    </div>
+                    <button class="btn btn-secondary btn-sm unignore-track-btn" style="padding: 4px 12px; font-size: 0.75rem; color: #10b981; border-color: rgba(16, 185, 129, 0.3); display: inline-flex; align-items: center; gap: 4px;">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span>Unignore</span>
+                    </button>
+                `;
+                item.querySelector(".unignore-track-btn").addEventListener("click", async () => {
+                    try {
+                        const remRes = await fetch("/api/ignore-list/remove-track", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ username: activeProfile, track_id: t.track_id || t.id, title: t.title, url: t.url })
+                        });
+                        if (remRes.ok) {
+                            showToast(`Removed "${t.title}" from ignore list.`, "success");
+                            await loadConfig(activeProfile);
+                            if (activePlaylistSourceId) loadPlaylistTracks(activePlaylistSourceId);
+                            await loadToDownloadList();
+                            renderIgnoredList();
+                        }
+                    } catch (e) {
+                        console.error(e);
+                    }
+                });
+                tracksContainer.appendChild(item);
+            });
+        }
+    } catch (e) {
+        console.error("Error loading ignored list:", e);
     }
 }
 
