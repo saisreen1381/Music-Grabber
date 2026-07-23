@@ -1898,6 +1898,107 @@ def get_lyrics(artist: str = "", title: str = ""):
             "title": clean_t or raw_title
         }
 
+@app.get("/api/lyrics-candidates")
+def get_lyrics_candidates(artist: str = "", title: str = ""):
+    if not title:
+        return {"candidates": []}
+
+    raw_title = title.strip()
+    raw_artist = artist.strip() if artist and artist.lower() not in ["unknown artist", "downloaded track"] else ""
+    
+    clean_t = clean_song_title(raw_title)
+    clean_a = re.sub(r"\s+-\s+Topic$", "", raw_artist, flags=re.IGNORECASE).strip()
+    candidates = []
+    seen_snippets = set()
+
+    def add_candidate(source: str, l_type: str, t_name: str, a_name: str, text: str):
+        if not text:
+            return
+        snip = text.strip()[:80]
+        if snip not in seen_snippets:
+            seen_snippets.add(snip)
+            candidates.append({
+                "source": source,
+                "type": l_type,
+                "title": t_name or clean_t,
+                "artist": a_name or clean_a,
+                "lyrics": text.strip()
+            })
+
+    try:
+        url = f"https://lrclib.net/api/search?track_name={urllib.parse.quote(clean_t)}"
+        if clean_a:
+            url += f"&artist_name={urllib.parse.quote(clean_a)}"
+        req = urllib.request.Request(url, headers={"User-Agent": "MusicGrabber/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status == 200:
+                results = json.loads(resp.read().decode("utf-8"))
+                if isinstance(results, list):
+                    for res in results[:4]:
+                        s_lrc = res.get("syncedLyrics")
+                        p_lrc = res.get("plainLyrics")
+                        if s_lrc:
+                            add_candidate("LRCLIB", "Synced LRC", res.get("trackName"), res.get("artistName"), s_lrc)
+                        elif p_lrc:
+                            add_candidate("LRCLIB", "Plain Text", res.get("trackName"), res.get("artistName"), p_lrc)
+    except Exception as e:
+        logger.debug(f"LRCLIB candidates lookup error: {e}")
+
+    if len(candidates) < 2:
+        try:
+            q = f"{clean_t} {clean_a}".strip()
+            url = f"https://lrclib.net/api/search?q={urllib.parse.quote(q)}"
+            req = urllib.request.Request(url, headers={"User-Agent": "MusicGrabber/1.0"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status == 200:
+                    results = json.loads(resp.read().decode("utf-8"))
+                    if isinstance(results, list):
+                        for res in results[:3]:
+                            s_lrc = res.get("syncedLyrics")
+                            p_lrc = res.get("plainLyrics")
+                            if s_lrc:
+                                add_candidate("LRCLIB Query", "Synced LRC", res.get("trackName"), res.get("artistName"), s_lrc)
+                            elif p_lrc:
+                                add_candidate("LRCLIB Query", "Plain Text", res.get("trackName"), res.get("artistName"), p_lrc)
+        except Exception as e:
+            logger.debug(f"LRCLIB broad candidates error: {e}")
+
+    if clean_a and clean_t:
+        try:
+            url = f"https://api.lyrics.ovh/v1/{urllib.parse.quote(clean_a)}/{urllib.parse.quote(clean_t)}"
+            req = urllib.request.Request(url, headers={"User-Agent": "MusicGrabber/1.0"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status == 200:
+                    res = json.loads(resp.read().decode("utf-8"))
+                    lyrics_txt = res.get("lyrics")
+                    if lyrics_txt:
+                        add_candidate("Lyrics.ovh", "Plain Text", clean_t, clean_a, lyrics_txt)
+        except Exception as e:
+            logger.debug(f"Lyrics.ovh candidates error: {e}")
+
+    try:
+        search_query = f"{clean_t} {clean_a}".strip()
+        s_url = f"https://music.163.com/api/search/get/web?csrf_token=&hlpretag=&hlposttag=&s={urllib.parse.quote(search_query)}&type=1&offset=0&total=true&limit=3"
+        req = urllib.request.Request(s_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status == 200:
+                s_res = json.loads(resp.read().decode("utf-8"))
+                songs = s_res.get("result", {}).get("songs", [])
+                if songs:
+                    song_id = songs[0]["id"]
+                    l_url = f"https://music.163.com/api/song/lyric?os=pc&id={song_id}&lv=-1&kv=-1&tv=-1"
+                    l_req = urllib.request.Request(l_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+                    with urllib.request.urlopen(l_req, timeout=5) as l_resp:
+                        if l_resp.status == 200:
+                            l_res = json.loads(l_resp.read().decode("utf-8"))
+                            lrc = l_res.get("lrc", {}).get("lyric")
+                            if lrc and len(lrc.strip()) > 10:
+                                add_candidate("NetEase Music", "Synced LRC", clean_t, clean_a, lrc)
+    except Exception as e:
+        logger.debug(f"NetEase candidates error: {e}")
+
+    return {"candidates": candidates}
+
 class AddSourceModel(BaseModel):
     username: str
     name: str

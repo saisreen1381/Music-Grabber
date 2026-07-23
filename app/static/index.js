@@ -4579,8 +4579,11 @@ function openMetadataEditModal(track) {
     const candidatesWrapper = document.getElementById("meta-candidates-wrapper");
     const candidatesList = document.getElementById("meta-candidates-list");
     const candidatesCount = document.getElementById("meta-candidates-count");
+    const lyricsSourcesWrapper = document.getElementById("meta-lyrics-sources-wrapper");
+    const lyricsSourcesList = document.getElementById("meta-lyrics-sources-list");
     if (candidatesWrapper) candidatesWrapper.style.display = "none";
     if (candidatesList) candidatesList.innerHTML = "";
+    if (lyricsSourcesWrapper) lyricsSourcesWrapper.style.display = "none";
 
     if (inputTitle) inputTitle.value = track.title || "";
     if (inputArtist) inputArtist.value = track.artist || "";
@@ -4693,28 +4696,46 @@ function openMetadataEditModal(track) {
     }
 
     const fetchLyricsBtn = document.getElementById("meta-fetch-lyrics-btn");
+
     if (fetchLyricsBtn) {
         fetchLyricsBtn.onclick = async () => {
-            const t = inputTitle.value.trim() || track.title || "";
-            const a = inputArtist.value.trim() || track.artist || "";
+            const t = inputTitle ? inputTitle.value.trim() : (track.title || "");
+            const a = inputArtist ? inputArtist.value.trim() : (track.artist || "");
             if (!t) {
                 showToast("Please enter a title to fetch lyrics.", "warning");
                 return;
             }
             try {
                 fetchLyricsBtn.textContent = "Fetching...";
-                const res = await fetch(`/api/lyrics?artist=${encodeURIComponent(a)}&title=${encodeURIComponent(t)}`);
+                const res = await fetch(`/api/lyrics-candidates?artist=${encodeURIComponent(a)}&title=${encodeURIComponent(t)}`);
                 if (res.ok) {
                     const data = await res.json();
-                    const lyr = data.syncedLyrics || data.plainLyrics || "";
-                    if (lyr && inputLyrics) {
-                        inputLyrics.value = lyr;
-                        showToast("Lyrics loaded!", "success");
+                    const candidates = data.candidates || [];
+                    if (candidates.length > 0) {
+                        if (lyricsSourcesWrapper) lyricsSourcesWrapper.style.display = "flex";
+                        if (lyricsSourcesList) {
+                            lyricsSourcesList.innerHTML = "";
+                            candidates.forEach((cand, idx) => {
+                                const badge = document.createElement("button");
+                                badge.type = "button";
+                                badge.className = "btn btn-secondary btn-sm";
+                                badge.style.cssText = "font-size: 0.7rem; padding: 3px 10px; border: 1px solid var(--border-glass); background: rgba(99, 102, 241, 0.18); border-radius: 12px; cursor: pointer; color: var(--text-main); font-weight: 500;";
+                                badge.innerHTML = `<span>🎵 ${cand.source}</span> <span style="opacity:0.75; font-size:0.65rem;">(${cand.type})</span>`;
+                                badge.onclick = (e) => {
+                                    e.preventDefault();
+                                    if (inputLyrics) inputLyrics.value = cand.lyrics;
+                                    showToast(`Applied lyrics from ${cand.source}!`, "success");
+                                };
+                                lyricsSourcesList.appendChild(badge);
+                            });
+                        }
+                        if (inputLyrics) inputLyrics.value = candidates[0].lyrics;
+                        showToast(`Found ${candidates.length} lyrics source(s). Loaded from ${candidates[0].source}!`, "success");
                     } else {
-                        showToast("No lyrics found for this track.", "warning");
+                        showToast("No lyrics candidates found for this track.", "warning");
                     }
                 } else {
-                    showToast("No lyrics found.", "warning");
+                    showToast("No lyrics candidates found.", "warning");
                 }
             } catch (e) {
                 showToast("Error fetching lyrics: " + e.message, "danger");
