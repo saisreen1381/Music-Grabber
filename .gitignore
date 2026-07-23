@@ -23,6 +23,9 @@ debug/
 .sync/
 *.log
 *.tmp
+.env
+.env.*
+*.env
 .DS_Store
 .idea/
 .vscode/

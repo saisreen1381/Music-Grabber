@@ -61,7 +61,7 @@ app.add_middleware(
 
 # Helper to find yt-dlp path
 def find_ytdlp():
-    potential = "/home/saisreen1381/.local/share/pipx/venvs/spotdl/bin/yt-dlp"
+    potential = os.path.expanduser("~/.local/share/pipx/venvs/spotdl/bin/yt-dlp")
     if os.path.exists(potential):
         return potential
     return "yt-dlp"
@@ -146,10 +146,7 @@ def get_profiles():
         p.name for p in USERS_DIR.iterdir() 
         if p.is_dir() and p.name not in ignored and not p.name.startswith(".") and not p.name.endswith("_cache")
     ]
-    # Return sorted list, ensuring "saisreen" is first if it exists
-    if "saisreen" in profiles:
-        profiles.remove("saisreen")
-        profiles.insert(0, "saisreen")
+    profiles.sort()
     return {"profiles": profiles}
 
 @app.delete("/api/profiles/{username}")

@@ -10,7 +10,7 @@ export BROWSER=false
 export PYTHONUNBUFFERED=1
 
 # Clean up any bad hardcoded credentials in SpotDL config files to ensure it reads env vars
-rm -f /home/saisreen1381/.config/spotdl/config.json /home/saisreen1381/.spotdl/config.json
+rm -f "$HOME/.config/spotdl/config.json" "$HOME/.spotdl/config.json"
 
 # Helper function to run SpotDL with verbose real-time logging, filtering out noisy HTTP connection logs
 run_spotdl() {
@@ -108,8 +108,8 @@ for USER_FOLDER in "${USERS_DIR}"/*; do
 
   # Determine yt-dlp path (prefer pipx spotdl venv)
   YTDLP_PATH="yt-dlp"
-  if [ -f "/home/saisreen1381/.local/share/pipx/venvs/spotdl/bin/yt-dlp" ]; then
-    YTDLP_PATH="/home/saisreen1381/.local/share/pipx/venvs/spotdl/bin/yt-dlp"
+  if [ -f "$HOME/.local/share/pipx/venvs/spotdl/bin/yt-dlp" ]; then
+    YTDLP_PATH="$HOME/.local/share/pipx/venvs/spotdl/bin/yt-dlp"
   fi
 
   TOTAL_ITEMS=$((TOTAL_ITEMS + 1))
