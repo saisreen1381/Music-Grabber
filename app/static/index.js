@@ -840,6 +840,13 @@ async function refreshStatus() {
             // Auto expand logs during sync so users see lines stream in
             if (terminalBody) terminalBody.style.display = "flex";
             if (logsToggleArrow) logsToggleArrow.style.transform = "rotate(180deg)";
+
+            if (status.last_log && terminalBody && terminalBody.children.length <= 1) {
+                terminalBody.innerHTML = "";
+                status.last_log.split("\n").forEach(line => {
+                    if (line.trim()) appendTerminalLine(line.trim());
+                });
+            }
         } else {
             syncBadge.className = "badge badge-idle";
             syncBadge.textContent = "Idle";
@@ -853,7 +860,7 @@ async function refreshStatus() {
             if (syncControlsWrapper) syncControlsWrapper.style.display = "none";
             
             // Reset Pause Button State
-            if (syncPauseText) syncPauseText.textContent = "Pause Sync";
+            if (syncPauseText) syncPauseText.textContent = "Pause";
             if (syncPauseIcon) syncPauseIcon.innerHTML = `<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>`;
         }
         
@@ -1474,6 +1481,44 @@ if (viewSyncModalBtn) {
     });
 }
 
+if (syncPauseBtn) {
+    syncPauseBtn.addEventListener("click", async () => {
+        if (!activeProfile) return;
+        try {
+            const res = await fetch(`/api/sync/pause?username=${activeProfile}`, { method: "POST" });
+            const data = await res.json();
+            if (data.paused) {
+                if (syncPauseText) syncPauseText.textContent = "Resume";
+                if (syncPauseIcon) syncPauseIcon.innerHTML = `<path d="M8 5v14l11-7z"/>`;
+                showToast("Sync paused.", "info");
+                appendTerminalLine("[System] Sync paused by user.");
+            } else {
+                if (syncPauseText) syncPauseText.textContent = "Pause";
+                if (syncPauseIcon) syncPauseIcon.innerHTML = `<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>`;
+                showToast("Sync resumed.", "info");
+                appendTerminalLine("[System] Sync resumed.");
+            }
+        } catch (e) {
+            console.error("Pause sync error:", e);
+        }
+    });
+}
+
+if (syncStopBtn) {
+    syncStopBtn.addEventListener("click", async () => {
+        if (!activeProfile) return;
+        try {
+            await fetch(`/api/sync/stop?username=${activeProfile}`, { method: "POST" });
+            showToast("Stopping sync...", "warning");
+            appendTerminalLine("[System] Stop signal sent to sync worker.");
+            if (syncPauseText) syncPauseText.textContent = "Pause";
+            if (syncPauseIcon) syncPauseIcon.innerHTML = `<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>`;
+        } catch (e) {
+            console.error("Stop sync error:", e);
+        }
+    });
+}
+
 // Manual Sync Triggers (SSE Logs)
 syncNowBtn.addEventListener("click", () => {
     if (!activeProfile) return;
@@ -1483,10 +1528,12 @@ syncNowBtn.addEventListener("click", () => {
         eventSource = null;
     }
     
-    terminalBody.innerHTML = '<div class="system-line" style="display: block; color: #818cf8; font-weight: 600; margin-bottom: 3px;">[System] Triggering synchronization...</div>';
-    syncBadge.className = "badge badge-syncing";
-    syncBadge.textContent = "Syncing";
-    syncNowBtn.disabled = true;
+    if (terminalBody) terminalBody.innerHTML = '<div class="system-line" style="display: block; color: #818cf8; font-weight: 600; margin-bottom: 3px;">[System] Triggering synchronization...</div>';
+    if (syncBadge) {
+        syncBadge.className = "badge badge-syncing";
+        syncBadge.textContent = "Syncing";
+    }
+    if (syncNowBtn) syncNowBtn.disabled = true;
     
     // Reset and show modal
     let totalTracks = 0;
@@ -1495,10 +1542,10 @@ syncNowBtn.addEventListener("click", () => {
     let syncTimer = null;
     let quoteTimer = null;
     
-    syncProgressModal.style.display = "flex";
-    syncModalClose.style.display = "none";
-    syncModalTitle.innerHTML = '<span class="spinner" style="width: 16px; height: 16px; border-width: 2px; border-top-color: var(--primary); margin: 0;"></span> Syncing Library...';
-    syncCurrentSong.textContent = "Scanning local library...";
+    if (syncProgressModal) syncProgressModal.style.display = "flex";
+    if (syncModalClose) syncModalClose.style.display = "none";
+    if (syncModalTitle) syncModalTitle.innerHTML = '<span class="spinner" style="width: 16px; height: 16px; border-width: 2px; border-top-color: var(--primary); margin: 0;"></span> Syncing Library...';
+    if (syncCurrentSong) syncCurrentSong.textContent = "Scanning local library...";
 
     // Ensure all stats/meters are visible during manual sync trigger
     const syncQuoteBox = document.getElementById("sync-quote-box");

@@ -10,6 +10,34 @@ import time
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+def find_ytdlp():
+    import shutil, sys
+    path_bin = shutil.which("yt-dlp")
+    if path_bin:
+        return path_bin
+        
+    py_dir = os.path.dirname(sys.executable)
+    candidates = [
+        os.path.join(py_dir, "yt-dlp.exe"),
+        os.path.join(py_dir, "yt-dlp"),
+        os.path.join(py_dir, "Scripts", "yt-dlp.exe"),
+        os.path.expanduser("~/.local/share/pipx/venvs/spotdl/bin/yt-dlp"),
+        os.path.expanduser("~/pipx/venvs/spotdl/Scripts/yt-dlp.exe"),
+        os.path.expanduser("~/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0/LocalCache/local-packages/Python313/Scripts/yt-dlp.exe"),
+        os.path.expanduser("~/AppData/Local/Programs/Python/Python313/Scripts/yt-dlp.exe"),
+        os.path.expanduser("~/AppData/Roaming/Python/Python313/Scripts/yt-dlp.exe"),
+        os.path.expanduser("~/AppData/Local/Programs/Python/Python312/Scripts/yt-dlp.exe"),
+    ]
+    for cand in candidates:
+        if os.path.exists(cand):
+            return cand
+    return "yt-dlp"
+
+def get_ytdlp_path(custom_path=None):
+    if custom_path and custom_path != "yt-dlp" and os.path.exists(custom_path):
+        return custom_path
+    return find_ytdlp()
+
 # Normalize strings for comparison (preserves Unicode letters and digits for all languages like Tamil, English, Hindi, etc.)
 def normalize_name(name, strip_brackets=True):
     if not name:
@@ -294,13 +322,14 @@ def extract_thumbnail(item):
     return ""
 
 def fetch_ytdlp_playlist(url, cookie_file=None, ytdlp_path="yt-dlp"):
+    ytdlp_path = get_ytdlp_path(ytdlp_path)
     clean_url = str(url)
     if "music.youtube.com/playlist?list=" in clean_url:
         clean_url = clean_url.replace("music.youtube.com/playlist?list=", "www.youtube.com/playlist?list=")
     elif "music.youtube.com/watch?" in clean_url:
         clean_url = clean_url.replace("music.youtube.com/watch?", "www.youtube.com/watch?")
         
-    cmd = [ytdlp_path, "--flat-playlist", "--dump-single-json", "--js-runtimes", "node"]
+    cmd = [ytdlp_path, "--flat-playlist", "--dump-single-json", "--no-warnings"]
     if cookie_file and os.path.exists(cookie_file):
         cmd.extend(["--cookies", cookie_file])
     cmd.append(clean_url)
@@ -435,6 +464,7 @@ def fetch_text_file(path):
     return tracks
 
 def download_track_ytdlp(ytdlp_path, track, download_dir, cookie_file=None, filename_template="%(title)s.%(ext)s", embed_metadata=True):
+    ytdlp_path = get_ytdlp_path(ytdlp_path)
     url = track["url"]
     
     target_title = track.get("title") or track.get("display_name") or ""
@@ -506,6 +536,7 @@ aborted_syncs = set()
 
 # Generator function for streaming sync logs to FastAPI SSE
 def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
+    ytdlp_path = get_ytdlp_path(ytdlp_path)
     log_queue = queue.Queue()
     username = Path(config_path).parent.name
     
@@ -549,61 +580,62 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
             user_dir = os.path.dirname(config_path)
             cookie_file = get_user_cookie_file(user_dir)
                     
-            for source in sources:
-                src_type = source.get("type")
-                src_name = source.get("name", "Unnamed Source")
-                url = source.get("url", "")
-                src_id = get_source_id(source)
-                
-                # Check for checkboxes/exclusions
-                disabled_ids = set(source.get("disabled_track_ids", []))
-                
+            def fetch_single_source(src):
+                src_type = src.get("type")
+                src_name = src.get("name", "Unnamed Source")
+                url = src.get("url", "")
+                src_id = get_source_id(src)
+                disabled_ids = set(src.get("disabled_track_ids", []))
                 requires_cookies = (cookie_file is not None)
-                    
-                emit(f"Processing Source: {src_name} ({src_type})...")
-                tracks = []
-                
-                # Load tracks (prefer cached tracks if available to speed up, or fetch live)
+
+                emit(f"Checking playlist '{src_name}'...")
                 cached_file = os.path.join(user_dir, "playlists", f"{src_id}_tracks.json")
+                tracks = []
+
                 if os.path.exists(cached_file):
                     try:
-                        with open(cached_file, "r") as cf:
+                        with open(cached_file, "r", encoding="utf-8") as cf:
                             tracks = json.load(cf)
-                        emit(f"  Loaded {len(tracks)} tracks from cache.")
-                    except Exception as e:
-                        emit(f"  Warning loading cache: {e}. Fetching live instead.")
+                        emit(f"  Loaded {len(tracks)} tracks for '{src_name}' (cache).")
+                    except Exception:
                         tracks = []
-                        
+
                 if not tracks:
-                    emit(f"  Fetching playlist live using yt-dlp...")
-                    if src_type == "youtube_music_playlist" or src_type == "youtube_playlist":
+                    emit(f"  Fetching '{src_name}' live from YouTube Music...")
+                    if src_type in ("youtube_music_playlist", "youtube_playlist"):
                         if url:
                             tracks = fetch_ytdlp_playlist(url, cookie_file if requires_cookies else None, ytdlp_path)
                     elif src_type == "text_file":
-                        rel_path = source.get("path")
+                        rel_path = src.get("path")
                         full_path = os.path.join(user_dir, os.path.basename(rel_path)) if rel_path else None
                         if full_path and os.path.exists(full_path):
                             tracks = fetch_text_file(full_path)
                         elif rel_path and os.path.exists(rel_path):
                             tracks = fetch_text_file(rel_path)
-                    
-                    # Cache them
+
                     if tracks:
                         os.makedirs(os.path.dirname(cached_file), exist_ok=True)
-                        with open(cached_file, "w") as cf:
+                        with open(cached_file, "w", encoding="utf-8") as cf:
                             json.dump(tracks, cf)
-                            
-                # Merge and deduplicate
-                for track in tracks:
-                    norm = normalize_name(track.get("display_name", ""), strip_brackets=False) or normalize_name(track.get("display_name", ""), strip_brackets=True)
-                    if norm not in seen_normalized:
-                        # Skip if this track was unchecked by user
-                        if track.get("id") in disabled_ids:
-                            continue
-                            
-                        seen_normalized.add(norm)
-                        track["use_cookies"] = requires_cookies
-                        all_tracks.append(track)
+
+                return (src_name, tracks, disabled_ids, requires_cookies)
+
+            max_source_workers = min(max(len(sources), 1), 5)
+            with ThreadPoolExecutor(max_workers=max_source_workers) as src_executor:
+                src_futures = [src_executor.submit(fetch_single_source, s) for s in sources]
+                for fut in as_completed(src_futures):
+                    try:
+                        src_name, tracks, disabled_ids, requires_cookies = fut.result()
+                        for track in tracks:
+                            norm = normalize_name(track.get("display_name", ""), strip_brackets=False) or normalize_name(track.get("display_name", ""), strip_brackets=True)
+                            if norm not in seen_normalized:
+                                if track.get("id") in disabled_ids:
+                                    continue
+                                seen_normalized.add(norm)
+                                track["use_cookies"] = requires_cookies
+                                all_tracks.append(track)
+                    except Exception as e:
+                        emit(f"Error processing source: {e}")
                         
             emit(f"Total checked unique target tracks: {len(all_tracks)}")
             
