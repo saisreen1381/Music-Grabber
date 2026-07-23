@@ -20,8 +20,10 @@ def normalize_name(name, strip_brackets=True):
         name = re.sub(r'\[.*?\]', '', name)
         name = re.sub(r'\(.*?\)', '', name)
     # Remove non-word characters while preserving Unicode letters and digits
-    name = re.sub(r'[^\w]', '', name, flags=re.UNICODE)
-    return name.strip()
+    cleaned = re.sub(r'[^\w]', '', name, flags=re.UNICODE)
+    if not cleaned:
+        return name.strip()
+    return cleaned.strip()
 
 def get_scan_paths(download_dir, additional_dirs=None, profile_dir=None):
     scan_paths = []
@@ -338,12 +340,19 @@ def fetch_text_file(path):
 def download_track_ytdlp(ytdlp_path, track, download_dir, cookie_file=None, filename_template="%(title)s.%(ext)s", embed_metadata=True):
     url = track["url"]
     
+    target_title = track.get("title") or track.get("display_name") or ""
+    if target_title and filename_template == "%(title)s.%(ext)s":
+        sanitized_title = re.sub(r'[\\/:*?"<>|]', '_', target_title)
+        out_tmpl = os.path.join(download_dir, f"{sanitized_title}.%(ext)s")
+    else:
+        out_tmpl = os.path.join(download_dir, filename_template)
+
     cmd = [
         ytdlp_path,
         "-x",
         "--audio-format", "mp3",
         "--audio-quality", "0",
-        "--output", os.path.join(download_dir, filename_template),
+        "--output", out_tmpl,
         "--match-filter", "!is_live",
         "--js-runtimes", "deno,node"
     ]
@@ -594,7 +603,16 @@ def run_sync_engine_generator(config_path, ytdlp_path="yt-dlp", scheduler=None):
                     
                 # Search fallback if video unavailable or URL dead
                 if not success:
-                    search_query = track.get("display_name") or track.get("title") or ""
+                    raw_title = track.get("title") or ""
+                    raw_artist = track.get("artist") or ""
+                    clean_artist = re.sub(r'[^\w\s]', '', raw_artist).replace("Topic", "").strip()
+                    if clean_artist and clean_artist.lower() not in raw_title.lower() and len(clean_artist) < 25:
+                        search_query = f"{raw_title} {clean_artist}".strip()
+                    else:
+                        search_query = raw_title or track.get("display_name") or ""
+                    search_query = re.sub(r'[^\w\s\-\']', ' ', search_query).strip()
+                    search_query = re.sub(r'\s+', ' ', search_query)
+                    
                     if search_query:
                         emit(f"[{t_name}] Direct URL unavailable. Searching YouTube for '{search_query}'...")
                         search_track = dict(track)
