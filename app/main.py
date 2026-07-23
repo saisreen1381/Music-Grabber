@@ -9,7 +9,10 @@ import urllib.request
 import hashlib
 import http.cookiejar
 import re
+import logging
 from pathlib import Path
+
+logger = logging.getLogger("musicgrabber")
 from typing import List, Optional
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, UploadFile, File, Request
@@ -397,8 +400,10 @@ def delete_track(username: str, filename: str):
     if not profile_dir.exists():
         raise HTTPException(status_code=404, detail="Profile not found")
     
-    config = get_user_config(username, USERS_DIR)
-    scan_paths = get_scan_paths(config, profile_dir)
+    config = get_user_config(profile_dir) or {}
+    download_dir = config.get("download_dir", "")
+    additional_dirs = config.get("additional_download_dirs", [])
+    scan_paths = get_scan_paths(download_dir, additional_dirs, profile_dir)
     
     deleted = False
     for folder in scan_paths:

@@ -4544,10 +4544,16 @@ async function deleteTrackFromLibrary(track) {
         const res = await fetch(`/api/delete-track?username=${activeProfile}&filename=${encodeURIComponent(filename)}`, {
             method: "POST"
         });
-        const data = await res.json();
+        let data = {};
+        try {
+            data = await res.json();
+        } catch (err) {
+            data = { detail: res.statusText };
+        }
         if (res.ok) {
             showToast(data.message || "Track deleted successfully.", "success");
             if (typeof loadFiles === "function") loadFiles();
+            if (typeof loadDiscoverData === "function") loadDiscoverData();
         } else {
             showToast("Failed to delete track: " + (data.detail || "Error"), "danger");
         }
