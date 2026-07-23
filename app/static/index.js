@@ -5001,7 +5001,66 @@ let tableSortCol = "title";
 let tableSortAsc = true;
 let activeFunnelCol = null;
 let isLibraryToolbarInited = false;
-const columnFilters = { title: "", artist: "", album: "", genre: "" };
+const columnFilters = {
+    title: { search: "", selected: new Set() },
+    artist: { search: "", selected: new Set() },
+    album: { search: "", selected: new Set() },
+    genre: { search: "", selected: new Set() }
+};
+
+function renderPopoverCheckboxItems() {
+    const listContainer = document.getElementById("popover-items-list");
+    if (!listContainer || !activeFunnelCol || !discoverData || !discoverData.all_songs) return;
+
+    listContainer.innerHTML = "";
+    const col = activeFunnelCol;
+    const filterState = columnFilters[col];
+
+    const valueCounts = {};
+    discoverData.all_songs.forEach(s => {
+        const val = s[col] || "Unknown";
+        valueCounts[val] = (valueCounts[val] || 0) + 1;
+    });
+
+    let keys = Object.keys(valueCounts).sort((a, b) => a.localeCompare(b));
+    
+    if (filterState.search) {
+        const q = filterState.search.toLowerCase();
+        keys = keys.filter(k => k.toLowerCase().includes(q));
+    }
+
+    if (keys.length === 0) {
+        listContainer.innerHTML = `<div style="font-size: 0.75rem; color: var(--text-dim); padding: 12px 0; text-align: center;">No matching values</div>`;
+        return;
+    }
+
+    keys.forEach(val => {
+        const label = document.createElement("label");
+        label.style.cssText = "display: flex; align-items: center; gap: 8px; font-size: 0.8rem; cursor: pointer; padding: 4px 6px; border-radius: 4px; transition: background 0.15s;";
+        label.onmouseenter = () => label.style.background = "rgba(255,255,255,0.06)";
+        label.onmouseleave = () => label.style.background = "transparent";
+
+        const isChecked = filterState.selected.has(val);
+        label.innerHTML = `
+            <input type="checkbox" class="col-filter-check" ${isChecked ? 'checked' : ''} style="accent-color: var(--primary); cursor: pointer;">
+            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; color: var(--text-main); font-size: 0.8rem;">${escapeHtml(val)}</span>
+            <span style="font-size: 0.7rem; color: var(--text-dim); font-weight: 500;">(${valueCounts[val]})</span>
+        `;
+
+        const check = label.querySelector(".col-filter-check");
+        check.addEventListener("change", (e) => {
+            if (e.target.checked) {
+                filterState.selected.add(val);
+            } else {
+                filterState.selected.delete(val);
+            }
+            updateFunnelButtonsUI();
+            renderDiscoverSongsTable();
+        });
+
+        listContainer.appendChild(label);
+    });
+}
 
 function initLibraryToolbar() {
     if (isLibraryToolbarInited) return;
@@ -5031,15 +5090,17 @@ function initLibraryToolbar() {
 
             const rect = funnelBtn.getBoundingClientRect();
             popover.style.position = "fixed";
-            popover.style.display = "block";
+            popover.style.display = "flex";
             popover.style.top = `${rect.bottom + 6}px`;
-            popover.style.left = `${Math.min(rect.left, window.innerWidth - 240)}px`;
+            popover.style.left = `${Math.min(rect.left, window.innerWidth - 270)}px`;
 
             if (popTitle) popTitle.textContent = `FILTER ${col.toUpperCase()}`;
             if (popInput) {
-                popInput.value = columnFilters[col] || "";
+                popInput.value = columnFilters[col].search || "";
                 popInput.focus();
             }
+
+            renderPopoverCheckboxItems();
             return;
         }
 
@@ -5058,7 +5119,7 @@ function initLibraryToolbar() {
         }
 
         const popover = document.getElementById("col-filter-popover");
-        if (popover && popover.style.display === "block") {
+        if (popover && popover.style.display === "flex") {
             if (!popover.contains(e.target) && !e.target.closest(".col-funnel-btn")) {
                 popover.style.display = "none";
             }
@@ -5069,7 +5130,8 @@ function initLibraryToolbar() {
     if (popInput) {
         popInput.addEventListener("input", (e) => {
             if (activeFunnelCol) {
-                columnFilters[activeFunnelCol] = e.target.value.trim();
+                columnFilters[activeFunnelCol].search = e.target.value.trim();
+                renderPopoverCheckboxItems();
                 updateFunnelButtonsUI();
                 renderDiscoverSongsTable();
             }
@@ -5080,8 +5142,38 @@ function initLibraryToolbar() {
     if (popClearBtn) {
         popClearBtn.addEventListener("click", () => {
             if (activeFunnelCol) {
-                columnFilters[activeFunnelCol] = "";
+                columnFilters[activeFunnelCol].search = "";
+                columnFilters[activeFunnelCol].selected.clear();
                 if (popInput) popInput.value = "";
+                renderPopoverCheckboxItems();
+                updateFunnelButtonsUI();
+                renderDiscoverSongsTable();
+            }
+        });
+    }
+
+    const selectAllBtn = document.getElementById("popover-select-all-btn");
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener("click", () => {
+            if (activeFunnelCol && discoverData && discoverData.all_songs) {
+                const col = activeFunnelCol;
+                discoverData.all_songs.forEach(s => {
+                    const val = s[col] || "Unknown";
+                    columnFilters[col].selected.add(val);
+                });
+                renderPopoverCheckboxItems();
+                updateFunnelButtonsUI();
+                renderDiscoverSongsTable();
+            }
+        });
+    }
+
+    const deselectAllBtn = document.getElementById("popover-deselect-all-btn");
+    if (deselectAllBtn) {
+        deselectAllBtn.addEventListener("click", () => {
+            if (activeFunnelCol) {
+                columnFilters[activeFunnelCol].selected.clear();
+                renderPopoverCheckboxItems();
                 updateFunnelButtonsUI();
                 renderDiscoverSongsTable();
             }
@@ -5154,11 +5246,12 @@ function saveColumnVisibilityState() {
 function updateFunnelButtonsUI() {
     document.querySelectorAll(".col-funnel-btn").forEach(btn => {
         const col = btn.getAttribute("data-col");
-        if (columnFilters[col]) {
+        const fObj = columnFilters[col];
+        if (fObj && (fObj.selected.size > 0 || fObj.search)) {
             btn.style.opacity = "1";
-            btn.style.color = "var(--primary)";
-            btn.style.background = "rgba(99, 102, 241, 0.25)";
-            btn.style.boxShadow = "0 0 8px rgba(99, 102, 241, 0.4)";
+            btn.style.color = "#06b6d4";
+            btn.style.background = "rgba(6, 182, 212, 0.25)";
+            btn.style.boxShadow = "0 0 10px rgba(6, 182, 212, 0.4)";
         } else {
             btn.style.opacity = "0.6";
             btn.style.color = "currentColor";
@@ -5194,15 +5287,16 @@ function renderDiscoverSongsTable(query = "") {
     let songs = discoverData.all_songs || [];
     const q = query.trim().toLowerCase();
 
-    const fTitle = (columnFilters.title || "").toLowerCase();
-    const fArtist = (columnFilters.artist || "").toLowerCase();
-    const fAlbum = (columnFilters.album || "").toLowerCase();
-    const fGenre = (columnFilters.genre || "").toLowerCase();
-
-    if (fTitle) songs = songs.filter(s => (s.title || "").toLowerCase().includes(fTitle));
-    if (fArtist) songs = songs.filter(s => (s.artist || "").toLowerCase().includes(fArtist));
-    if (fAlbum) songs = songs.filter(s => (s.album || "").toLowerCase().includes(fAlbum));
-    if (fGenre) songs = songs.filter(s => (s.genre || "").toLowerCase().includes(fGenre));
+    ['title', 'artist', 'album', 'genre'].forEach(col => {
+        const fObj = columnFilters[col];
+        if (fObj && fObj.selected && fObj.selected.size > 0) {
+            songs = songs.filter(s => fObj.selected.has(s[col] || "Unknown"));
+        }
+        if (fObj && fObj.search) {
+            const sq = fObj.search.toLowerCase();
+            songs = songs.filter(s => (s[col] || "").toLowerCase().includes(sq));
+        }
+    });
 
     const genreSelect = document.getElementById("library-genre-filter");
     if (genreSelect && genreSelect.options.length <= 1) {
