@@ -483,8 +483,13 @@ body {
     display: grid;
     grid-template-columns: 280px 1fr;
     gap: 24px;
-    height: calc(100% - 16px);
+    height: calc(100% - 32px);
     min-height: 0;
+    margin-bottom: 16px;
+}
+
+.playlist-track-row:hover td {
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .playlist-sidebar, .playlist-details {

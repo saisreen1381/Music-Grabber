@@ -1386,16 +1386,30 @@ function updateSelectedCount() {
 
 // Render Tracks Items inside details card
 function renderTracksList(tracks) {
+    const downloadedCount = tracks.filter(t => t.downloaded).length;
+    const ignoredCount = tracks.filter(t => t.ignored).length;
+    const queuedCount = tracks.filter(t => !t.downloaded && !t.ignored).length;
+
+    const dlBadge = document.getElementById("playlist-downloaded-count");
+    const igBadge = document.getElementById("playlist-ignored-count");
+    const qBadge = document.getElementById("playlist-queued-count");
+    if (dlBadge) dlBadge.textContent = downloadedCount;
+    if (igBadge) igBadge.textContent = ignoredCount;
+    if (qBadge) qBadge.textContent = queuedCount;
+
+    const selectAllCb = document.getElementById("select-all-playlist-checkbox");
+    if (selectAllCb) selectAllCb.checked = (tracks.length > 0 && tracks.every(t => t.enabled));
+
     if (tracks.length === 0) {
-        tracksItemsContainer.innerHTML = `<div class="empty-tracks-view"><p>This playlist source has no songs, or it hasn't been fetched yet. Click "Refresh List" above.</p></div>`;
+        tracksItemsContainer.innerHTML = `<tr><td colspan="4" class="empty-table" style="padding: 40px; text-align: center; color: var(--text-muted);">This playlist source has no songs, or it hasn't been fetched yet. Click "Refresh List" above.</td></tr>`;
         if (tracksSelectedCount) tracksSelectedCount.textContent = "Selected: 0 / 0";
         return;
     }
     
     tracksItemsContainer.innerHTML = "";
     tracks.forEach(t => {
-        const row = document.createElement("div");
-        row.className = "track-item-row";
+        const row = document.createElement("tr");
+        row.className = "playlist-track-row";
         
         const checkedAttr = t.enabled ? "checked" : "";
         let statusBadge = "";
@@ -1418,16 +1432,19 @@ function renderTracksList(tracks) {
         }
             
         row.innerHTML = `
-            <div class="track-checkbox-wrapper">
-                <input type="checkbox" class="track-check" data-id="${t.id}" ${checkedAttr}>
-            </div>
-            <div class="track-info-cell">
-                <div class="track-title" style="${t.ignored ? 'text-decoration: line-through; opacity: 0.7;' : ''}">${escapeHtml(t.title)}</div>
-                <div class="track-artist">${escapeHtml(t.artist || 'Unknown Artist')} ${t.duration ? '• ' + formatDuration(t.duration) : ''}</div>
-            </div>
-            <div class="track-status-cell" style="display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
-                ${statusBadge}
-                <div class="track-action-buttons" style="display: flex; align-items: center; gap: 4px;">
+            <td style="text-align: center; width: 40px;">
+                <input type="checkbox" class="track-check" data-id="${t.id}" ${checkedAttr} style="accent-color: var(--primary); cursor: pointer;">
+            </td>
+            <td>
+                <div class="track-title" style="font-weight: 500; ${t.ignored ? 'text-decoration: line-through; opacity: 0.7;' : ''}">${escapeHtml(t.title)}</div>
+                <div class="track-artist" style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(t.artist || 'Unknown Artist')}</div>
+            </td>
+            <td style="text-align: center; font-size: 0.8rem; color: var(--text-muted); width: 80px;">
+                ${t.duration ? formatDuration(t.duration) : '--:--'}
+            </td>
+            <td style="text-align: right; width: 120px; padding-right: 12px;">
+                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px;">
+                    ${statusBadge}
                     ${t.downloaded 
                         ? `<button class="btn btn-primary btn-sm play-track-btn" style="padding: 0; border-radius: 50%; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; min-width: 0;" title="Play Song">
                             <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -1438,7 +1455,7 @@ function renderTracksList(tracks) {
                         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
                     </button>
                 </div>
-            </div>
+            </td>
         `;
 
         // Action button listeners
@@ -1496,69 +1513,44 @@ function renderTracksList(tracks) {
                         body: JSON.stringify({
                             username: activeProfile,
                             track_id: t.id || "",
-                            title: t.title || t.display_name || "",
+                            title: t.title || "",
                             url: t.url || "",
                             artist: t.artist || "",
                             source_id: activePlaylistSourceId || ""
                         })
                     });
                     if (res.ok) {
-                        t.ignored = !t.ignored;
-                        showToast(`Track "${t.title}" ${t.ignored ? 'added to ignore list' : 'removed from ignore list'}.`, t.ignored ? "warning" : "success");
-                        renderTracksList(tracks);
+                        showToast(`${t.ignored ? 'Unignored' : 'Ignored'} "${t.title}".`, "warning");
+                        await loadConfig(activeProfile);
+                        await loadPlaylistTracks(activePlaylistSourceId);
                         await loadToDownloadList();
-                    } else {
-                        showToast("Failed to update ignore list", "danger");
                     }
                 } catch (err) {
-                    console.error("Error toggling track ignore:", err);
+                    console.error(err);
                 }
             });
         }
-        
-        // Wire up checkbox listeners
-        tracksItemsContainer.querySelectorAll(".track-check").forEach(cb => {
-            cb.addEventListener("change", async (e) => {
-                const trackId = e.target.getAttribute("data-id");
-                const isChecked = e.target.checked;
-                
-                // Update local state
-                const tr = currentTracks.find(t => t.id === trackId);
-                if (tr) tr.enabled = isChecked;
-                updateSelectedCount();
-                
-                try {
-                    await fetch("/api/playlist/tracks/toggle", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            username: activeProfile,
-                            source_id: activePlaylistSourceId,
-                            track_id: trackId,
-                            enabled: isChecked
-                        })
-                    });
-                    
-                    // Sync local activeConfig
-                    const src = activeConfig.sources.find(s => s.id === activePlaylistSourceId);
-                    if (src) {
-                        if (!src.disabled_track_ids) src.disabled_track_ids = [];
-                        if (isChecked) {
-                            src.disabled_track_ids = src.disabled_track_ids.filter(id => id !== trackId);
-                        } else {
-                            if (!src.disabled_track_ids.includes(trackId)) {
-                                src.disabled_track_ids.push(trackId);
-                            }
-                        }
-                    }
-                } catch (err) {
-                    console.error("Failed to toggle track state", err);
-                }
+
+        // Checkbox & Row click listeners
+        const checkbox = row.querySelector(".track-check");
+        if (checkbox) {
+            checkbox.addEventListener("change", (e) => {
+                e.stopPropagation();
+                toggleSingleTrack(t.id, checkbox.checked);
             });
+        }
+
+        row.addEventListener("click", (e) => {
+            if (e.target.closest("button") || e.target.closest("input")) return;
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                toggleSingleTrack(t.id, checkbox.checked);
+            }
         });
-        
+
         tracksItemsContainer.appendChild(row);
     });
+
     updateSelectedCount();
 }
 
@@ -1651,8 +1643,15 @@ async function setAllTracksState(enabled) {
     }
 }
 
-selectAllTracksBtn.addEventListener("click", () => setAllTracksState(true));
-deselectAllTracksBtn.addEventListener("click", () => setAllTracksState(false));
+if (selectAllTracksBtn) selectAllTracksBtn.addEventListener("click", () => setAllTracksState(true));
+if (deselectAllTracksBtn) deselectAllTracksBtn.addEventListener("click", () => setAllTracksState(false));
+
+const selectAllPlaylistCb = document.getElementById("select-all-playlist-checkbox");
+if (selectAllPlaylistCb) {
+    selectAllPlaylistCb.addEventListener("change", () => {
+        setAllTracksState(selectAllPlaylistCb.checked);
+    });
+}
 
 // Delete Playlist Source
 deleteSourceBtn.addEventListener("click", async () => {
