@@ -4997,17 +4997,95 @@ function initSyncSubtabs() {
     }
 }
 
+let tableSortCol = "title";
+let tableSortAsc = true;
+let activeFunnelCol = null;
+let isLibraryToolbarInited = false;
+const columnFilters = { title: "", artist: "", album: "", genre: "" };
+
 function initLibraryToolbar() {
+    if (isLibraryToolbarInited) return;
+    isLibraryToolbarInited = true;
     const genreFilter = document.getElementById("library-genre-filter");
     const sortBy = document.getElementById("library-sort-by");
     const colsBtn = document.getElementById("library-columns-btn");
     const colsPopover = document.getElementById("library-columns-popover");
 
-    if (genreFilter) {
-        genreFilter.addEventListener("change", () => renderDiscoverSongsTable());
+    if (genreFilter) genreFilter.addEventListener("change", () => renderDiscoverSongsTable());
+    if (sortBy) sortBy.addEventListener("change", () => renderDiscoverSongsTable());
+
+    // Delegated Funnel & Sort Handlers
+    document.addEventListener("click", (e) => {
+        const funnelBtn = e.target.closest(".col-funnel-btn");
+        if (funnelBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+            const col = funnelBtn.getAttribute("data-col");
+            activeFunnelCol = col;
+
+            const popover = document.getElementById("col-filter-popover");
+            const popTitle = document.getElementById("popover-col-title");
+            const popInput = document.getElementById("col-filter-popover-input");
+
+            if (!popover) return;
+
+            const rect = funnelBtn.getBoundingClientRect();
+            popover.style.position = "fixed";
+            popover.style.display = "block";
+            popover.style.top = `${rect.bottom + 6}px`;
+            popover.style.left = `${Math.min(rect.left, window.innerWidth - 240)}px`;
+
+            if (popTitle) popTitle.textContent = `FILTER ${col.toUpperCase()}`;
+            if (popInput) {
+                popInput.value = columnFilters[col] || "";
+                popInput.focus();
+            }
+            return;
+        }
+
+        const sortBtn = e.target.closest(".col-sort-btn");
+        if (sortBtn) {
+            const col = sortBtn.getAttribute("data-sort");
+            if (tableSortCol === col) {
+                tableSortAsc = !tableSortAsc;
+            } else {
+                tableSortCol = col;
+                tableSortAsc = true;
+            }
+            updateSortIconsUI();
+            renderDiscoverSongsTable();
+            return;
+        }
+
+        const popover = document.getElementById("col-filter-popover");
+        if (popover && popover.style.display === "block") {
+            if (!popover.contains(e.target) && !e.target.closest(".col-funnel-btn")) {
+                popover.style.display = "none";
+            }
+        }
+    });
+
+    const popInput = document.getElementById("col-filter-popover-input");
+    if (popInput) {
+        popInput.addEventListener("input", (e) => {
+            if (activeFunnelCol) {
+                columnFilters[activeFunnelCol] = e.target.value.trim();
+                updateFunnelButtonsUI();
+                renderDiscoverSongsTable();
+            }
+        });
     }
-    if (sortBy) {
-        sortBy.addEventListener("change", () => renderDiscoverSongsTable());
+
+    const popClearBtn = document.getElementById("popover-clear-btn");
+    if (popClearBtn) {
+        popClearBtn.addEventListener("click", () => {
+            if (activeFunnelCol) {
+                columnFilters[activeFunnelCol] = "";
+                if (popInput) popInput.value = "";
+                updateFunnelButtonsUI();
+                renderDiscoverSongsTable();
+            }
+        });
     }
 
     if (colsBtn && colsPopover) {
@@ -5022,6 +5100,7 @@ function initLibraryToolbar() {
         });
     }
 
+    // Column Toggles with LocalStorage Persistence
     const colToggles = [
         { id: "col-toggle-artist", class: "col-artist" },
         { id: "col-toggle-album", class: "col-album" },
@@ -5030,26 +5109,101 @@ function initLibraryToolbar() {
         { id: "col-toggle-size", class: "col-size" },
     ];
 
+    let savedCols = null;
+    try {
+        const raw = localStorage.getItem(`musicgrabber_visible_columns_${activeProfile || 'global'}`);
+        if (raw) savedCols = JSON.parse(raw);
+    } catch (e) {}
+
     colToggles.forEach(t => {
         const el = document.getElementById(t.id);
         if (el) {
+            if (savedCols && typeof savedCols[t.id] === "boolean") {
+                el.checked = savedCols[t.id];
+            }
+            document.querySelectorAll(`.${t.class}`).forEach(c => {
+                if (el.checked) c.classList.remove("col-hidden");
+                else c.classList.add("col-hidden");
+            });
+
             el.addEventListener("change", (e) => {
                 const show = e.target.checked;
                 document.querySelectorAll(`.${t.class}`).forEach(c => {
                     if (show) c.classList.remove("col-hidden");
                     else c.classList.add("col-hidden");
                 });
+                saveColumnVisibilityState();
             });
         }
     });
 }
 
+function saveColumnVisibilityState() {
+    const colState = {
+        "col-toggle-artist": document.getElementById("col-toggle-artist")?.checked ?? true,
+        "col-toggle-album": document.getElementById("col-toggle-album")?.checked ?? true,
+        "col-toggle-genre": document.getElementById("col-toggle-genre")?.checked ?? true,
+        "col-toggle-duration": document.getElementById("col-toggle-duration")?.checked ?? true,
+        "col-toggle-size": document.getElementById("col-toggle-size")?.checked ?? true,
+    };
+    try {
+        localStorage.setItem(`musicgrabber_visible_columns_${activeProfile || 'global'}`, JSON.stringify(colState));
+    } catch (e) {}
+}
+
+function updateFunnelButtonsUI() {
+    document.querySelectorAll(".col-funnel-btn").forEach(btn => {
+        const col = btn.getAttribute("data-col");
+        if (columnFilters[col]) {
+            btn.style.opacity = "1";
+            btn.style.color = "var(--primary)";
+            btn.style.background = "rgba(99, 102, 241, 0.25)";
+            btn.style.boxShadow = "0 0 8px rgba(99, 102, 241, 0.4)";
+        } else {
+            btn.style.opacity = "0.6";
+            btn.style.color = "currentColor";
+            btn.style.background = "transparent";
+            btn.style.boxShadow = "none";
+        }
+    });
+}
+
+function updateSortIconsUI() {
+    document.querySelectorAll("[data-sort-icon]").forEach(span => {
+        const col = span.getAttribute("data-sort-icon");
+        if (col === tableSortCol) {
+            span.style.opacity = "1";
+            span.style.color = "#06b6d4";
+            if (tableSortAsc) {
+                span.innerHTML = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#06b6d4" stroke-width="3"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
+            } else {
+                span.innerHTML = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#06b6d4" stroke-width="3"><path d="M12 5v14M5 12l7 7 7-7"/></svg>`;
+            }
+        } else {
+            span.style.opacity = "0.4";
+            span.style.color = "var(--text-dim)";
+            span.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 10l5-5 5 5M7 14l5 5 5-5"/></svg>`;
+        }
+    });
+}
+
 function renderDiscoverSongsTable(query = "") {
+    initLibraryToolbar();
     if (!discoverData || !discoverSongsTableBody) return;
     discoverSongsTableBody.innerHTML = "";
     let songs = discoverData.all_songs || [];
     const q = query.trim().toLowerCase();
-    
+
+    const fTitle = (columnFilters.title || "").toLowerCase();
+    const fArtist = (columnFilters.artist || "").toLowerCase();
+    const fAlbum = (columnFilters.album || "").toLowerCase();
+    const fGenre = (columnFilters.genre || "").toLowerCase();
+
+    if (fTitle) songs = songs.filter(s => (s.title || "").toLowerCase().includes(fTitle));
+    if (fArtist) songs = songs.filter(s => (s.artist || "").toLowerCase().includes(fArtist));
+    if (fAlbum) songs = songs.filter(s => (s.album || "").toLowerCase().includes(fAlbum));
+    if (fGenre) songs = songs.filter(s => (s.genre || "").toLowerCase().includes(fGenre));
+
     const genreSelect = document.getElementById("library-genre-filter");
     if (genreSelect && genreSelect.options.length <= 1) {
         const uniqueGenres = Array.from(new Set(songs.map(s => s.genre).filter(Boolean))).sort();
@@ -5074,18 +5228,19 @@ function renderDiscoverSongsTable(query = "") {
         );
     }
 
-    const sortSelect = document.getElementById("library-sort-by");
-    const sortVal = sortSelect ? sortSelect.value : "title";
-    if (sortVal === "title") {
-        songs.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
-    } else if (sortVal === "artist") {
-        songs.sort((a, b) => (a.artist || "").localeCompare(b.artist || ""));
-    } else if (sortVal === "duration") {
-        songs.sort((a, b) => (b.duration || 0) - (a.duration || 0));
-    }
+    songs.sort((a, b) => {
+        let valA = a[tableSortCol] || "";
+        let valB = b[tableSortCol] || "";
+        if (typeof valA === "string") valA = valA.toLowerCase();
+        if (typeof valB === "string") valB = valB.toLowerCase();
+        
+        if (valA < valB) return tableSortAsc ? -1 : 1;
+        if (valA > valB) return tableSortAsc ? 1 : -1;
+        return 0;
+    });
 
     if (songs.length === 0) {
-        discoverSongsTableBody.innerHTML = `<tr><td colspan="8" class="empty-table">${q ? 'No songs matching "' + escapeHtml(query) + '" found.' : 'No downloaded songs found yet.'}</td></tr>`;
+        discoverSongsTableBody.innerHTML = `<tr><td colspan="8" class="empty-table">${q || fTitle || fArtist || fAlbum || fGenre ? 'No songs matching filters.' : 'No downloaded songs found yet.'}</td></tr>`;
     } else {
         songs.forEach((s, idx) => {
             const tr = document.createElement("tr");
@@ -5132,12 +5287,67 @@ function renderDiscoverSongsTable(query = "") {
             `;
             
             tr.addEventListener("click", (e) => {
-                if (e.target.closest(".play-btn-row") || e.target.closest(".track-options-btn")) return;
-                playTrack(s, songs);
+                if (e.target.closest(".play-btn-row") || e.target.closest(".track-options-btn") || e.target.closest("input")) return;
+
+                const existingNext = tr.nextElementSibling;
+                if (existingNext && existingNext.classList.contains("song-inline-details-drawer")) {
+                    existingNext.remove();
+                    tr.classList.remove("row-selected");
+                    return;
+                }
+
+                discoverSongsTableBody.querySelectorAll(".song-inline-details-drawer").forEach(d => d.remove());
+                discoverSongsTableBody.querySelectorAll(".discover-song-row").forEach(r => r.classList.remove("row-selected"));
+
+                tr.classList.add("row-selected");
+
+                const drawerTr = document.createElement("tr");
+                drawerTr.className = "song-inline-details-drawer";
+                drawerTr.innerHTML = `
+                    <td colspan="8" style="padding: 0; background: rgba(14, 17, 28, 0.95); border-bottom: 1px solid var(--primary);">
+                        <div style="padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;">
+                            <div style="display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1;">
+                                <div style="width: 60px; height: 60px; border-radius: var(--radius-md); overflow: hidden; background: rgba(0,0,0,0.4); border: 1px solid var(--border-glass); flex-shrink: 0; position: relative; display: flex; align-items: center; justify-content: center;">
+                                    <span style="font-size: 1.8rem; position: absolute; z-index: 1;">🎵</span>
+                                    ${trackThumb ? `<img src="${trackThumb}" style="width: 100%; height: 100%; object-fit: cover; position: absolute; left: 0; top: 0; z-index: 2;">` : ''}
+                                </div>
+                                <div style="min-width: 0; flex: 1;">
+                                    <h4 style="margin: 0 0 4px 0; font-size: 0.95rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(s.title)}</h4>
+                                    <p style="margin: 0 0 6px 0; font-size: 0.8rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(s.artist)} ${s.album ? '• ' + escapeHtml(s.album) : ''} ${s.year ? '(' + s.year + ')' : ''}</p>
+                                    <div style="display: flex; gap: 12px; font-size: 0.75rem; color: var(--text-muted); flex-wrap: wrap;">
+                                        <span>Genre: <strong style="color: var(--text-main);">${escapeHtml(s.genre)}</strong></span>
+                                        <span>Duration: <strong style="color: var(--text-main);">${durationStr}</strong></span>
+                                        <span>Size: <strong style="color: var(--text-main);">${sizeStr}</strong></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                                <button class="btn btn-primary btn-sm drawer-play-btn" style="display: flex; align-items: center; gap: 6px; border-radius: 20px; font-weight: 600;">
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Now
+                                </button>
+                                <button class="btn btn-secondary btn-sm drawer-edit-btn" style="display: flex; align-items: center; gap: 6px;">✏️ Edit Metadata</button>
+                                <button class="btn btn-secondary btn-sm drawer-playlist-btn" style="display: flex; align-items: center; gap: 6px;">➕ Add to Playlist</button>
+                                <button class="btn btn-danger btn-sm drawer-delete-btn" style="display: flex; align-items: center; gap: 6px; color: #f87171;">🗑️ Delete</button>
+                            </div>
+                        </div>
+                    </td>
+                `;
+
+                drawerTr.querySelector(".drawer-play-btn").onclick = () => playTrack(s, songs, idx);
+                drawerTr.querySelector(".drawer-edit-btn").onclick = () => openMetadataEditModal(s);
+                drawerTr.querySelector(".drawer-playlist-btn").onclick = () => openAddToPlaylistModal(s);
+                drawerTr.querySelector(".drawer-delete-btn").onclick = () => deleteTrackFromLibrary(s);
+
+                tr.after(drawerTr);
             });
 
-            tr.querySelector(".play-btn-row").addEventListener("click", () => {
-                playTrack(s, songs);
+            tr.addEventListener("dblclick", () => {
+                playTrack(s, songs, idx);
+            });
+
+            tr.querySelector(".play-btn-row").addEventListener("click", (e) => {
+                e.stopPropagation();
+                playTrack(s, songs, idx);
             });
 
             tr.querySelector(".track-options-btn").addEventListener("click", (e) => {
@@ -5154,7 +5364,27 @@ function renderDiscoverSongsTable(query = "") {
             discoverSongsTableBody.appendChild(tr);
         });
         highlightActivePlayingRows();
+        applyColumnVisibilityState();
     }
+}
+
+function applyColumnVisibilityState() {
+    const colToggles = [
+        { id: "col-toggle-artist", class: "col-artist" },
+        { id: "col-toggle-album", class: "col-album" },
+        { id: "col-toggle-genre", class: "col-genre" },
+        { id: "col-toggle-duration", class: "col-duration" },
+        { id: "col-toggle-size", class: "col-size" },
+    ];
+    colToggles.forEach(t => {
+        const el = document.getElementById(t.id);
+        if (el) {
+            document.querySelectorAll(`.${t.class}`).forEach(c => {
+                if (el.checked) c.classList.remove("col-hidden");
+                else c.classList.add("col-hidden");
+            });
+        }
+    });
 }
 
 function openDiscoverDetails(title, tracks) {
