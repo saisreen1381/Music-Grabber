@@ -59,11 +59,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Helper to find yt-dlp path
 def find_ytdlp():
-    potential = os.path.expanduser("~/.local/share/pipx/venvs/spotdl/bin/yt-dlp")
-    if os.path.exists(potential):
-        return potential
+    import shutil, sys
+    path_bin = shutil.which("yt-dlp")
+    if path_bin:
+        return path_bin
+        
+    py_dir = os.path.dirname(sys.executable)
+    candidates = [
+        os.path.join(py_dir, "yt-dlp.exe"),
+        os.path.join(py_dir, "yt-dlp"),
+        os.path.join(py_dir, "Scripts", "yt-dlp.exe"),
+        os.path.expanduser("~/.local/share/pipx/venvs/spotdl/bin/yt-dlp"),
+        os.path.expanduser("~/pipx/venvs/spotdl/Scripts/yt-dlp.exe"),
+        os.path.expanduser("~/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0/LocalCache/local-packages/Python313/Scripts/yt-dlp.exe"),
+        os.path.expanduser("~/AppData/Local/Programs/Python/Python313/Scripts/yt-dlp.exe"),
+        os.path.expanduser("~/AppData/Roaming/Python/Python313/Scripts/yt-dlp.exe"),
+        os.path.expanduser("~/AppData/Local/Programs/Python/Python312/Scripts/yt-dlp.exe"),
+    ]
+    for cand in candidates:
+        if os.path.exists(cand):
+            return cand
     return "yt-dlp"
 
 YTDLP_PATH = find_ytdlp()
@@ -1412,7 +1428,7 @@ def trigger_manual_sync(username: str):
     def sse_log_generator():
         log_lines = []
         try:
-            gen = run_sync_engine_generator(str(config_file), YTDLP_PATH, scheduler)
+            gen = run_sync_engine_generator(str(config_file), find_ytdlp(), scheduler)
             sync_success = True
             for raw_line in gen:
                 if raw_line == "SYNC_FINISHED_SUCCESS":
@@ -2168,8 +2184,8 @@ def stream_ytmusic_online(request: Request, username: str, url: str):
     if not first_url:
         profile_dir = USERS_DIR / username
         cookie_file = get_user_cookie_file(profile_dir) if profile_dir.exists() else None
-
-        cmd = [YTDLP_PATH, "-g", "-f", "bestaudio/best", "--no-warnings", "--js-runtimes", "node"]
+        active_ytdlp = find_ytdlp()
+        cmd = [active_ytdlp, "-g", "-f", "bestaudio/best", "--no-warnings"]
         if cookie_file and os.path.exists(cookie_file):
             cmd.extend(["--cookies", cookie_file])
         cmd.append(clean_url)
@@ -2181,18 +2197,14 @@ def stream_ytmusic_online(request: Request, username: str, url: str):
 
         # 1. Fallback without cookies if cookies failed
         if is_invalid(stream_url) and cookie_file:
-            cmd_nocookie = [c for c in cmd]
-            try:
-                c_idx = cmd_nocookie.index("--cookies")
-                del cmd_nocookie[c_idx:c_idx+2]
-            except ValueError:
-                pass
+            cmd_nocookie = [c for c in cmd if c not in ["--cookies", str(cookie_file)]]
             stream_url = run_cmd(cmd_nocookie)
 
-        # 2. Fallback without js-runtimes node
-        if is_invalid(stream_url):
-            cmd_fallback = [c for c in cmd if c not in ["--js-runtimes", "node", "--cookies", str(cookie_file)]]
-            stream_url = run_cmd(cmd_fallback)
+        # 2. Search fallback if clean_url is a title/search query instead of full URL
+        if is_invalid(stream_url) and not clean_url.startswith("http"):
+            search_url = f"ytsearch1:{clean_url}"
+            cmd_search = [active_ytdlp, "-g", "-f", "bestaudio/best", "--no-warnings", search_url]
+            stream_url = run_cmd(cmd_search)
 
         if is_invalid(stream_url):
             raise HTTPException(status_code=404, detail="Failed to extract audio stream URL")

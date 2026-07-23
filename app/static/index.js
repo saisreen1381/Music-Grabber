@@ -319,6 +319,46 @@ function isLocalTrack(track) {
     return false;
 }
 
+function getLocalFilename(track) {
+    if (!track) return null;
+    
+    // Only trust explicit local properties if the track has confirmed-local flags
+    const confirmedLocal = track.path || track.is_local || track.downloaded;
+    if (confirmedLocal) {
+        if (track.local_filename) return track.local_filename;
+        if (track.filename) return track.filename;
+        if (track.path) return track.path.split(/[\/\\]/).pop();
+    }
+
+    // Fuzzy match against scanned local files using the track title/name
+    const fn = track.local_filename || track.filename || track.name || "";
+    const title = track.title || track.display_name || "";
+
+    const normFnFull = normalizeTrackName(fn, false);
+    const normFnStrip = normalizeTrackName(fn, true);
+    const normTitleFull = normalizeTrackName(title, false);
+    const normTitleStrip = normalizeTrackName(title, true);
+
+    const normTargets = [normTitleFull, normTitleStrip, normFnFull, normFnStrip].filter(n => n && n.length >= 3);
+
+    if (typeof scannedFiles !== "undefined" && Array.isArray(scannedFiles)) {
+        for (const f of scannedFiles) {
+            const fName = f.name || f.filename || "";
+            const fNormFull = normalizeTrackName(fName, false);
+            const fNormStrip = normalizeTrackName(fName, true);
+            if (fNormFull && (normTargets.includes(fNormFull) || normTargets.includes(fNormStrip))) {
+                return fName;
+            }
+            for (const target of normTargets) {
+                if (target.length >= 5 && fNormFull.length >= 5 && (target.includes(fNormFull) || fNormFull.includes(target))) {
+                    return fName;
+                }
+            }
+        }
+    }
+    return null;
+}
+
 // Helper: Format Bytes
 function formatBytes(bytes, decimals = 2) {
     if (bytes === 0) return '0 Bytes';
@@ -790,11 +830,11 @@ async function refreshStatus() {
             syncBadge.textContent = "Syncing";
             syncNowBtn.disabled = true;
             syncModalTitle.innerHTML = `<span class="spinner" style="width: 14px; height: 14px; border-width: 2px; border-top-color: var(--primary); margin: 0;"></span> Syncing Library...`;
-            if (syncQuoteBox) syncQuoteBox.style.display = "flex";
-            if (syncCurrentSongWrapper) syncCurrentSongWrapper.style.display = "block";
-            if (syncProgressBarWrapper) syncProgressBarWrapper.style.display = "block";
-            if (syncStatsWrapper) syncStatsWrapper.style.display = "flex";
-            if (syncTimersWrapper) syncTimersWrapper.style.display = "grid";
+            if (syncQuoteBox) syncQuoteBox.style.display = "none";
+            if (syncCurrentSongWrapper) syncCurrentSongWrapper.style.display = "none";
+            if (syncProgressBarWrapper) syncProgressBarWrapper.style.display = "flex";
+            if (syncStatsWrapper) syncStatsWrapper.style.display = "grid";
+            if (syncTimersWrapper) syncTimersWrapper.style.display = "none";
             if (syncControlsWrapper) syncControlsWrapper.style.display = "flex";
             
             // Auto expand logs during sync so users see lines stream in
@@ -1467,11 +1507,11 @@ syncNowBtn.addEventListener("click", () => {
     const syncStatsWrapper = document.getElementById("sync-stats-wrapper");
     const syncTimersWrapper = document.getElementById("sync-timers-wrapper");
 
-    if (syncQuoteBox) syncQuoteBox.style.display = "flex";
-    if (syncCurrentSongWrapper) syncCurrentSongWrapper.style.display = "block";
-    if (syncProgressBarWrapper) syncProgressBarWrapper.style.display = "block";
-    if (syncStatsWrapper) syncStatsWrapper.style.display = "flex";
-    if (syncTimersWrapper) syncTimersWrapper.style.display = "grid";
+    if (syncQuoteBox) syncQuoteBox.style.display = "none";
+    if (syncCurrentSongWrapper) syncCurrentSongWrapper.style.display = "none";
+    if (syncProgressBarWrapper) syncProgressBarWrapper.style.display = "flex";
+    if (syncStatsWrapper) syncStatsWrapper.style.display = "grid";
+    if (syncTimersWrapper) syncTimersWrapper.style.display = "none";
     if (syncControlsWrapper) syncControlsWrapper.style.display = "flex";
 
     // Expand the logs console so lines stream in
@@ -1480,17 +1520,11 @@ syncNowBtn.addEventListener("click", () => {
     if (syncModalProgress) syncModalProgress.style.width = "0%";
     if (syncProcessedCount) syncProcessedCount.textContent = "0 / 0 Songs";
     if (syncPercentText) syncPercentText.textContent = "0%";
+    const syncProgressStatusText = document.getElementById("sync-progress-status-text");
+    if (syncProgressStatusText) syncProgressStatusText.textContent = "Scanning local library...";
     if (syncElapsedTime) syncElapsedTime.textContent = "0:00";
-    if (syncEtaTime) syncEtaTime.textContent = "Calculating...";
-    
-    // Rotating quotes
-    function updateQuote() {
-        const idx = Math.floor(Math.random() * syncQuotes.length);
-        if (syncQuoteBox) syncQuoteBox.textContent = syncQuotes[idx];
-    }
-    updateQuote();
-    quoteTimer = setInterval(updateQuote, 8000);
-    
+    if (syncEtaTime) syncEtaTime.textContent = "--:--";
+
     // Elapsed and ETA Timer
     function formatTimer(sec) {
         const m = Math.floor(sec / 60);
@@ -1509,7 +1543,7 @@ syncNowBtn.addEventListener("click", () => {
         } else if (processedTracks >= totalTracks && totalTracks > 0) {
             if (syncEtaTime) syncEtaTime.textContent = "0:00";
         } else {
-            if (syncEtaTime) syncEtaTime.textContent = "Calculating...";
+            if (syncEtaTime) syncEtaTime.textContent = "--:--";
         }
     }, 1000);
     
@@ -1523,9 +1557,15 @@ syncNowBtn.addEventListener("click", () => {
             syncBadge.className = "badge badge-idle";
             syncBadge.textContent = "Idle";
         }
+        if (syncControlsWrapper) syncControlsWrapper.style.display = "none";
     }
     
     // Connect to Server Sent Events
+    if (eventSource) {
+        try { eventSource.close(); } catch(e) {}
+        eventSource = null;
+    }
+    
     eventSource = new EventSource(`/api/sync/run?username=${activeProfile}`);
     
     eventSource.onmessage = (event) => {
@@ -1566,17 +1606,20 @@ syncNowBtn.addEventListener("click", () => {
             if (elDl) elDl.textContent = `0 / ${totalTracks}`;
             const badge = document.getElementById("to-download-count");
             if (badge) badge.textContent = totalTracks;
-            syncModalProgress.style.width = "0%";
+            if (syncModalProgress) syncModalProgress.style.width = "0%";
+            if (syncPercentText) syncPercentText.textContent = "0%";
+            if (syncProgressStatusText) syncProgressStatusText.textContent = `Downloading ${totalTracks} new tracks...`;
         } else if (line.includes("All songs are up-to-date!")) {
-            syncCurrentSong.textContent = "All songs are up-to-date!";
-            syncModalProgress.style.width = "100%";
+            if (syncProgressStatusText) syncProgressStatusText.textContent = "All songs are up-to-date!";
+            if (syncModalProgress) syncModalProgress.style.width = "100%";
+            if (syncPercentText) syncPercentText.textContent = "100%";
             const elDl = document.getElementById("sync-metric-downloaded");
             if (elDl) elDl.textContent = "Up to date";
-            syncEtaTime.textContent = "0:00";
+            if (syncEtaTime) syncEtaTime.textContent = "0:00";
         } else if (line.includes("Starting download: ")) {
             const parts = line.split("Starting download: ");
-            if (parts.length > 1) {
-                syncCurrentSong.textContent = cleanMediaExtension(parts[1]);
+            if (parts.length > 1 && syncProgressStatusText) {
+                syncProgressStatusText.textContent = `Downloading: ${cleanMediaExtension(parts[1])}`;
             }
         } else if (line.includes("SUCCESS: ") || line.includes("FAILED: ")) {
             processedTracks++;
@@ -1584,13 +1627,24 @@ syncNowBtn.addEventListener("click", () => {
             if (elDl) elDl.textContent = `${processedTracks} / ${totalTracks}`;
             if (totalTracks > 0) {
                 const pct = Math.min(100, Math.round((processedTracks / totalTracks) * 100));
-                syncModalProgress.style.width = `${pct}%`;
+                if (syncModalProgress) syncModalProgress.style.width = `${pct}%`;
+                if (syncPercentText) syncPercentText.textContent = `${pct}%`;
+                if (syncProgressStatusText) syncProgressStatusText.textContent = `Downloaded ${processedTracks} of ${totalTracks} tracks (${pct}%)`;
             }
             // Auto refresh downloaded files periodically as songs complete
             loadFiles();
         } else if (line === "SYNC_FINISHED_SUCCESS") {
+            // Close EventSource immediately to prevent auto-reconnect before server closes stream
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
             endSyncModal("Sync Successful!");
         } else if (line === "SYNC_FINISHED_FAILED") {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
             endSyncModal("<span style='color: var(--danger)'>Sync Completed with Errors</span>");
         }
         
@@ -1604,12 +1658,14 @@ syncNowBtn.addEventListener("click", () => {
             eventSource = null;
         }
         if (syncNowBtn) syncNowBtn.disabled = false;
-        syncBadge.className = "badge badge-idle";
-        syncBadge.textContent = "Idle";
+        if (syncBadge) {
+            syncBadge.className = "badge badge-idle";
+            syncBadge.textContent = "Idle";
+        }
+        if (syncControlsWrapper) syncControlsWrapper.style.display = "none";
         appendTerminalLine("[System] Sync connection completed or reset.");
         refreshStatus();
         loadFiles();
-        endSyncModal("Sync Complete");
     };
 });
 
@@ -2359,17 +2415,16 @@ function playTrack(track, queue = [], index = -1) {
         }
     } catch (e) {}
     
-    const filename = track.local_filename || track.filename || track.name;
-    const isLocal = isLocalTrack(track);
+    const localFile = getLocalFilename(track);
+    const isLocal = isLocalTrack(track) || Boolean(localFile);
     currentPlayingTrack.is_local = isLocal;
 
-    if (isLocal && (filename || track.path)) {
-        const playFile = filename || (track.path ? track.path.split(/[\/\\]/).pop() : "");
-        localAudioElement.src = `/api/stream?username=${activeProfile}&filename=${encodeURIComponent(playFile)}`;
+    if (isLocal && localFile) {
+        localAudioElement.src = `/api/stream?username=${activeProfile}&filename=${encodeURIComponent(localFile)}`;
     } else if (track.url) {
         localAudioElement.src = `/api/ytmusic/stream?username=${activeProfile}&url=${encodeURIComponent(track.url)}`;
-    } else if (filename) {
-        localAudioElement.src = `/api/stream?username=${activeProfile}&filename=${encodeURIComponent(filename)}`;
+    } else if (localFile) {
+        localAudioElement.src = `/api/stream?username=${activeProfile}&filename=${encodeURIComponent(localFile)}`;
     } else {
         showToast("Cannot play track: No local file or stream URL available.", "danger");
         return;
@@ -4509,8 +4564,6 @@ function renderYtMusicSongsTable(songs) {
                 title: title,
                 artist: artist,
                 url: trackUrl,
-                local_filename: `${title}.mp3`,
-                filename: `${title}.mp3`,
                 thumbnail_url: songThumb
             };
             const fullQueue = songs.map(item => {
@@ -4519,8 +4572,6 @@ function renderYtMusicSongsTable(songs) {
                     title: itemTitle,
                     artist: item.artist || "YouTube Artist",
                     url: item.url || (item.id ? `https://www.youtube.com/watch?v=${item.id}` : ""),
-                    local_filename: `${itemTitle}.mp3`,
-                    filename: `${itemTitle}.mp3`,
                     thumbnail_url: item.thumbnail || (item.id ? `https://i.ytimg.com/vi/${item.id}/mqdefault.jpg` : "")
                 };
             });

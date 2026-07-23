@@ -220,7 +220,7 @@ class BackgroundScheduler:
             log_lines = []
             
             # Start sync generator
-            gen = run_sync_engine_generator(str(config_file), self.ytdlp_path)
+            gen = run_sync_engine_generator(str(config_file), self.ytdlp_path, self)
             success = True
             
             for line in gen:
